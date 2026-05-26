@@ -1,0 +1,89 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-27 01:13:16.176301",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_p4aw"
+ ],
+"fields": [
+  {
+   "fieldname": "registration_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Registration Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "airline",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Airline",
+   "options": "Airline",
+   "reqd": 1
+  },
+  {
+   "fieldname": "aircraft_model",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Aircraft Model",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nMaintenance\nRetired",
+   "default": "Active",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total_seats",
+   "fieldtype": "Int",
+   "label": "Total Seats (Auto-calculated)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "seat_config_section",
+   "fieldtype": "Section Break",
+   "label": "Seat Configuration"
+  },
+  {
+   "fieldname": "seat_config",
+   "fieldtype": "Table",
+   "label": "Seat Configuration",
+   "options": "Airplane Seat Config",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-27 01:13:16.176301",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Airplane",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

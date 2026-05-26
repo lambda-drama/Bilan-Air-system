@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-27 01:09:22.065649",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_gglk"
+ ],
+"fields": [
+  {
+   "fieldname": "class_name",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Class Name",
+   "reqd": 1,
+   "options": "Economy\nBusiness\nFirst Class"
+  },
+  {
+   "default": "1.0",
+   "fieldname": "price_multiplier",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Price Multiplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "color_code",
+   "fieldtype": "Data",
+   "label": "Color Code (for seat map)",
+   "placeholder": "#FFD700"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-27 01:09:22.065649",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Seat Class",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

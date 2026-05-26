@@ -5,6 +5,27 @@ app_description = "Air booking system"
 app_email = "maniajrmania@gmail.com"
 app_license = "mit"
 
+# Fixtures (exported with: bench --site <site> export-fixtures)
+fixtures = [
+	{
+		"dt": "Role",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Booking Agent",
+					"Check-in Agent",
+					"Crew Member",
+					"Support Agent",
+					"Pricing Manager",
+					"Baggage Handler",
+				],
+			]
+		],
+	},
+]
+
 # Apps
 # ------------------
 
@@ -142,6 +163,21 @@ app_license = "mit"
 
 # Scheduled Tasks
 # ---------------
+
+# hooks.py
+
+#Will check later if we need to add scheduled tasks for things like releasing expired seats, sending reminders, etc.
+# scheduler_events = {
+#     "all": [
+#         "bilan_air.utils.tasks.release_expired_seats"
+#     ],
+#     "daily": [
+#         "bilan_air.utils.tasks.send_flight_reminders"
+#     ],
+#     "hourly": [
+#         "bilan_air.utils.tasks.update_flight_statuses"
+#     ]
+# }
 
 # scheduler_events = {
 # 	"all": [

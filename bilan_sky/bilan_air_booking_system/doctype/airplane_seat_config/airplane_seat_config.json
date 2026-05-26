@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-27 01:12:22.466437",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_jieo"
+ ],
+"fields": [
+  {
+   "fieldname": "seat_class",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Seat Class",
+   "options": "Seat Class",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "rows",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Number of Rows",
+   "reqd": 1
+  },
+  {
+   "fieldname": "columns_per_row",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Columns per Row",
+   "options": "A,B,C,D,E,F\nA,B,C,D,E,F,G\nA,B,C,D,E,F,G,H\nA,B,C,D,E,F,G,H,J",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "start_row_number",
+   "fieldtype": "Int",
+   "label": "Start Row Number",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-27 01:12:22.466437",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Airplane Seat Config",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
