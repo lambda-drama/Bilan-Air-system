@@ -82,6 +82,22 @@ def process_payment(pnr, payment_method, transaction_id=None):
         "total": booking.total_fare
     }
 
+@frappe.whitelist()
+def generate_tickets_for_booking(pnr):
+	"""Generate ticket numbers for all passengers on an Air Booking."""
+	booking = frappe.get_doc("Air Booking", pnr)
+	tickets = booking.generate_ticket_numbers(show_message=False)
+	booking.flags.ignore_validate = True
+	booking.save()
+	frappe.db.commit()
+
+	return {
+		"pnr": booking.name,
+		"count": len(tickets),
+		"ticket_numbers": tickets,
+	}
+
+
 @frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
     """Get booking by PNR"""

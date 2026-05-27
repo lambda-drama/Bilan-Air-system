@@ -29,6 +29,12 @@ frappe.ui.form.on('Air Booking', {
                 });
             });
         }
+
+        if (!frm.is_new() && frm.doc.passengers && frm.doc.passengers.length) {
+            frm.add_custom_button(__('Generate Ticket Numbers'), function() {
+                generate_ticket_numbers(frm);
+            }, __('Actions'));
+        }
     },
     
     flight_schedule: function(frm) {
@@ -67,7 +73,7 @@ function validate_booking_cutoff(frm) {
             var flight = response.message;
             
             frappe.call({
-                method: 'frappe.client.get_single',
+                method: 'frappe.client.get',
                 args: { doctype: 'BA Settings' },
                 callback: function(settings_res) {
                     var settings = settings_res.message;
@@ -181,6 +187,27 @@ function calculate_total_fare(frm) {
         total += row.fare_paid || 0;
     });
     frm.set_value('total_fare', total);
+}
+
+function generate_ticket_numbers(frm) {
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.api.air_booking.generate_tickets_for_booking',
+        args: { pnr: frm.doc.name },
+        freeze: true,
+        freeze_message: __('Generating ticket numbers...'),
+        callback: function(r) {
+            if (!r.message) {
+                return;
+            }
+
+            frm.reload_doc().then(() => {
+                frappe.show_alert({
+                    message: __('Generated {0} ticket number(s)', [r.message.count]),
+                    indicator: 'green',
+                });
+            });
+        },
+    });
 }
 
 function confirm_booking(frm) {

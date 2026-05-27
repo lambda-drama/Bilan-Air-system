@@ -1,18 +1,29 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "allow_rename": 0,
  "creation": "2026-05-27 01:32:28.677127",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_plk7"
+  "tracking_number",
+  "air_booking",
+  "passenger",
+  "flight_schedule",
+  "weight_kg",
+  "column_break_dxuh",
+  "baggage_fee",
+  "status",
+  "checked_in_at",
+  "is_excess"
  ],
-"fields": [
+ "fields": [
   {
+   "description": "Auto-generated: sequence + PNR (e.g. 001-BA-00001). Same as document name.",
    "fieldname": "tracking_number",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Tracking Number",
    "read_only": 1,
    "unique": 1
@@ -21,6 +32,7 @@
    "fieldname": "air_booking",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Air Booking (PNR)",
    "options": "Air Booking",
    "reqd": 1
@@ -29,6 +41,7 @@
    "fieldname": "passenger",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Passenger",
    "options": "Passenger",
    "reqd": 1
@@ -36,6 +49,8 @@
   {
    "fieldname": "flight_schedule",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Flight Schedule",
    "options": "Flight Schedule",
    "reqd": 1
@@ -44,41 +59,50 @@
    "fieldname": "weight_kg",
    "fieldtype": "Float",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Weight (kg)",
    "reqd": 1
   },
   {
    "fieldname": "baggage_fee",
    "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Baggage Fee",
    "reqd": 1
   },
   {
+   "default": "Checked In",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Checked In\nLoaded\nUnloaded\nClaimed\nLost",
-   "default": "Checked In",
    "reqd": 1
   },
   {
+   "default": "Now",
    "fieldname": "checked_in_at",
    "fieldtype": "Datetime",
-   "label": "Checked In At",
-   "default": "Now"
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Checked In At"
   },
   {
+   "default": "0",
    "fieldname": "is_excess",
    "fieldtype": "Check",
-   "default": "0",
    "label": "Is Excess Baggage"
+  },
+  {
+   "fieldname": "column_break_dxuh",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:32:34.408302",
+ "modified": "2026-05-27 14:56:36.581886",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Baggage Tracking",

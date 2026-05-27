@@ -36,7 +36,7 @@ def add_baggage(pnr, passenger_id, weight_kg):
     frappe.db.commit()
     
     return {
-        "tracking_number": baggage.name,
+        "tracking_number": baggage.tracking_number,
         "weight": weight_kg,
         "fee": fee,
         "is_excess": is_excess
@@ -46,10 +46,13 @@ def add_baggage(pnr, passenger_id, weight_kg):
 def trace_baggage(tracking_number):
     """Track baggage by tracking number"""
     
-    baggage = frappe.get_doc("Baggage Tracking", tracking_number)
-    
+    baggage_name = frappe.db.get_value(
+        "Baggage Tracking", {"tracking_number": tracking_number}, "name"
+    ) or tracking_number
+    baggage = frappe.get_doc("Baggage Tracking", baggage_name)
+
     return {
-        "tracking_number": baggage.name,
+        "tracking_number": baggage.tracking_number,
         "status": baggage.status,
         "passenger": baggage.passenger,
         "flight": baggage.flight_schedule,

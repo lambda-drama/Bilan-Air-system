@@ -1,25 +1,29 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-05-27 00:59:44.726360",
+ "creation": "2026-05-27 12:45:24.167302",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_wuhu"
+  "hold_duration",
+  "booking_cutoff_hours",
+  "max_baggage_kg",
+  "excess_baggage_fee",
+  "column_break_ysvj",
+  "default_currency",
+  "infant_fare_percentage",
+  "child_fare_percentage",
+  "sb_accounting",
+  "default_cash_account",
+  "column_break_hqlf",
+  "default_mpesa_account"
  ],
-"fields": [
-  {
-   "fieldname": "setting_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Setting Name",
-   "reqd": 1,
-   "unique": 1
-  },
+ "fields": [
   {
    "default": "15",
    "fieldname": "hold_duration",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Hold Duration (minutes)",
    "reqd": 1
   },
@@ -27,6 +31,7 @@
    "default": "2",
    "fieldname": "booking_cutoff_hours",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Booking Cutoff (hours before departure)",
    "reqd": 1
   },
@@ -34,6 +39,7 @@
    "default": "30",
    "fieldname": "max_baggage_kg",
    "fieldtype": "Float",
+   "in_list_view": 1,
    "label": "Max Baggage Weight (kg)",
    "reqd": 1
   },
@@ -41,6 +47,7 @@
    "default": "5",
    "fieldname": "excess_baggage_fee",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Excess Baggage Fee per KG",
    "reqd": 1
   },
@@ -72,24 +79,31 @@
    "label": "Accounting Settings"
   },
   {
-   "default": "Cash",
    "fieldname": "default_cash_account",
    "fieldtype": "Link",
    "label": "Default Cash Account",
    "options": "Account"
   },
   {
-   "default": "M-Pesa",
    "fieldname": "default_mpesa_account",
    "fieldtype": "Link",
    "label": "Default M-Pesa Account",
    "options": "Account"
+  },
+  {
+   "fieldname": "column_break_ysvj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hqlf",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "issingle": 1,
  "links": [],
- "modified": "2026-05-27 00:59:44.726360",
+ "modified": "2026-05-27 12:49:49.085093",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",
@@ -99,10 +113,8 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
-   "report": 1,
    "role": "System Manager",
    "share": 1,
    "write": 1

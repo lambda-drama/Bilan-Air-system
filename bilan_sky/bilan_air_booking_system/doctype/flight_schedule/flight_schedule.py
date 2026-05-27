@@ -1,16 +1,45 @@
 # Copyright (c) 2026, NF and contributors
 # For license information, please see license.txt
 
-# import frappe
 import frappe
 from frappe.model.document import Document
 
+from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
+	assert_unique_flight_number,
+	generate_flight_number,
+)
+
+
 class FlightSchedule(Document):
-    
+    def autoname(self):
+        self._ensure_flight_number()
+        self.name = self.flight_number
+
+    def validate(self):
+        self._ensure_flight_number()
+        if self.name != self.flight_number:
+            self.flight_number = self.name
+        if self.flight_number and self.departure_date:
+            assert_unique_flight_number(self.flight_number, self.departure_date, self.name)
+
+    def _ensure_flight_number(self):
+        if self.flight_number and not self.is_new():
+            return
+
+        if not (self.airplane and self.route and self.departure_date):
+            return
+
+        self.flight_number = generate_flight_number(
+            airplane=self.airplane,
+            route=self.route,
+            departure_date=self.departure_date,
+            exclude_name=self.name if not self.is_new() else None,
+        )
+
     # =========================================================
     # SEAT INVENTORY
     # =========================================================
-    
+
     def generate_seat_inventory(self):
         """Create seat records for this flight from airplane config"""
         

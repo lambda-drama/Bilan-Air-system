@@ -175,7 +175,7 @@ class SeatInventory(Document):
         if not self.hold_expiry:
             return False
         
-        return now() > self.hold_expiry
+        return get_datetime(now()) > get_datetime(self.hold_expiry)
     
     def release_if_expired(self):
         """Release seat if reservation has expired"""

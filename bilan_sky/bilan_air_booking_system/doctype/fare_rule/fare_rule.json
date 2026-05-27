@@ -1,13 +1,19 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "FR-.####",
  "creation": "2026-05-27 01:16:48.159757",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_ineq"
+  "route",
+  "days_before_departure",
+  "price_increase_percentage",
+  "column_break_ijyk",
+  "is_active",
+  "priority"
  ],
-"fields": [
+ "fields": [
   {
    "fieldname": "route",
    "fieldtype": "Link",
@@ -31,25 +37,30 @@
    "reqd": 1
   },
   {
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "default": "1",
    "label": "Is Active"
   },
   {
+   "default": "0",
    "fieldname": "priority",
    "fieldtype": "Int",
-   "label": "Priority (lower = applied first)",
-   "default": "0"
+   "label": "Priority (lower = applied first)"
+  },
+  {
+   "fieldname": "column_break_ijyk",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:16:48.159757",
+ "modified": "2026-05-27 12:03:37.719515",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Fare Rule",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

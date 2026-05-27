@@ -5,21 +5,40 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_xjts"
+  "route_name",
+  "flight_series_base",
+  "origin_airport",
+  "destination_airport",
+  "distance_km",
+  "column_break_xkze",
+  "base_fare",
+  "is_active",
+  "notes"
  ],
-"fields": [
+ "fields": [
   {
+   "description": "Auto-generated as ORIGIN_IATA-DESTINATION_IATA (e.g. NBO-JFK)",
    "fieldname": "route_name",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Route Name",
+   "read_only": 1,
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "description": "Numeric base for flight numbers on this route (e.g. 100 → KQ100)",
+   "fieldname": "flight_series_base",
+   "fieldtype": "Int",
+   "label": "Flight Series Base",
+   "read_only": 1
   },
   {
    "fieldname": "origin_airport",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Origin Airport",
    "options": "Airport",
    "reqd": 1
@@ -28,6 +47,7 @@
    "fieldname": "destination_airport",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Destination Airport",
    "options": "Airport",
    "reqd": 1
@@ -35,6 +55,8 @@
   {
    "fieldname": "distance_km",
    "fieldtype": "Float",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Distance (km)",
    "reqd": 1
   },
@@ -42,28 +64,34 @@
    "fieldname": "base_fare",
    "fieldtype": "Currency",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Base Fare (Adult, Economy)",
    "reqd": 1
   },
   {
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "default": "1",
    "label": "Is Active"
   },
   {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_xkze",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:14:44.807367",
+ "modified": "2026-05-27 12:02:21.219676",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Route",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

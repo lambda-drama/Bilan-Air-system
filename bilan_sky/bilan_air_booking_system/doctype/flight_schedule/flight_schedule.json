@@ -5,20 +5,43 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_ikf4"
+  "flight_number",
+  "route",
+  "airplane",
+  "departure_date",
+  "departure_time",
+  "column_break_1",
+  "arrival_date",
+  "arrival_time",
+  "status",
+  "crew_section",
+  "captain",
+  "captain_name",
+  "column_break_vumf",
+  "first_officer",
+  "first_officer_name",
+  "section_break_lcjg",
+  "cabin_crew",
+  "pricing_section",
+  "base_fare_override",
+  "cutoff_datetime"
  ],
-"fields": [
+ "fields": [
   {
+   "description": "Auto-generated as AIRLINE_IATA + number (e.g. KQ100). Based on route series and departure date.",
    "fieldname": "flight_number",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Flight Number",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "route",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Route",
    "options": "Flight Route",
    "reqd": 1
@@ -27,6 +50,7 @@
    "fieldname": "airplane",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Airplane",
    "options": "Airplane",
    "reqd": 1
@@ -35,6 +59,7 @@
    "fieldname": "departure_date",
    "fieldtype": "Date",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Departure Date",
    "reqd": 1
   },
@@ -62,12 +87,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Scheduled",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Scheduled\nDelayed\nCancelled\nDeparted\nArrived",
-   "default": "Scheduled",
    "reqd": 1
   },
   {
@@ -77,14 +102,16 @@
   },
   {
    "fieldname": "captain",
-   "fieldtype": "Data",
-   "label": "Captain Name",
+   "fieldtype": "Link",
+   "label": "Captain",
+   "options": "Crew Member",
    "reqd": 1
   },
   {
    "fieldname": "first_officer",
-   "fieldtype": "Data",
-   "label": "First Officer Name"
+   "fieldtype": "Link",
+   "label": "First Officer",
+   "options": "Crew Member"
   },
   {
    "fieldname": "cabin_crew",
@@ -107,12 +134,32 @@
    "fieldtype": "Datetime",
    "label": "Booking Cutoff (auto-calculated)",
    "read_only": 1
+  },
+  {
+   "fetch_from": "captain.full_name",
+   "fieldname": "captain_name",
+   "fieldtype": "Data",
+   "label": "Captain Name"
+  },
+  {
+   "fieldname": "column_break_vumf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "first_officer.full_name",
+   "fieldname": "first_officer_name",
+   "fieldtype": "Data",
+   "label": "First Officer Name"
+  },
+  {
+   "fieldname": "section_break_lcjg",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:15:24.860418",
+ "modified": "2026-05-27 14:46:07.622792",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Schedule",

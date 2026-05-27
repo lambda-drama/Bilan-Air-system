@@ -1,17 +1,26 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "SI-.#####",
  "creation": "2026-05-27 01:17:29.095295",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_jcot"
+  "flight_schedule",
+  "seat_number",
+  "seat_class",
+  "status",
+  "column_break_aqtk",
+  "hold_expiry",
+  "booking_reference",
+  "price_at_booking"
  ],
  "fields": [
   {
    "fieldname": "flight_schedule",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Flight Schedule",
    "options": "Flight Schedule",
    "reqd": 1
@@ -20,6 +29,7 @@
    "fieldname": "seat_number",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Seat Number",
    "reqd": 1
   },
@@ -27,17 +37,19 @@
    "fieldname": "seat_class",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Seat Class",
    "options": "Seat Class",
    "reqd": 1
   },
   {
+   "default": "Available",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
    "options": "Available\nReserved\nBooked\nOccupied",
-   "default": "Available",
    "reqd": 1
   },
   {
@@ -49,21 +61,26 @@
    "fieldname": "booking_reference",
    "fieldtype": "Link",
    "label": "Booking Reference",
-   "options": "Booking"
+   "options": "Air Booking"
   },
   {
    "fieldname": "price_at_booking",
    "fieldtype": "Currency",
    "label": "Price at Booking"
+  },
+  {
+   "fieldname": "column_break_aqtk",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:17:29.095295",
+ "modified": "2026-05-27 14:50:45.587201",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Seat Inventory",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

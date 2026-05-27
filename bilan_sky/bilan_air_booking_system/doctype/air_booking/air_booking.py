@@ -4,14 +4,23 @@
 # import frappe
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now, get_datetime
+from frappe.utils import get_datetime, getdate, now
 
 class AirBooking(Document):
-    
+    def autoname(self):
+        from frappe.model.naming import make_autoname
+
+        self.name = make_autoname("BA-.#####")
+        self.pnr = self.name
+
+    def validate(self):
+        if self.name:
+            self.pnr = self.name
+
     # =========================================================
     # BEFORE SAVE VALIDATIONS
     # =========================================================
-    
+
     def before_save(self):
         """Run validations before saving"""
         self.validate_booking_cutoff()
@@ -37,7 +46,7 @@ class AirBooking(Document):
         cutoff_datetime = add_to_date(departure_datetime, hours=-cutoff_hours)
         
         # Check if current time is past cutoff
-        if now() > cutoff_datetime:
+        if get_datetime(now()) > get_datetime(cutoff_datetime):
             frappe.throw(f"Cannot book. Booking cutoff was {cutoff_datetime}")
     
     def validate_seat_availability(self):
@@ -94,7 +103,7 @@ class AirBooking(Document):
             
             # Apply fare rule (days before departure)
             from frappe.utils import date_diff
-            days_before = date_diff(flight.departure_date, now())
+            days_before = date_diff(flight.departure_date, getdate(now()))
             
             fare_rule = frappe.get_all("Fare Rule", filters={
                 "route": flight.route,
@@ -117,14 +126,23 @@ class AirBooking(Document):
     # TICKET NUMBERS
     # =========================================================
     
-    def generate_ticket_numbers(self):
-        """Generate ticket numbers for all passengers"""
-        
+    def generate_ticket_numbers(self, show_message: bool = False) -> list[str]:
+        """Generate ticket numbers for all passengers: {PNR}-01, {PNR}-02, ..."""
+        if not self.passengers:
+            frappe.throw("Add at least one passenger before generating ticket numbers.")
+
+        pnr = self.pnr or self.name
+        tickets = []
+
         for idx, passenger in enumerate(self.passengers, start=1):
-            ticket_number = f"{self.name}-{idx:02d}"
+            ticket_number = f"{pnr}-{idx:02d}"
             passenger.ticket_number = ticket_number
-        
-        frappe.msgprint(f"Generated {len(self.passengers)} ticket numbers")
+            tickets.append(ticket_number)
+
+        if show_message:
+            frappe.msgprint(f"Generated {len(tickets)} ticket number(s)")
+
+        return tickets
     
     # =========================================================
     # AFTER SAVE ACTIONS
@@ -141,7 +159,7 @@ class AirBooking(Document):
         # Generate ticket numbers if not exist
         need_tickets = any([not p.ticket_number for p in self.passengers])
         if need_tickets:
-            self.generate_ticket_numbers()
+            self.generate_ticket_numbers(show_message=False)
         
         # Confirm each seat
         for passenger in self.passengers:

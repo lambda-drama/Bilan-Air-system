@@ -14,8 +14,17 @@ frappe.ui.form.on('Flight Schedule', {
     refresh: function(frm) {
         check_booking_cutoff(frm);
     },
-    
+
+    route: function(frm) {
+        preview_flight_number(frm);
+    },
+
+    airplane: function(frm) {
+        preview_flight_number(frm);
+    },
+
     departure_date: function(frm) {
+        preview_flight_number(frm);
         check_booking_cutoff(frm);
     },
     
@@ -24,13 +33,33 @@ frappe.ui.form.on('Flight Schedule', {
     }
 });
 
+function preview_flight_number(frm) {
+    if (!frm.doc.airplane || !frm.doc.route || !frm.doc.departure_date) {
+        return;
+    }
+
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.utils.flight_numbering.preview_flight_number',
+        args: {
+            airplane: frm.doc.airplane,
+            route: frm.doc.route,
+            departure_date: frm.doc.departure_date,
+        },
+        callback: function(r) {
+            if (r.message) {
+                frm.set_value('flight_number', r.message);
+            }
+        },
+    });
+}
+
 function check_booking_cutoff(frm) {
     if (!frm.doc.departure_date || !frm.doc.departure_time) {
         return;
     }
     
     frappe.call({
-        method: 'frappe.client.get_single',
+        method: 'frappe.client.get',
         args: { doctype: 'BA Settings' },
         callback: function(response) {
             var settings = response.message;

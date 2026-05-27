@@ -1,11 +1,17 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:airline_name",
  "creation": "2026-05-27 01:08:36.142540",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_5qgt"
+  "airline_name",
+  "iata_code",
+  "icao_code",
+  "column_break_whaa",
+  "country",
+  "is_active"
  ],
  "fields": [
   {
@@ -13,16 +19,17 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Airline Name",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "iata_code",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "IATA Code",
+   "length": 3,
    "reqd": 1,
-   "unique": 1,
-   "length": 3
+   "unique": 1
   },
   {
    "fieldname": "icao_code",
@@ -39,19 +46,24 @@
    "reqd": 1
   },
   {
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "default": "1",
    "label": "Is Active"
+  },
+  {
+   "fieldname": "column_break_whaa",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:08:36.142540",
+ "modified": "2026-05-27 11:44:23.496359",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Airline",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

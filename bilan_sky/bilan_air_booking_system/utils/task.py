@@ -30,7 +30,7 @@ def release_expired_seats():
         try:
             seat = frappe.get_doc("Seat Inventory", seat_data.name)
             
-            if seat.status == "Reserved" and seat.hold_expiry and seat.hold_expiry < now():
+            if seat.status == "Reserved" and seat.hold_expiry and get_datetime(seat.hold_expiry) < get_datetime(now()):
                 
                 # Cancel the associated booking if still reserved
                 if seat.booking_reference:

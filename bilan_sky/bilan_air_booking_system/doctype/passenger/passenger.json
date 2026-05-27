@@ -1,11 +1,22 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "PA-.#####",
  "creation": "2026-05-27 01:10:16.691217",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_65df"
+  "full_name",
+  "passenger_type",
+  "id_number",
+  "date_of_birth",
+  "phone_number",
+  "email",
+  "column_break_1",
+  "nationality",
+  "is_active",
+  "notes",
+  "user"
  ],
  "fields": [
   {
@@ -20,15 +31,14 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Passenger Type",
-   "reqd": 1,
-   "options": "Adult\nChild\nInfant"
+   "options": "Adult\nChild\nInfant",
+   "reqd": 1
   },
   {
    "fieldname": "id_number",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "ID Number (Passport or National ID)",
-   "reqd": 1,
    "unique": 1
   },
   {
@@ -46,8 +56,10 @@
   {
    "fieldname": "email",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Email",
-   "options": "Email"
+   "options": "Email",
+   "reqd": 1
   },
   {
    "fieldname": "nationality",
@@ -60,24 +72,32 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "default": "1",
    "label": "Is Active"
   },
   {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:10:16.691217",
+ "modified": "2026-05-27 12:37:46.242748",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Passenger",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -95,6 +115,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "full_name, phone_number,id_number",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": []

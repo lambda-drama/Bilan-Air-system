@@ -18,6 +18,7 @@
    "reqd": 1
   },
   {
+   "description": "Auto-generated from PNR (e.g. BA-00001-01). Use Generate Ticket Numbers on Air Booking.",
    "fieldname": "ticket_number",
    "fieldtype": "Data",
    "in_list_view": 1,

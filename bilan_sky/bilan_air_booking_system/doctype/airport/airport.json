@@ -1,33 +1,44 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:airport_name",
  "creation": "2026-05-27 01:07:54.070448",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_6o3n"
+  "airport_name",
+  "iata_code",
+  "country",
+  "column_break_igrk",
+  "city",
+  "time_zone",
+  "is_active"
  ],
-  "fields": [
+ "fields": [
   {
    "fieldname": "airport_name",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Airport Name",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "iata_code",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "IATA Code",
+   "length": 3,
    "reqd": 1,
-   "unique": 1,
-   "length": 3
+   "unique": 1
   },
   {
    "fieldname": "city",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "City",
    "reqd": 1
   },
@@ -40,25 +51,29 @@
    "reqd": 1
   },
   {
-   "fieldname": "timezone",
-   "fieldtype": "Link",
-   "label": "Timezone",
-   "options": "Time Zone"
-  },
-  {
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "default": "1",
    "label": "Is Active"
+  },
+  {
+   "fieldname": "column_break_igrk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "time_zone",
+   "fieldtype": "Select",
+   "label": "Time Zone"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:07:54.070448",
+ "modified": "2026-05-27 11:41:45.931401",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Airport",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

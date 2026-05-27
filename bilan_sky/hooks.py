@@ -31,16 +31,14 @@ fixtures = [
 
 # required_apps = []
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "bilan_sky",
-# 		"logo": "/assets/bilan_sky/logo.png",
-# 		"title": "Bilan Air Booking System",
-# 		"route": "/bilan_sky",
-# 		"has_permission": "bilan_sky.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "bilan_sky",
+		"logo": "/assets/bilan_sky/image/logo_1.jpg",
+		"title": "Bilan Air",
+		"route": "/app/bilan",
+	},
+]
 
 # Includes in <head>
 # ------------------

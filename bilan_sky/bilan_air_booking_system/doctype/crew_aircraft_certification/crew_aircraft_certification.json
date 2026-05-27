@@ -6,14 +6,17 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_3cwl"
+  "aircraft_model",
+  "certification_date",
+  "expiry_date"
  ],
  "fields": [
   {
    "fieldname": "aircraft_model",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Aircraft Model",
+   "options": "Aircraft Model",
    "reqd": 1
   },
   {
@@ -27,12 +30,11 @@
    "label": "Certification Expiry Date"
   }
  ],
-
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-27 01:40:06.263444",
+ "modified": "2026-05-27 12:23:08.621914",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Crew Aircraft Certification",

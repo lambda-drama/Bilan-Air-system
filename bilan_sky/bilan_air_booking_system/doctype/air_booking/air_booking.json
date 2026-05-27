@@ -1,42 +1,70 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "BA-.#####",
  "creation": "2026-05-27 01:18:51.733798",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_jfyb"
+  "pnr",
+  "booking_status",
+  "column_break_evxb",
+  "flight_schedule",
+  "booking_date",
+  "payer_section",
+  "payer_name",
+  "payer_email",
+  "column_break_ftlv",
+  "payer_phone",
+  "customer_link",
+  "passenger_section",
+  "passengers",
+  "payment_section",
+  "total_fare",
+  "payment_status",
+  "payment_method",
+  "column_break_1",
+  "invoices",
+  "baggage_section",
+  "baggage_tracking_numbers",
+  "notes"
  ],
-"fields": [
+ "fields": [
   {
+   "description": "Auto-generated booking ID (same as document name, e.g. BA-00001).",
    "fieldname": "pnr",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "PNR",
    "read_only": 1,
    "unique": 1
   },
   {
+   "default": "Reserved",
    "fieldname": "booking_status",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Booking Status",
    "options": "Reserved\nPaid\nChecked In\nBoarded\nArrived\nCancelled",
-   "default": "Reserved",
    "reqd": 1
   },
   {
    "fieldname": "flight_schedule",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Flight Schedule",
    "options": "Flight Schedule",
    "reqd": 1
   },
   {
+   "default": "Now",
    "fieldname": "booking_date",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Booking Date",
-   "default": "Now",
    "reqd": 1
   },
   {
@@ -95,18 +123,18 @@
    "reqd": 1
   },
   {
+   "default": "Pending",
    "fieldname": "payment_status",
    "fieldtype": "Select",
    "label": "Payment Status",
    "options": "Pending\nPaid\nRefunded",
-   "default": "Pending",
    "reqd": 1
   },
   {
    "fieldname": "payment_method",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Payment Method",
-   "options": "Cash\nM-Pesa\nCard\nBank Transfer"
+   "options": "Mode of Payment"
   },
   {
    "fieldname": "column_break_1",
@@ -133,15 +161,24 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_evxb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ftlv",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:18:51.733798",
+ "modified": "2026-05-27 15:13:00.530251",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

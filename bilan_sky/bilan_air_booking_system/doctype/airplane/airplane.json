@@ -5,9 +5,16 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_p4aw"
+  "registration_number",
+  "airline",
+  "aircraft_model",
+  "column_break_zkcr",
+  "status",
+  "total_seats",
+  "seat_config_section",
+  "seat_config"
  ],
-"fields": [
+ "fields": [
   {
    "fieldname": "registration_number",
    "fieldtype": "Data",
@@ -32,12 +39,12 @@
    "reqd": 1
   },
   {
+   "default": "Active",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Active\nMaintenance\nRetired",
-   "default": "Active",
    "reqd": 1
   },
   {
@@ -57,12 +64,16 @@
    "label": "Seat Configuration",
    "options": "Airplane Seat Config",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_zkcr",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:13:16.176301",
+ "modified": "2026-05-27 11:45:42.345540",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Airplane",
