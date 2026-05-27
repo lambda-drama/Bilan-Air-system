@@ -16,7 +16,10 @@
   "sb_accounting",
   "default_cash_account",
   "column_break_hqlf",
-  "default_mpesa_account"
+  "default_mpesa_account",
+  "more_info_tab",
+  "fare_item",
+  "baggage_fee"
  ],
  "fields": [
   {
@@ -97,13 +100,30 @@
   {
    "fieldname": "column_break_hqlf",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Info"
+  },
+  {
+   "fieldname": "fare_item",
+   "fieldtype": "Link",
+   "label": "Fare Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "baggage_fee",
+   "fieldtype": "Link",
+   "label": "Baggage Fee",
+   "options": "Item"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-05-27 12:49:49.085093",
+ "modified": "2026-05-27 16:00:41.830360",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",

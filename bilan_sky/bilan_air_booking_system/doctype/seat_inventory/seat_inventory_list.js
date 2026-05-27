@@ -5,7 +5,8 @@ frappe.listview_settings['Seat Inventory'] = {
     get_indicator: function(doc) {
         var status_colors = {
             'Available': ['Available', 'green'],
-            'Reserved': ['Reserved', 'orange'],
+            'Hold': ['Hold', 'orange'],
+            'Reserved': ['Hold', 'orange'], // legacy fallback
             'Booked': ['Booked', 'blue'],
             'Occupied': ['Occupied', 'darkgrey']
         };

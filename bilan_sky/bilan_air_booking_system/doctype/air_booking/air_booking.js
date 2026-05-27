@@ -30,16 +30,59 @@ frappe.ui.form.on('Air Booking', {
             });
         }
 
+        if (!frm.is_new() && frm.doc.booking_status === 'Paid') {
+            frm.add_custom_button(__('Check-in All Passengers'), function() {
+                trigger_booking_action(
+                    frm,
+                    'bilan_sky.bilan_air_booking_system.api.air_booking.check_in_all_passengers',
+                    __('Checking in passengers...')
+                );
+            }, __('Status Actions'));
+        }
+
+        if (!frm.is_new() && frm.doc.booking_status === 'Checked In') {
+            frm.add_custom_button(__('Board All Passengers'), function() {
+                trigger_booking_action(
+                    frm,
+                    'bilan_sky.bilan_air_booking_system.api.air_booking.board_all_passengers',
+                    __('Boarding passengers...')
+                );
+            }, __('Status Actions'));
+        }
+
+        if (!frm.is_new() && frm.doc.booking_status === 'Boarded') {
+            frm.add_custom_button(__('Mark Arrived'), function() {
+                trigger_booking_action(
+                    frm,
+                    'bilan_sky.bilan_air_booking_system.api.air_booking.mark_booking_arrived',
+                    __('Marking booking as arrived...')
+                );
+            }, __('Status Actions'));
+        }
+
         if (!frm.is_new() && frm.doc.passengers && frm.doc.passengers.length) {
             frm.add_custom_button(__('Generate Ticket Numbers'), function() {
                 generate_ticket_numbers(frm);
             }, __('Actions'));
+        }
+
+        if (!frm.is_new() && frm.doc.booking_status !== 'Cancelled' && frm.doc.payment_status !== 'Refunded') {
+            if (frm.doc.payment_status === 'Pending' || !frm.doc.payment_entry) {
+                frm.add_custom_button(__('Confirm Payment (Invoice + Payment)'), function() {
+                    confirm_payment_and_invoice(frm);
+                }, __('Payment'));
+            }
+
+            frm.add_custom_button(__('Create Sales Invoice'), function() {
+                create_sales_invoice(frm);
+            }, __('Payment'));
         }
     },
     
     flight_schedule: function(frm) {
         validate_booking_cutoff(frm);
         get_flight_details(frm);
+        update_seat_availability_message(frm);
     },
      before_save: function(frm) {
         return validate_passengers(frm);
@@ -52,6 +95,21 @@ frappe.ui.form.on('Air Booking', {
 
 // Child table: Passengers
 frappe.ui.form.on('Air Booking Passenger', {
+    passenger: function(frm, cdt, cdn) {
+        sync_passenger_from_profile(frm, cdt, cdn);
+    },
+
+    id_number: function(frm, cdt, cdn) {
+        lookup_passenger_by_id(frm, cdt, cdn);
+    },
+
+    passenger_type: function(frm, cdt, cdn) {
+        var row = frappe.get_doc(cdt, cdn);
+        if (row.seat_number) {
+            update_passenger_fare(frm, row);
+        }
+    },
+
     seat_number: function(frm, cdt, cdn) {
         var row = frappe.get_doc(cdt, cdn);
         validate_seat_availability(frm, row);
@@ -62,6 +120,51 @@ frappe.ui.form.on('Air Booking Passenger', {
         calculate_total_fare(frm);
     }
 });
+
+function sync_passenger_from_profile(frm, cdt, cdn) {
+    var row = frappe.get_doc(cdt, cdn);
+    if (!row.passenger) {
+        return;
+    }
+
+    frappe.call({
+        method: 'frappe.client.get',
+        args: { doctype: 'Passenger', name: row.passenger },
+        callback: function(r) {
+            var profile = r.message;
+            if (!profile) {
+                return;
+            }
+            frappe.model.set_value(cdt, cdn, 'passenger_name', profile.full_name);
+            frappe.model.set_value(cdt, cdn, 'passenger_type', profile.passenger_type || 'Adult');
+            if (profile.id_number) {
+                frappe.model.set_value(cdt, cdn, 'id_number', profile.id_number);
+            }
+            if (row.seat_number) {
+                update_passenger_fare(frm, frappe.get_doc(cdt, cdn));
+            }
+        },
+    });
+}
+
+function lookup_passenger_by_id(frm, cdt, cdn) {
+    var row = frappe.get_doc(cdt, cdn);
+    if (!row.id_number || row.passenger) {
+        return;
+    }
+
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.api.passenger.lookup_passenger_by_id',
+        args: { id_number: row.id_number },
+        callback: function(r) {
+            if (!r.message) {
+                return;
+            }
+            frappe.model.set_value(cdt, cdn, 'passenger', r.message.name);
+            sync_passenger_from_profile(frm, cdt, cdn);
+        },
+    });
+}
 
 function validate_booking_cutoff(frm) {
     if (!frm.doc.flight_schedule) return;
@@ -127,16 +230,53 @@ function validate_seat_availability(frm, row) {
 }
 
 function get_flight_details(frm) {
-    if (!frm.doc.flight_schedule) return;
-    
+    update_seat_availability_message(frm);
+}
+
+function update_seat_availability_message(frm) {
+    if (!frm.doc.flight_schedule) {
+        return;
+    }
+
     frappe.call({
         method: 'frappe.client.get',
         args: { doctype: 'Flight Schedule', name: frm.doc.flight_schedule },
-        callback: function(response) {
-            var flight = response.message;
-            frm.set_df_property('flight_schedule', 'description', 
-                `${flight.flight_number} | ${flight.departure_date} ${flight.departure_time}`);
-        }
+        callback: function(flight_res) {
+            const flight = flight_res.message;
+            if (!flight) {
+                return;
+            }
+
+            frappe.call({
+                method: 'frappe.client.get_count',
+                args: {
+                    doctype: 'Seat Inventory',
+                    filters: {
+                        flight_schedule: frm.doc.flight_schedule,
+                        status: 'Available',
+                    },
+                },
+                callback: function(count_res) {
+                    const available = count_res.message || 0;
+                    const passenger_count = (frm.doc.passengers || []).length;
+                    let description = `${flight.flight_number} | ${flight.departure_date} ${flight.departure_time}`;
+                    description += ` | ${available} seat(s) available`;
+
+                    if (passenger_count && available < passenger_count) {
+                        description += ` (${passenger_count} needed)`;
+                        frappe.show_alert({
+                            message: __('Only {0} seats available for {1} passengers', [
+                                available,
+                                passenger_count,
+                            ]),
+                            indicator: 'orange',
+                        });
+                    }
+
+                    frm.set_df_property('flight_schedule', 'description', description);
+                },
+            });
+        },
     });
 }
 
@@ -210,6 +350,74 @@ function generate_ticket_numbers(frm) {
     });
 }
 
+function trigger_booking_action(frm, method, freeze_message) {
+    frappe.call({
+        method: method,
+        args: { pnr: frm.doc.name },
+        freeze: true,
+        freeze_message: freeze_message,
+        callback: function(r) {
+            frappe.show_alert({
+                message: r.message?.message || __('Booking updated'),
+                indicator: 'green'
+            });
+            frm.reload_doc();
+        }
+    });
+}
+
+function create_sales_invoice(frm) {
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.api.air_booking.create_sales_invoice_from_booking',
+        args: { pnr: frm.doc.name },
+        freeze: true,
+        freeze_message: __('Creating sales invoice...'),
+        callback: function(r) {
+            if (!r.message || !r.message.invoice) {
+                return;
+            }
+            frappe.show_alert({
+                message: __('Sales Invoice {0} created', [r.message.invoice]),
+                indicator: 'green'
+            });
+            frm.reload_doc();
+        }
+    });
+}
+
+function confirm_payment_and_invoice(frm) {
+    if (!frm.doc.payment_method) {
+        frappe.msgprint(__('Select a Payment Method first.'));
+        return;
+    }
+
+    frappe.confirm(
+        __('Create Sales Invoice and Payment Entry, mark payment as Paid, and confirm this booking?'),
+        function() {
+            frappe.call({
+                method: 'bilan_sky.bilan_air_booking_system.api.air_booking.confirm_payment_and_invoice_from_booking',
+                args: { pnr: frm.doc.name },
+                freeze: true,
+                freeze_message: __('Recording payment...'),
+                callback: function(r) {
+                    if (!r.message || !r.message.success) {
+                        return;
+                    }
+                    frappe.msgprint({
+                        title: __('Payment Recorded'),
+                        message: __('Invoice: {0}<br>Payment Entry: {1}', [
+                            r.message.invoice,
+                            r.message.payment_entry,
+                        ]),
+                        indicator: 'green',
+                    });
+                    frm.reload_doc();
+                },
+            });
+        }
+    );
+}
+
 function confirm_booking(frm) {
     frappe.confirm('Confirm this booking and issue tickets?', function() {
         frappe.call({
@@ -246,10 +454,19 @@ function validate_passengers(frm) {
         frappe.msgprint('Please add at least one passenger');
         return false;
     }
+
+    if (!(frm.doc.payer_name || '').trim()) {
+        frappe.msgprint(__('Payer Full Name is required (used for invoicing).'));
+        return false;
+    }
     
-    // Check all passengers have seats
+    // Check all passengers have names and seats
     for (var i = 0; i < frm.doc.passengers.length; i++) {
         var row = frm.doc.passengers[i];
+        if (!(row.passenger_name || '').trim()) {
+            frappe.msgprint(`Please enter a name for traveler ${i + 1}`);
+            return false;
+        }
         if (!row.seat_number) {
             frappe.msgprint(`Please select a seat for passenger ${i + 1}`);
             return false;
