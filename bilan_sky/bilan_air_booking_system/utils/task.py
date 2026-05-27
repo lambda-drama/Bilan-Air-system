@@ -15,7 +15,7 @@ def release_expired_seats():
     expired_seats = frappe.get_all(
         "Seat Inventory",
         filters={
-            "status": "Reserved",
+            "status": ["in", ["Hold", "Reserved"]],
             "hold_expiry": ["<", now()]
         },
         fields=["name", "seat_number", "flight_schedule", "booking_reference"]
@@ -30,7 +30,7 @@ def release_expired_seats():
         try:
             seat = frappe.get_doc("Seat Inventory", seat_data.name)
             
-            if seat.status == "Reserved" and seat.hold_expiry and get_datetime(seat.hold_expiry) < get_datetime(now()):
+            if seat.status in ("Hold", "Reserved") and seat.hold_expiry and get_datetime(seat.hold_expiry) < get_datetime(now()):
                 
                 # Cancel the associated booking if still reserved
                 if seat.booking_reference:
@@ -173,7 +173,7 @@ def release_seat(seat_name):
     
     seat = frappe.get_doc("Seat Inventory", seat_name)
     
-    if seat.status != "Reserved":
+    if seat.status not in ("Hold", "Reserved"):
         return {"success": False, "message": f"Seat {seat.seat_number} is not reserved"}
     
     seat.status = "Available"

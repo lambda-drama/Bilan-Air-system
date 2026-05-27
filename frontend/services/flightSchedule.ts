@@ -1,0 +1,83 @@
+import { apiRequest, methodUrl } from "./apiClient";
+import type { PaginatedResponse } from "@/types/bilan";
+
+export interface SeatMapEntry {
+  name: string;
+  seat_number: string;
+  status: string;
+  booked_by?: string | null;
+}
+
+export type SeatMap = Record<string, SeatMapEntry[]>;
+
+export interface FlightScheduleRow {
+  name: string;
+  flight_number: string;
+  route: string;
+  airplane: string;
+  departure_date: string;
+  departure_time: string;
+  arrival_date: string;
+  arrival_time: string;
+  status: string;
+}
+
+export async function fetchSeatMap(flight_schedule_name: string): Promise<SeatMap> {
+  return apiRequest(methodUrl("flight_schedule", "fetch_seat_map"), {
+    method: "POST",
+    body: JSON.stringify({ flight_schedule_name }),
+  });
+}
+
+export async function fetchFlightDetails(schedule_id: string) {
+  return apiRequest(methodUrl("flight_schedule", "fetch_flight_details"), {
+    method: "POST",
+    body: JSON.stringify({ schedule_id }),
+  });
+}
+
+export async function listSchedules(opts?: {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  search?: string;
+}) {
+  return apiRequest<PaginatedResponse<FlightScheduleRow>>(
+    methodUrl("portal", "list_flight_schedules"),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        limit: opts?.limit ?? 50,
+        offset: opts?.offset ?? 0,
+        status: opts?.status ?? null,
+        search: opts?.search ?? null,
+      }),
+    },
+  );
+}
+
+export async function saveSchedule(data: Record<string, unknown>) {
+  return apiRequest(methodUrl("portal", "save_flight_schedule"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export async function rescheduleFlight(params: {
+  schedule_name: string;
+  reschedule_reason: string;
+  new_departure_date: string;
+  new_departure_time: string;
+  new_arrival_date: string;
+  new_arrival_time: string;
+  new_airplane?: string;
+  notes?: string;
+}) {
+  return apiRequest(
+    "/api/method/bilan_sky.bilan_air_booking_system.doctype.flight_schedule.flight_schedule.reschedule_flight",
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
+}

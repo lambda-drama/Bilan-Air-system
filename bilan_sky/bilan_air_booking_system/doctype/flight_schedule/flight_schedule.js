@@ -13,6 +13,11 @@
 frappe.ui.form.on('Flight Schedule', {
     refresh: function(frm) {
         check_booking_cutoff(frm);
+        if (!frm.is_new()) {
+            frm.add_custom_button(__('Reschedule Flight'), function() {
+                open_reschedule_dialog(frm);
+            }, __('Actions'));
+        }
     },
 
     route: function(frm) {
@@ -32,6 +37,84 @@ frappe.ui.form.on('Flight Schedule', {
         check_booking_cutoff(frm);
     }
 });
+
+function open_reschedule_dialog(frm) {
+    const dialog = new frappe.ui.Dialog({
+        title: __('Reschedule Flight {0}', [frm.doc.name]),
+        fields: [
+            {
+                fieldname: 'reschedule_reason',
+                label: __('Reschedule Reason'),
+                fieldtype: 'Select',
+                options: 'Weather\nTechnical Issue\nOperational\nCrew Availability\nAirport Closure\nOther',
+                reqd: 1
+            },
+            {
+                fieldname: 'new_departure_date',
+                label: __('New Departure Date'),
+                fieldtype: 'Date',
+                default: frm.doc.departure_date,
+                reqd: 1
+            },
+            {
+                fieldname: 'new_departure_time',
+                label: __('New Departure Time'),
+                fieldtype: 'Time',
+                default: frm.doc.departure_time,
+                reqd: 1
+            },
+            {
+                fieldname: 'new_arrival_date',
+                label: __('New Arrival Date'),
+                fieldtype: 'Date',
+                default: frm.doc.arrival_date,
+                reqd: 1
+            },
+            {
+                fieldname: 'new_arrival_time',
+                label: __('New Arrival Time'),
+                fieldtype: 'Time',
+                default: frm.doc.arrival_time,
+                reqd: 1
+            },
+            {
+                fieldname: 'new_airplane',
+                label: __('New Airplane (optional)'),
+                fieldtype: 'Link',
+                options: 'Airplane',
+                default: frm.doc.airplane
+            },
+            {
+                fieldname: 'notes',
+                label: __('Notes'),
+                fieldtype: 'Small Text'
+            }
+        ],
+        primary_action_label: __('Apply Reschedule'),
+        primary_action(values) {
+            frappe.call({
+                method: 'bilan_sky.bilan_air_booking_system.doctype.flight_schedule.flight_schedule.reschedule_flight',
+                args: {
+                    schedule_name: frm.doc.name,
+                    ...values
+                },
+                freeze: true,
+                freeze_message: __('Rescheduling flight...'),
+                callback: function(r) {
+                    if (r.message) {
+                        dialog.hide();
+                        frappe.show_alert({
+                            message: __('Flight rescheduled. Log: {0}', [r.message.rescheduling_log]),
+                            indicator: 'green'
+                        });
+                        frm.reload_doc();
+                    }
+                }
+            });
+        }
+    });
+    dialog.show();
+}
 
 function preview_flight_number(frm) {
     if (!frm.doc.airplane || !frm.doc.route || !frm.doc.departure_date) {

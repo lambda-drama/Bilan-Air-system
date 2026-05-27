@@ -19,7 +19,9 @@ def register_passenger(passenger_data):
         "date_of_birth": passenger_data.get("date_of_birth"),
         "phone_number": passenger_data.get("phone_number"),
         "email": passenger_data.get("email"),
-        "nationality": passenger_data.get("nationality")
+        "nationality": passenger_data.get("nationality"),
+        "notes": passenger_data.get("notes"),
+        "is_active": passenger_data.get("is_active", 1),
     })
     passenger.insert()
     frappe.db.commit()

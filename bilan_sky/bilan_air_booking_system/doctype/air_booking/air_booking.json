@@ -22,11 +22,13 @@
   "total_fare",
   "payment_status",
   "payment_method",
+  "payment_entry",
   "column_break_1",
   "invoices",
   "baggage_section",
   "baggage_tracking_numbers",
-  "notes"
+  "notes",
+  "amended_from"
  ],
  "fields": [
   {
@@ -73,6 +75,7 @@
    "label": "Payer / Customer (Person Paying)"
   },
   {
+   "description": "Used to create or match the ERPNext Customer when you create a Sales Invoice.",
    "fieldname": "payer_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -123,6 +126,7 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
    "fieldname": "payment_status",
    "fieldtype": "Select",
@@ -131,10 +135,19 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "payment_method",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Payment Method",
    "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_1",
@@ -169,12 +182,23 @@
   {
    "fieldname": "column_break_ftlv",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Air Booking",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-05-27 15:13:00.530251",
+ "modified": "2026-05-27 20:51:52.785167",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking",

@@ -3,6 +3,8 @@
 import frappe
 from frappe.utils import nowdate
 
+from bilan_sky.bilan_air_booking_system.utils.airports import resolve_airport_name
+
 @frappe.whitelist(allow_guest=True)
 def search_available_flights(origin, destination, date, passengers=1):
     """
@@ -15,10 +17,15 @@ def search_available_flights(origin, destination, date, passengers=1):
         passengers: Number of passengers
     """
     
+    origin_airport = resolve_airport_name(origin)
+    destination_airport = resolve_airport_name(destination)
+    if not origin_airport or not destination_airport:
+        return []
+
     routes = frappe.get_all("Flight Route",
         filters={
-            "origin_airport": origin,
-            "destination_airport": destination,
+            "origin_airport": origin_airport,
+            "destination_airport": destination_airport,
             "is_active": 1
         },
         fields=["name", "base_fare"]
@@ -34,7 +41,7 @@ def search_available_flights(origin, destination, date, passengers=1):
             filters={
                 "route": route.name,
                 "departure_date": date,
-                "status": "Scheduled"
+                "status": ["in", ["Scheduled", "Delayed"]],
             },
             fields=["name", "flight_number", "departure_date", "departure_time", 
                     "arrival_date", "arrival_time", "airplane", "base_fare_override"]
@@ -87,7 +94,7 @@ def fetch_seat_map(flight_schedule_name):
     
     seats = frappe.get_all("Seat Inventory",
         filters={"flight_schedule": flight_schedule_name},
-        fields=["seat_number", "seat_class", "status", "booking_reference"]
+        fields=["name", "seat_number", "seat_class", "status", "booking_reference"]
     )
     
     seat_map = {
@@ -101,6 +108,7 @@ def fetch_seat_map(flight_schedule_name):
         class_name = seat_class_doc.class_name
         
         seat_map[class_name].append({
+            "name": seat.name,
             "seat_number": seat.seat_number,
             "status": seat.status,
             "booked_by": seat.booking_reference if seat.status == "Booked" else None

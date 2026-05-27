@@ -4,7 +4,7 @@
 # import frappe
 import frappe
 from frappe.model.document import Document
-from frappe.utils import get_datetime, getdate, now
+from frappe.utils import flt, get_datetime, getdate, now, nowdate
 
 class AirBooking(Document):
     def autoname(self):
@@ -24,8 +24,15 @@ class AirBooking(Document):
     def before_save(self):
         """Run validations before saving"""
         self.validate_booking_cutoff()
+        self.validate_passengers()
         self.validate_seat_availability()
         self.calculate_total_fare()
+
+    def _save_status_updates(self):
+        # Status transitions should not be blocked by seat validation rules.
+        self.flags.ignore_validate = True
+        self.save()
+        self.flags.ignore_validate = False
     
     def validate_booking_cutoff(self):
         """Prevent booking if within cutoff time"""
@@ -49,6 +56,14 @@ class AirBooking(Document):
         if get_datetime(now()) > get_datetime(cutoff_datetime):
             frappe.throw(f"Cannot book. Booking cutoff was {cutoff_datetime}")
     
+    def validate_passengers(self):
+        if not self.passengers:
+            frappe.throw("Add at least one passenger.")
+
+        for idx, row in enumerate(self.passengers, start=1):
+            if not (row.passenger_name or "").strip():
+                frappe.throw(f"Passenger name is required for traveler {idx}.")
+
     def validate_seat_availability(self):
         """Check if selected seats are still available"""
         
@@ -82,8 +97,9 @@ class AirBooking(Document):
         
         # Calculate fare per passenger
         for passenger in self.passengers:
-            passenger_doc = frappe.get_doc("Passenger", passenger.passenger)
-            
+            if not passenger.seat_number:
+                continue
+
             # Get base fare (use override if exists)
             base_fare = flight.base_fare_override or route.base_fare
             
@@ -93,7 +109,7 @@ class AirBooking(Document):
             class_multiplier = seat_class.price_multiplier
             
             # Apply passenger type discount
-            passenger_type = passenger_doc.passenger_type
+            passenger_type = self._get_passenger_type(passenger)
             if passenger_type == "Infant":
                 passenger_multiplier = settings.infant_fare_percentage / 100
             elif passenger_type == "Child":
@@ -150,6 +166,8 @@ class AirBooking(Document):
     
     def on_update(self):
         """Run after save"""
+        if self.flags.get("skip_auto_confirm"):
+            return
         if self.payment_status == "Paid" and self.booking_status == "Reserved":
             self.confirm_booking()
     
@@ -164,7 +182,7 @@ class AirBooking(Document):
         # Confirm each seat
         for passenger in self.passengers:
             seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-            if seat.status == "Reserved" and seat.booking_reference == self.name:
+            if seat.status in ("Hold", "Reserved") and seat.booking_reference == self.name:
                 seat.status = "Booked"
                 seat.hold_expiry = None
                 seat.price_at_booking = passenger.fare_paid
@@ -172,6 +190,7 @@ class AirBooking(Document):
         
         # Update booking status
         self.booking_status = "Paid"
+        self._save_status_updates()
         frappe.db.commit()
         
         frappe.msgprint(f"Booking {self.name} confirmed. PNR: {self.name}")
@@ -189,6 +208,7 @@ class AirBooking(Document):
                     seat.save()
         
         self.booking_status = "Cancelled"
+        self._save_status_updates()
         frappe.db.commit()
         
         frappe.msgprint(f"Booking {self.name} cancelled")
@@ -208,9 +228,11 @@ class AirBooking(Document):
         # Update passenger check-in status
         passenger.check_in_status = "Checked In"
         
-        # Update seat status to Occupied
+        # Keep seat as Booked at check-in stage.
         seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-        seat.status = "Occupied"
+        if seat.status not in ("Booked", "Hold", "Reserved"):
+            frappe.throw(f"Seat {seat.seat_number} cannot be checked in from status {seat.status}")
+        seat.status = "Booked"
         seat.save()
         
         # Create baggage record if weight > 0
@@ -226,6 +248,7 @@ class AirBooking(Document):
                 "doctype": "Baggage Tracking",
                 "air_booking": self.name,
                 "passenger": passenger.passenger,
+                "passenger_name": passenger.passenger_name,
                 "flight_schedule": self.flight_schedule,
                 "weight_kg": baggage_weight,
                 "baggage_fee": fee,
@@ -240,10 +263,11 @@ class AirBooking(Document):
             })
         
         # Check if all passengers checked in
-        all_checked = all([p.check_in_status == "Checked In" for p in self.passengers])
+        all_checked = all([p.check_in_status in ("Checked In", "Boarded") for p in self.passengers])
         if all_checked:
             self.booking_status = "Checked In"
         
+        self._save_status_updates()
         frappe.db.commit()
         
         return {"success": True, "message": f"Passenger {passenger_index+1} checked in"}
@@ -255,13 +279,230 @@ class AirBooking(Document):
             frappe.throw("Invalid passenger index")
         
         passenger = self.passengers[passenger_index]
+        if passenger.check_in_status == "Not Checked In":
+            frappe.throw("Passenger must be checked in before boarding.")
         passenger.check_in_status = "Boarded"
+
+        seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
+        seat.status = "Occupied"
+        seat.save()
         
         # Check if all passengers boarded
         all_boarded = all([p.check_in_status == "Boarded" for p in self.passengers])
         if all_boarded:
             self.booking_status = "Boarded"
         
+        self._save_status_updates()
         frappe.db.commit()
         
         return {"success": True, "message": f"Passenger {passenger_index+1} boarded"}
+
+    def check_in_all_passengers(self):
+        for idx, passenger in enumerate(self.passengers):
+            if passenger.check_in_status == "Not Checked In":
+                self.check_in_passenger(idx)
+        return {"success": True, "message": "All passengers checked in."}
+
+    def board_all_passengers(self):
+        for idx, passenger in enumerate(self.passengers):
+            if passenger.check_in_status == "Checked In":
+                self.board_passenger(idx)
+        return {"success": True, "message": "All checked-in passengers boarded."}
+
+    def mark_arrived(self):
+        if self.booking_status != "Boarded":
+            frappe.throw("Booking can be marked Arrived only after boarding.")
+        self.booking_status = "Arrived"
+        self._save_status_updates()
+        frappe.db.commit()
+        return {"success": True, "message": f"Booking {self.name} marked as Arrived."}
+
+    # =========================================================
+    # BILLING
+    # =========================================================
+
+    def _get_passenger_type(self, row) -> str:
+        if row.passenger:
+            return frappe.db.get_value("Passenger", row.passenger, "passenger_type") or row.passenger_type or "Adult"
+        return row.passenger_type or "Adult"
+
+    def _validate_billing_setup(self):
+        if not (self.payer_name or "").strip():
+            frappe.throw("Payer Full Name is required to create a Sales Invoice.")
+
+        settings = frappe.get_single("BA Settings")
+        if not settings.fare_item:
+            frappe.throw("Set Fare Item in BA Settings before creating invoice.")
+        if not settings.baggage_fee:
+            frappe.throw("Set Baggage Fee item in BA Settings before creating invoice.")
+        return settings
+
+    def _get_main_fare_invoice(self):
+        for row in self.invoices or []:
+            if not row.invoice:
+                continue
+            if (row.invoice_type or "Main Fare") != "Main Fare":
+                continue
+            if frappe.db.exists("Sales Invoice", row.invoice):
+                return row.invoice
+        return None
+
+    def create_sales_invoice(self, submit=False):
+        existing = self._get_main_fare_invoice()
+        if existing:
+            if submit:
+                self._submit_sales_invoice(existing)
+            return {"success": True, "invoice": existing, "created": False}
+
+        settings = self._validate_billing_setup()
+        customer = self.customer_link or self._get_or_create_customer()
+        company = frappe.db.get_single_value("Global Defaults", "default_company")
+        if not company:
+            frappe.throw("Set Default Company in Global Defaults.")
+
+        invoice = frappe.new_doc("Sales Invoice")
+        invoice.customer = customer
+        invoice.company = company
+        invoice.posting_date = nowdate()
+        invoice.due_date = nowdate()
+        invoice.currency = settings.default_currency or None
+        invoice.remarks = f"Air Booking {self.name}"
+
+        fare_amount = flt(self.total_fare)
+        if fare_amount > 0:
+            invoice.append(
+                "items",
+                {
+                    "item_code": settings.fare_item,
+                    "qty": 1,
+                    "rate": fare_amount,
+                    "description": f"Main Fare for booking {self.name}",
+                },
+            )
+
+        baggage_amount = self._get_baggage_total_fee()
+        if baggage_amount > 0:
+            invoice.append(
+                "items",
+                {
+                    "item_code": settings.baggage_fee,
+                    "qty": 1,
+                    "rate": baggage_amount,
+                    "description": f"Excess baggage charges for booking {self.name}",
+                },
+            )
+
+        if not invoice.items:
+            frappe.throw("No billable amount found (fare/baggage).")
+
+        invoice.insert(ignore_permissions=True)
+        if submit:
+            invoice.submit()
+
+        self.append("invoices", {"invoice": invoice.name, "invoice_type": "Main Fare"})
+        if not self.customer_link:
+            self.customer_link = customer
+        self.flags.ignore_validate = True
+        self.save()
+        self.flags.ignore_validate = False
+        frappe.db.commit()
+
+        return {"success": True, "invoice": invoice.name, "created": True}
+
+    def _submit_sales_invoice(self, invoice_name):
+        invoice = frappe.get_doc("Sales Invoice", invoice_name)
+        if invoice.docstatus == 0:
+            invoice.submit()
+
+    def confirm_payment_and_invoice(self):
+        """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
+        if self.booking_status == "Cancelled":
+            frappe.throw("Cannot record payment on a cancelled booking.")
+        if self.payment_status == "Refunded":
+            frappe.throw("Cannot record payment on a refunded booking.")
+        if not self.payment_method:
+            frappe.throw("Select a Payment Method before confirming payment.")
+
+        self._validate_billing_setup()
+
+        invoice_name = self._get_main_fare_invoice()
+        if not invoice_name:
+            result = self.create_sales_invoice(submit=True)
+            invoice_name = result["invoice"]
+        else:
+            self._submit_sales_invoice(invoice_name)
+
+        payment_entry_name = self.payment_entry
+        if payment_entry_name and frappe.db.exists("Payment Entry", payment_entry_name):
+            if frappe.db.get_value("Payment Entry", payment_entry_name, "docstatus") == 0:
+                frappe.get_doc("Payment Entry", payment_entry_name).submit()
+        else:
+            from bilan_sky.bilan_air_booking_system.utils.billing import (
+                create_and_submit_payment_entry,
+            )
+
+            payment_entry_name = create_and_submit_payment_entry(
+                invoice_name,
+                mode_of_payment=self.payment_method,
+                reference_no=self.name,
+            )
+            self.payment_entry = payment_entry_name
+
+        self.payment_status = "Paid"
+
+        if self.booking_status == "Reserved":
+            self.flags.skip_auto_confirm = True
+            self.confirm_booking()
+            self.flags.skip_auto_confirm = False
+        else:
+            self.flags.ignore_validate = True
+            self.save()
+            self.flags.ignore_validate = False
+
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "invoice": invoice_name,
+            "payment_entry": payment_entry_name,
+            "booking_status": self.booking_status,
+            "payment_status": self.payment_status,
+        }
+
+    def _get_or_create_customer(self):
+        from bilan_sky.bilan_air_booking_system.utils.customer_group import (
+            ensure_passenger_customer_group,
+        )
+
+        payer_name = (self.payer_name or "").strip()
+        existing = frappe.db.get_value("Customer", {"customer_name": payer_name}, "name")
+        if existing:
+            return existing
+
+        customer_group = ensure_passenger_customer_group()
+
+        customer = frappe.get_doc(
+            {
+                "doctype": "Customer",
+                "customer_name": payer_name,
+                "customer_type": "Individual",
+                "customer_group": customer_group,
+                "territory": "All Territories",
+            }
+        )
+        if self.payer_email:
+            customer.email_id = self.payer_email
+        if self.payer_phone:
+            customer.mobile_no = self.payer_phone
+        customer.insert(ignore_permissions=True)
+        return customer.name
+
+    def _get_baggage_total_fee(self):
+        total = 0.0
+        for row in self.baggage_tracking_numbers or []:
+            if not row.baggage_tracking:
+                continue
+            total += flt(
+                frappe.db.get_value("Baggage Tracking", row.baggage_tracking, "baggage_fee") or 0
+            )
+        return flt(total)

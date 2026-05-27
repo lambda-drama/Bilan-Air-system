@@ -36,6 +36,27 @@ venv.bak/
 node_modules/
 jspm_packages/
 
+# Yarn PnP
+.pnp.*
+.yarn/
+
+# pnpm
+.pnpm-store/
+frontend/node_modules/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Nested frontend repo (if cloned with .git)
+frontend/.git/
+
 # IDEs and editors
 .vscode/
 .vs/

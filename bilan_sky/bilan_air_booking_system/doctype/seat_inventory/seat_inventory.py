@@ -19,8 +19,8 @@ class SeatInventory(Document):
         return self.status == "Available"
     
     def is_reserved(self):
-        """Check if seat is reserved"""
-        return self.status == "Reserved"
+        """Check if seat is on hold (supports legacy 'Reserved')."""
+        return self.status in ("Hold", "Reserved")
     
     def is_booked(self):
         """Check if seat is booked"""
@@ -57,8 +57,8 @@ class SeatInventory(Document):
             settings = frappe.get_single("BA Settings")
             hold_minutes = settings.hold_duration
         
-        # Reserve the seat
-        self.status = "Reserved"
+        # Put the seat on hold until payment.
+        self.status = "Hold"
         self.booking_reference = booking_name
         self.hold_expiry = add_to_date(now(), minutes=hold_minutes)
         self.save()
@@ -66,12 +66,12 @@ class SeatInventory(Document):
         
         return {
             "success": True, 
-            "message": f"Seat {self.seat_number} reserved until {self.hold_expiry}"
+            "message": f"Seat {self.seat_number} on hold until {self.hold_expiry}"
         }
     
     def confirm(self, booking_name):
         """
-        Confirm a reserved seat after payment
+        Confirm a held seat after payment
         
         Args:
             booking_name: Name of Air Booking document
@@ -83,13 +83,13 @@ class SeatInventory(Document):
         if not self.is_reserved():
             return {
                 "success": False,
-                "message": f"Seat {self.seat_number} is not reserved"
+                "message": f"Seat {self.seat_number} is not on hold"
             }
         
         if self.booking_reference != booking_name:
             return {
                 "success": False,
-                "message": f"Seat {self.seat_number} reserved for different booking"
+                "message": f"Seat {self.seat_number} is held for different booking"
             }
         
         # Confirm the seat
@@ -105,7 +105,7 @@ class SeatInventory(Document):
     
     def release(self, booking_name=None):
         """
-        Release a reserved or booked seat
+        Release a held or booked seat
         
         Args:
             booking_name: Optional, to verify ownership
@@ -167,7 +167,7 @@ class SeatInventory(Document):
     # =========================================================
     
     def is_expired(self):
-        """Check if a reserved seat has expired"""
+        """Check if a held seat has expired"""
         
         if not self.is_reserved():
             return False
@@ -193,7 +193,7 @@ class SeatInventory(Document):
     # =========================================================
     
     def minutes_remaining(self):
-        """Get minutes remaining before reservation expires"""
+        """Get minutes remaining before hold expires"""
         
         if not self.is_reserved():
             return 0
@@ -282,11 +282,11 @@ class SeatInventory(Document):
     
     @classmethod
     def get_reserved_by_flight(cls, flight_schedule_name):
-        """Get all reserved seats for a flight"""
+        """Get all seats currently on hold for a flight."""
         
         return frappe.get_all("Seat Inventory", {
             "flight_schedule": flight_schedule_name,
-            "status": "Reserved"
+            "status": ["in", ["Hold", "Reserved"]]
         }, ["name", "seat_number", "booking_reference", "hold_expiry"])
     
     @classmethod
@@ -300,12 +300,12 @@ class SeatInventory(Document):
     
     @classmethod
     def release_all_expired(cls):
-        """Release all expired reservations across all flights"""
+        """Release all expired holds across all flights"""
         
         from frappe.utils import now
         
         expired = frappe.get_all("Seat Inventory", {
-            "status": "Reserved",
+            "status": ["in", ["Hold", "Reserved"]],
             "hold_expiry": ["<", now()]
         })
         

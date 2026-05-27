@@ -9,6 +9,7 @@
   "tracking_number",
   "air_booking",
   "passenger",
+  "passenger_name",
   "flight_schedule",
   "weight_kg",
   "column_break_dxuh",
@@ -38,12 +39,19 @@
    "reqd": 1
   },
   {
+   "description": "Optional link to a registered Passenger profile.",
    "fieldname": "passenger",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Passenger",
-   "options": "Passenger",
+   "label": "Registered Passenger",
+   "options": "Passenger"
+  },
+  {
+   "fieldname": "passenger_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Traveler Name",
    "reqd": 1
   },
   {

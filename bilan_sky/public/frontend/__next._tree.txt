@@ -1,0 +1,6 @@
+:HL["/assets/bilan_sky/frontend/_next/static/media/22a5144ee8d83bca-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/assets/bilan_sky/frontend/_next/static/media/eaead17c7dbfcd5d-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/assets/bilan_sky/frontend/_next/static/media/f5271587012faf78-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/assets/bilan_sky/frontend/_next/static/css/51f6b5a3da1cdaf8.css","style"]
+:HL["/assets/bilan_sky/frontend/_next/static/css/8be8843bf5da4fa0.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}},"staleTime":300,"buildId":"WtmiVoJpdWFAxlLNxuqx-"}

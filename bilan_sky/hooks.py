@@ -36,8 +36,13 @@ add_to_apps_screen = [
 		"name": "bilan_sky",
 		"logo": "/assets/bilan_sky/image/logo_1.jpg",
 		"title": "Bilan Air",
-		"route": "/app/bilan",
+		"route": "/bilan",
 	},
+]
+
+website_route_rules = [
+	{"from_route": "/bilan", "to_route": "bilan_frontend"},
+	{"from_route": "/bilan/<path:app_path>", "to_route": "bilan_frontend"},
 ]
 
 # Includes in <head>

@@ -10,28 +10,42 @@ def create_booking(booking_data):
     """
     
     passenger_links = []
-    
+
     for pax in booking_data.get("passengers", []):
-        existing = frappe.db.exists("Passenger", {"id_number": pax.get("id_number")})
-        
-        if existing:
-            passenger = frappe.get_doc("Passenger", existing)
-        else:
-            passenger = frappe.get_doc({
-                "doctype": "Passenger",
-                "full_name": pax.get("full_name"),
-                "passenger_type": pax.get("passenger_type", "Adult"),
-                "id_number": pax.get("id_number"),
-                "date_of_birth": pax.get("date_of_birth"),
-                "phone_number": booking_data.get("payer_phone"),
-                "email": booking_data.get("payer_email")
-            })
-            passenger.insert()
-        
+        passenger_name = (pax.get("passenger_name") or pax.get("full_name") or "").strip()
+        if not passenger_name:
+            frappe.throw("Each traveler must have a passenger name.")
+
+        passenger_link = pax.get("passenger")
+        id_number = pax.get("id_number")
+
+        if not passenger_link and id_number:
+            passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
+
+        if not passenger_link and pax.get("register_profile"):
+            existing = frappe.db.exists("Passenger", {"id_number": id_number}) if id_number else None
+            if existing:
+                passenger_link = existing
+            else:
+                profile = frappe.get_doc({
+                    "doctype": "Passenger",
+                    "full_name": passenger_name,
+                    "passenger_type": pax.get("passenger_type", "Adult"),
+                    "id_number": id_number,
+                    "date_of_birth": pax.get("date_of_birth"),
+                    "phone_number": pax.get("phone_number") or booking_data.get("payer_phone"),
+                    "email": pax.get("email") or booking_data.get("payer_email"),
+                })
+                profile.insert()
+                passenger_link = profile.name
+
         passenger_links.append({
-            "passenger": passenger.name,
+            "passenger_name": passenger_name,
+            "passenger": passenger_link,
+            "id_number": id_number,
+            "passenger_type": pax.get("passenger_type", "Adult"),
             "seat_number": pax.get("seat_number"),
-            "fare_paid": 0
+            "fare_paid": 0,
         })
     
     booking = frappe.get_doc({
@@ -63,24 +77,18 @@ def create_booking(booking_data):
 
 @frappe.whitelist(allow_guest=True)
 def process_payment(pnr, payment_method, transaction_id=None):
-    """Confirm payment for a booking"""
+    """Confirm payment: invoice, payment entry, and booking confirmation."""
     
     booking = frappe.get_doc("Air Booking", pnr)
     
-    if booking.payment_status == "Paid":
+    if booking.payment_status == "Paid" and booking.payment_entry:
         return {"error": "Booking already paid"}
-    
-    booking.payment_status = "Paid"
+
     booking.payment_method = payment_method
-    booking.confirm_booking()
-    booking.save()
-    frappe.db.commit()
-    
-    return {
-        "success": True,
-        "pnr": booking.name,
-        "total": booking.total_fare
-    }
+    result = booking.confirm_payment_and_invoice()
+    result["pnr"] = booking.name
+    result["total"] = booking.total_fare
+    return result
 
 @frappe.whitelist()
 def generate_tickets_for_booking(pnr):
@@ -106,13 +114,19 @@ def fetch_booking_details(pnr):
     
     passengers = []
     for pax in booking.passengers:
-        passenger = frappe.get_doc("Passenger", pax.passenger)
+        passenger_type = pax.passenger_type or "Adult"
+        if pax.passenger:
+            profile = frappe.get_doc("Passenger", pax.passenger)
+            passenger_type = profile.passenger_type or passenger_type
+
         passengers.append({
-            "name": passenger.full_name,
-            "type": passenger.passenger_type,
+            "name": pax.passenger_name,
+            "passenger": pax.passenger,
+            "id_number": pax.id_number,
+            "type": passenger_type,
             "seat": pax.seat_number,
             "ticket_number": pax.ticket_number,
-            "check_in_status": pax.check_in_status
+            "check_in_status": pax.check_in_status,
         })
     
     flight = frappe.get_doc("Flight Schedule", booking.flight_schedule)
@@ -159,3 +173,33 @@ def mark_boarded(pnr, passenger_index):
     result = booking.board_passenger(int(passenger_index))
     
     return result
+
+
+@frappe.whitelist()
+def check_in_all_passengers(pnr):
+    booking = frappe.get_doc("Air Booking", pnr)
+    return booking.check_in_all_passengers()
+
+
+@frappe.whitelist()
+def board_all_passengers(pnr):
+    booking = frappe.get_doc("Air Booking", pnr)
+    return booking.board_all_passengers()
+
+
+@frappe.whitelist()
+def mark_booking_arrived(pnr):
+    booking = frappe.get_doc("Air Booking", pnr)
+    return booking.mark_arrived()
+
+
+@frappe.whitelist()
+def create_sales_invoice_from_booking(pnr, submit=0):
+    booking = frappe.get_doc("Air Booking", pnr)
+    return booking.create_sales_invoice(submit=frappe.utils.cint(submit))
+
+
+@frappe.whitelist()
+def confirm_payment_and_invoice_from_booking(pnr):
+    booking = frappe.get_doc("Air Booking", pnr)
+    return booking.confirm_payment_and_invoice()

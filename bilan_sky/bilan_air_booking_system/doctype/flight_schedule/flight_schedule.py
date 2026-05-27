@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import add_to_date, get_datetime
 
 from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 	assert_unique_flight_number,
@@ -21,6 +22,13 @@ class FlightSchedule(Document):
             self.flight_number = self.name
         if self.flight_number and self.departure_date:
             assert_unique_flight_number(self.flight_number, self.departure_date, self.name)
+
+    def after_insert(self):
+        self._ensure_seat_inventory()
+
+    def _ensure_seat_inventory(self):
+        if not frappe.db.exists("Seat Inventory", {"flight_schedule": self.name}):
+            self.generate_seat_inventory()
 
     def _ensure_flight_number(self):
         if self.flight_number and not self.is_new():
@@ -95,7 +103,7 @@ class FlightSchedule(Document):
         """Count reserved seats"""
         return frappe.db.count("Seat Inventory", {
             "flight_schedule": self.name,
-            "status": "Reserved"
+            "status": "Hold"
         })
     
     def booked_seats(self):
@@ -119,7 +127,7 @@ class FlightSchedule(Document):
         
         expired = frappe.get_all("Seat Inventory", {
             "flight_schedule": self.name,
-            "status": "Reserved",
+            "status": ["in", ["Hold", "Reserved"]],
             "hold_expiry": ["<", now()]
         })
         
@@ -151,7 +159,7 @@ class FlightSchedule(Document):
         if seat.status != "Available":
             return {"success": False, "message": f"Seat {seat_number} not available"}
         
-        seat.status = "Reserved"
+        seat.status = "Hold"
         seat.booking_reference = booking_name
         seat.hold_expiry = add_to_date(now(), minutes=hold_minutes)
         seat.save()
@@ -167,7 +175,7 @@ class FlightSchedule(Document):
             "booking_reference": booking_name
         })
         
-        if seat.status != "Reserved":
+        if seat.status not in ("Hold", "Reserved"):
             return {"success": False, "message": f"Seat {seat_number} not reserved for this booking"}
         
         seat.status = "Booked"
@@ -185,7 +193,7 @@ class FlightSchedule(Document):
             "booking_reference": booking_name
         })
         
-        if seat.status not in ["Reserved", "Booked"]:
+        if seat.status not in ["Hold", "Reserved", "Booked"]:
             return {"success": False, "message": f"Seat {seat_number} not reserved/booked"}
         
         seat.status = "Available"
@@ -195,3 +203,70 @@ class FlightSchedule(Document):
         frappe.db.commit()
         
         return {"success": True, "message": f"Seat {seat_number} cancelled"}
+
+
+@frappe.whitelist()
+def reschedule_flight(
+    schedule_name: str,
+    reschedule_reason: str,
+    new_departure_date: str,
+    new_departure_time: str,
+    new_arrival_date: str,
+    new_arrival_time: str,
+    new_airplane: str | None = None,
+    notes: str | None = None,
+):
+    schedule = frappe.get_doc("Flight Schedule", schedule_name)
+    schedule.check_permission("write")
+
+    new_departure = get_datetime(f"{new_departure_date} {new_departure_time}")
+    new_arrival = get_datetime(f"{new_arrival_date} {new_arrival_time}")
+    if new_arrival <= new_departure:
+        frappe.throw("New arrival must be after new departure.")
+
+    original_departure_date = schedule.departure_date
+    original_departure_time = schedule.departure_time
+    original_arrival_date = schedule.arrival_date
+    original_arrival_time = schedule.arrival_time
+    original_airplane = schedule.airplane
+
+    schedule.departure_date = new_departure_date
+    schedule.departure_time = new_departure_time
+    schedule.arrival_date = new_arrival_date
+    schedule.arrival_time = new_arrival_time
+    if new_airplane:
+        schedule.airplane = new_airplane
+
+    # Keep booking cutoff aligned with updated departure.
+    cutoff_hours = frappe.db.get_single_value("BA Settings", "booking_cutoff_hours") or 2
+    schedule.cutoff_datetime = add_to_date(new_departure, hours=-int(cutoff_hours))
+    schedule.status = "Delayed"
+    schedule.save()
+
+    log = frappe.get_doc(
+        {
+            "doctype": "Flight Rescheduling Log",
+            "flight_schedule": schedule.name,
+            "reschedule_reason": reschedule_reason,
+            "new_departure_date": new_departure_date,
+            "new_departure_time": new_departure_time,
+            "new_arrival_date": new_arrival_date,
+            "new_arrival_time": new_arrival_time,
+            "new_airplane": schedule.airplane,
+            "rescheduled_by": frappe.session.user,
+            "notes": (
+                f"Old: {original_departure_date} {original_departure_time} -> "
+                f"{original_arrival_date} {original_arrival_time}; "
+                f"Airplane: {original_airplane} -> {schedule.airplane}. "
+                f"{notes or ''}"
+            ).strip(),
+        }
+    )
+    log.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "flight_schedule": schedule.name,
+        "status": schedule.status,
+        "rescheduling_log": log.name,
+    }

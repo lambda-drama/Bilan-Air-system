@@ -1,25 +1,32 @@
 # bilan_air/api/search.py
 
 import frappe
-from frappe.utils import nowdate
+from frappe.utils import add_days, nowdate
+
+from bilan_sky.bilan_air_booking_system.utils.airports import resolve_airport_name
 
 @frappe.whitelist(allow_guest=True)
 def find_flights(origin, destination, date, passengers=1):
     """
     Main search endpoint for front-end
     """
-    
+    origin_airport = resolve_airport_name(origin)
+    destination_airport = resolve_airport_name(destination)
+
+    if not origin_airport or not destination_airport:
+        return {"error": "Unknown origin or destination airport", "flights": []}
+
     routes = frappe.get_all("Flight Route",
         filters={
-            "origin_airport": origin,
-            "destination_airport": destination,
+            "origin_airport": origin_airport,
+            "destination_airport": destination_airport,
             "is_active": 1
         },
         fields=["name", "base_fare"]
     )
     
     if not routes:
-        return {"error": "No routes found", "flights": []}
+        return {"error": "No flights found for this route on the selected date", "flights": []}
     
     results = []
     
@@ -28,7 +35,7 @@ def find_flights(origin, destination, date, passengers=1):
             filters={
                 "route": route.name,
                 "departure_date": date,
-                "status": "Scheduled"
+                "status": ["in", ["Scheduled", "Delayed"]],
             },
             fields=["name", "flight_number", "departure_date", "departure_time",
                     "arrival_date", "arrival_time", "base_fare_override", "airplane"]
@@ -105,3 +112,47 @@ def fetch_all_available_routes():
         route["destination_code"] = destination.iata_code
     
     return routes
+
+
+@frappe.whitelist(allow_guest=True)
+def get_booking_search_defaults():
+	"""Suggested origin/destination/date for portal 'New booking' link."""
+	routes = frappe.get_all(
+		"Flight Route",
+		filters={"is_active": 1},
+		fields=["name", "origin_airport", "destination_airport"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if not routes:
+		return {
+			"origin_iata": "NBO",
+			"destination_iata": "MGQ",
+			"suggested_date": add_days(nowdate(), 1),
+		}
+
+	route = routes[0]
+	from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata
+
+	origin_iata = get_airport_iata(route.origin_airport) or "NBO"
+	destination_iata = get_airport_iata(route.destination_airport) or "MGQ"
+
+	upcoming = frappe.get_all(
+		"Flight Schedule",
+		filters={
+			"route": route.name,
+			"departure_date": [">=", nowdate()],
+			"status": ["in", ["Scheduled", "Delayed"]],
+		},
+		fields=["departure_date"],
+		order_by="departure_date asc",
+		limit=1,
+	)
+
+	suggested_date = upcoming[0].departure_date if upcoming else add_days(nowdate(), 1)
+
+	return {
+		"origin_iata": origin_iata,
+		"destination_iata": destination_iata,
+		"suggested_date": suggested_date,
+	}

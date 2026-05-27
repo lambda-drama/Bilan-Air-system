@@ -27,11 +27,15 @@ def fetch_available_crew_members(role, date):
         if flight.first_officer:
             assigned_names.append(flight.first_officer)
     
-    return frappe.get_all("Crew Member",
-        filters={
-            "crew_role": role,
-            "status": "Active",
-            "name": ["not in", assigned_names]
-        },
-        fields=["name", "full_name", "employee_id", "base_airport"]
+    filters = {
+        "crew_role": role,
+        "status": "Active",
+    }
+    if assigned_names:
+        filters["name"] = ["not in", assigned_names]
+
+    return frappe.get_all(
+        "Crew Member",
+        filters=filters,
+        fields=["name", "full_name", "employee_id", "base_airport", "crew_role"],
     )
