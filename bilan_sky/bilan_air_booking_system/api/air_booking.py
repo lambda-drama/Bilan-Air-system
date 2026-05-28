@@ -6,9 +6,20 @@ from frappe.utils import now
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
     """
-    Create a new booking
+    Create a new booking.
+
+    booking_source:
+      - office: desk booking — travelers stay on the booking only; payer becomes ERPNext Customer on invoice.
+      - online: public site — optional Passenger profiles + website login when register_profile is true.
     """
-    
+    if isinstance(booking_data, str):
+        import json
+
+        booking_data = json.loads(booking_data)
+
+    booking_source = (booking_data.get("booking_source") or "online").strip().lower()
+    is_office = booking_source == "office"
+
     passenger_links = []
 
     for pax in booking_data.get("passengers", []):
@@ -22,7 +33,16 @@ def create_booking(booking_data):
         if not passenger_link and id_number:
             passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
 
-        if not passenger_link and pax.get("register_profile"):
+        register_profile = pax.get("register_profile")
+        if register_profile is None:
+            register_profile = not is_office
+
+        if is_office:
+            register_profile = False
+        elif frappe.session.user and frappe.session.user != "Guest":
+            register_profile = True
+
+        if not passenger_link and register_profile:
             existing = frappe.db.exists("Passenger", {"id_number": id_number}) if id_number else None
             if existing:
                 passenger_link = existing
@@ -36,7 +56,8 @@ def create_booking(booking_data):
                     "phone_number": pax.get("phone_number") or booking_data.get("payer_phone"),
                     "email": pax.get("email") or booking_data.get("payer_email"),
                 })
-                profile.insert()
+                profile.flags.create_login_user = True
+                profile.insert(ignore_permissions=True)
                 passenger_link = profile.name
 
         passenger_links.append({
@@ -61,18 +82,24 @@ def create_booking(booking_data):
     })
     
     booking.insert()
-    booking.calculate_total_fare()
-    booking.save()
-    frappe.db.commit()
-    
+
     for passenger in booking.passengers:
         seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
         seat.reserve(booking.name)
-    
+
+    booking.calculate_total_fare()
+    booking.save()
+    frappe.db.commit()
+
+    settings = frappe.get_single("BA Settings")
+    hold_minutes = int(settings.hold_duration or 15)
+
     return {
         "pnr": booking.name,
         "status": booking.booking_status,
-        "total_fare": booking.total_fare
+        "payment_status": booking.payment_status,
+        "total_fare": booking.total_fare,
+        "hold_duration_minutes": hold_minutes,
     }
 
 @frappe.whitelist(allow_guest=True)
@@ -106,6 +133,38 @@ def generate_tickets_for_booking(pnr):
 	}
 
 
+def _booking_baggage_rows(booking):
+	rows = []
+	for link in booking.baggage_tracking_numbers or []:
+		if not link.baggage_tracking:
+			continue
+		data = frappe.db.get_value(
+			"Baggage Tracking",
+			link.baggage_tracking,
+			[
+				"tracking_number",
+				"passenger_name",
+				"passenger",
+				"weight_kg",
+				"baggage_fee",
+				"is_excess",
+				"status",
+			],
+			as_dict=True,
+		)
+		if data:
+			rows.append(data)
+	return rows
+
+
+def _baggage_policy():
+	settings = frappe.get_single("BA Settings")
+	return {
+		"max_baggage_kg": settings.max_baggage_kg,
+		"excess_baggage_fee_per_kg": settings.excess_baggage_fee,
+	}
+
+
 @frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
     """Get booking by PNR"""
@@ -119,12 +178,17 @@ def fetch_booking_details(pnr):
             profile = frappe.get_doc("Passenger", pax.passenger)
             passenger_type = profile.passenger_type or passenger_type
 
+        seat_label = pax.seat_number
+        if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
+            seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
+
         passengers.append({
             "name": pax.passenger_name,
             "passenger": pax.passenger,
             "id_number": pax.id_number,
             "type": passenger_type,
             "seat": pax.seat_number,
+            "seat_label": seat_label,
             "ticket_number": pax.ticket_number,
             "check_in_status": pax.check_in_status,
         })
@@ -137,7 +201,13 @@ def fetch_booking_details(pnr):
         "status": booking.booking_status,
         "payment_status": booking.payment_status,
         "total_fare": booking.total_fare,
+        "payer_name": booking.payer_name,
+        "payer_phone": booking.payer_phone,
+        "payer_email": booking.payer_email,
         "passengers": passengers,
+        "baggage": _booking_baggage_rows(booking),
+        "baggage_policy": _baggage_policy(),
+        "baggage_fees_total": booking._get_baggage_total_fee(),
         "flight": {
             "flight_number": flight.flight_number,
             "origin": route.origin_airport,
@@ -157,11 +227,11 @@ def cancel_booking(pnr):
     return {"success": True, "pnr": booking.name, "status": "Cancelled"}
 
 @frappe.whitelist()
-def process_check_in(pnr, passenger_index):
-    """Check in a passenger"""
+def process_check_in(pnr, passenger_index, baggage_weight=0):
+    """Check in a passenger; optional baggage_weight (kg) creates a baggage tag."""
     
     booking = frappe.get_doc("Air Booking", pnr)
-    result = booking.check_in_passenger(int(passenger_index))
+    result = booking.check_in_passenger(int(passenger_index), float(baggage_weight or 0))
     
     return result
 
@@ -200,6 +270,7 @@ def create_sales_invoice_from_booking(pnr, submit=0):
 
 
 @frappe.whitelist()
-def confirm_payment_and_invoice_from_booking(pnr):
+def confirm_payment_and_invoice_from_booking(pnr, payment_method=None):
     booking = frappe.get_doc("Air Booking", pnr)
-    return booking.confirm_payment_and_invoice()
+    booking.check_permission("write")
+    return booking.confirm_payment_and_invoice(payment_method=payment_method)

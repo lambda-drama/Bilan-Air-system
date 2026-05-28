@@ -57,9 +57,24 @@ export async function listSchedules(opts?: {
 }
 
 export async function saveSchedule(data: Record<string, unknown>) {
-  return apiRequest(methodUrl("portal", "save_flight_schedule"), {
+  return apiRequest<Record<string, unknown> & { seats_created?: number }>(
+    methodUrl("portal", "save_flight_schedule"),
+    {
+      method: "POST",
+      body: JSON.stringify({ data }),
+    },
+  );
+}
+
+export async function ensureScheduleSeats(scheduleName: string) {
+  return apiRequest<{
+    schedule: string;
+    seats_before: number;
+    seats_created: number;
+    seats_total: number;
+  }>(methodUrl("portal", "ensure_schedule_seats"), {
     method: "POST",
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({ schedule_name: scheduleName }),
   });
 }
 

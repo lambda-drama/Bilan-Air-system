@@ -5,7 +5,12 @@ import frappe
 @frappe.whitelist(allow_guest=True)
 def fetch_all_airports():
     """Get all airports"""
-    return frappe.get_all("Airport", fields=["name", "airport_name", "iata_code", "city", "country"])
+    return frappe.get_all(
+        "Airport",
+        filters={"is_active": 1},
+        fields=["name", "airport_name", "iata_code", "city", "country"],
+        order_by="city asc",
+    )
 
 @frappe.whitelist(allow_guest=True)
 def fetch_airport_by_iata(iata_code):

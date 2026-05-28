@@ -22,13 +22,15 @@ def search_available_flights(origin, destination, date, passengers=1):
     if not origin_airport or not destination_airport:
         return []
 
-    routes = frappe.get_all("Flight Route",
+    routes = frappe.get_all(
+        "Flight Route",
         filters={
             "origin_airport": origin_airport,
             "destination_airport": destination_airport,
-            "is_active": 1
+            "is_active": 1,
         },
-        fields=["name", "base_fare"]
+        fields=["name", "base_fare"],
+        ignore_permissions=True,
     )
     
     if not routes:
@@ -37,14 +39,25 @@ def search_available_flights(origin, destination, date, passengers=1):
     flights = []
     
     for route in routes:
-        schedules = frappe.get_all("Flight Schedule",
+        schedules = frappe.get_all(
+            "Flight Schedule",
             filters={
                 "route": route.name,
                 "departure_date": date,
                 "status": ["in", ["Scheduled", "Delayed"]],
+                "docstatus": 1,
             },
-            fields=["name", "flight_number", "departure_date", "departure_time", 
-                    "arrival_date", "arrival_time", "airplane", "base_fare_override"]
+            fields=[
+                "name",
+                "flight_number",
+                "departure_date",
+                "departure_time",
+                "arrival_date",
+                "arrival_time",
+                "airplane",
+                "base_fare_override",
+            ],
+            ignore_permissions=True,
         )
         
         for schedule in schedules:
@@ -59,13 +72,15 @@ def search_available_flights(origin, destination, date, passengers=1):
                 from frappe.utils import date_diff
                 days_before = date_diff(schedule.departure_date, nowdate())
                 
-                fare_rule = frappe.get_all("Fare Rule",
+                fare_rule = frappe.get_all(
+                    "Fare Rule",
                     filters={
                         "route": route.name,
-                        "days_before_departure": [">=", days_before]
+                        "days_before_departure": [">=", days_before],
                     },
                     order_by="days_before_departure asc",
-                    limit=1
+                    limit=1,
+                    ignore_permissions=True,
                 )
                 
                 price_multiplier = 1.0
@@ -92,9 +107,11 @@ def search_available_flights(origin, destination, date, passengers=1):
 def fetch_seat_map(flight_schedule_name):
     """Get seat map for a flight"""
     
-    seats = frappe.get_all("Seat Inventory",
+    seats = frappe.get_all(
+        "Seat Inventory",
         filters={"flight_schedule": flight_schedule_name},
-        fields=["name", "seat_number", "seat_class", "status", "booking_reference"]
+        fields=["name", "seat_number", "seat_class", "status", "booking_reference"],
+        ignore_permissions=True,
     )
     
     seat_map = {
@@ -104,7 +121,7 @@ def fetch_seat_map(flight_schedule_name):
     }
     
     for seat in seats:
-        seat_class_doc = frappe.get_doc("Seat Class", seat.seat_class)
+        seat_class_doc = frappe.get_doc("Seat Class", seat.seat_class, ignore_permissions=True)
         class_name = seat_class_doc.class_name
         
         seat_map[class_name].append({
@@ -120,9 +137,9 @@ def fetch_seat_map(flight_schedule_name):
 def fetch_flight_details(schedule_id):
     """Get detailed flight information"""
     
-    schedule = frappe.get_doc("Flight Schedule", schedule_id)
-    route = frappe.get_doc("Flight Route", schedule.route)
-    airplane = frappe.get_doc("Airplane", schedule.airplane)
+    schedule = frappe.get_doc("Flight Schedule", schedule_id, ignore_permissions=True)
+    route = frappe.get_doc("Flight Route", schedule.route, ignore_permissions=True)
+    airplane = frappe.get_doc("Airplane", schedule.airplane, ignore_permissions=True)
     
     return {
         "flight_number": schedule.flight_number,

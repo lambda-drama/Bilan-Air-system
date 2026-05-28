@@ -10,6 +10,7 @@ import {
   saveSchedule,
   type FlightScheduleRow,
 } from "@/services/flightSchedule";
+import { toast } from "sonner";
 import { fetchAllRoutes } from "@/services/flightRoute";
 import { fetchAllAirplanes } from "@/services/airplane";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
@@ -44,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/portal/searchable-select";
+import { useRouter } from "next/navigation";
 
 const FLIGHT_STATUS_OPTIONS = [
   { value: "Scheduled", label: "Scheduled" },
@@ -69,6 +71,7 @@ const emptyScheduleForm = {
 type CrewOption = { name: string; full_name: string; crew_role: string };
 
 export default function PortalFlightsPage() {
+  const router = useRouter();
   const fetchSchedules = useCallback(async (search: string) => {
     const res = await listSchedules({ limit: 100, search: search.trim() || undefined });
     return res.data;
@@ -109,6 +112,10 @@ export default function PortalFlightsPage() {
     new_arrival_time: "",
   });
   const rescheduleAlerts = useFormDialogAlerts();
+
+  const openOfficeBooking = (scheduleId: string) => {
+    router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(scheduleId)}`);
+  };
 
   const handleRescheduleDialogOpenChange = (open: boolean) => {
     if (!open) {
@@ -293,7 +300,15 @@ export default function PortalFlightsPage() {
       if (form.base_fare_override) {
         payload.base_fare_override = parseFloat(form.base_fare_override);
       }
-      await saveSchedule(payload);
+      const created = await saveSchedule(payload);
+      const seats = Number(created.seats_created ?? 0);
+      if (seats > 0) {
+        toast.success(`Flight schedule created with ${seats} seats`);
+      } else {
+        toast.warning(
+          "Schedule saved but no seats were created. Check the airplane seat configuration.",
+        );
+      }
       setAddOpen(false);
       setForm(emptyScheduleForm);
       formAlerts.clearAlerts();
@@ -390,6 +405,12 @@ export default function PortalFlightsPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setSelectedId(s.name)}>
                                 View details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => openOfficeBooking(s.name)}
+                                disabled={!["Scheduled", "Delayed"].includes(s.status)}
+                              >
+                                Book flight
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openReschedule(s)}>
                                 Reschedule
@@ -618,12 +639,22 @@ export default function PortalFlightsPage() {
         isLoading={detailLoading}
         footer={
           selectedRow ? (
-            <Button
-              className="bg-gold text-navy hover:bg-gold-dark"
-              onClick={() => openReschedule(selectedRow)}
-            >
-              Reschedule flight
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              <Button
+                className="bg-gold text-navy hover:bg-gold-dark flex-1"
+                onClick={() => openOfficeBooking(selectedRow.name)}
+                disabled={!["Scheduled", "Delayed"].includes(selectedRow.status)}
+              >
+                Book flight
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => openReschedule(selectedRow)}
+              >
+                Reschedule
+              </Button>
+            </div>
           ) : undefined
         }
       >

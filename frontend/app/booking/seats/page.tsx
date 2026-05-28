@@ -7,6 +7,7 @@ import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { fetchSeatMap, type SeatMapEntry } from '@/services/flightSchedule';
+import { bookingFlowPath } from '@/lib/booking-flow-params';
 
 interface SeatRow {
   name: string;
@@ -79,7 +80,7 @@ function SeatSelectionContent() {
       destination: searchParams.get('destination') || '',
       date: searchParams.get('date') || '',
     });
-    router.push(`/booking/passengers?${params.toString()}`);
+    router.push(bookingFlowPath('/booking/account', params));
   };
 
   const getSeatColor = (seat: SeatRow) => {

@@ -7,7 +7,12 @@ import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Plane, Calendar, Clock, MapPin, User, AlertCircle, Download } from 'lucide-react';
-import { fetchBookingDetails, cancelBooking, type BookingDetails } from '@/services/airBooking';
+import {
+  fetchBookingDetails,
+  cancelBooking,
+  processPayment,
+  type BookingDetails,
+} from '@/services/airBooking';
 import { useCurrency } from '@/contexts/currency-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
@@ -21,6 +26,7 @@ function ManageBookingContent() {
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (!debouncedPnr) {
@@ -89,9 +95,24 @@ function ManageBookingContent() {
     }
   };
 
+  const handlePayNow = async () => {
+    if (!booking?.pnr) return;
+    setPaying(true);
+    setError('');
+    try {
+      await processPayment(booking.pnr, 'Cash');
+      await handleSearch(booking.pnr);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Payment could not be recorded');
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Paid': return 'bg-green-100 text-green-700';
+      case 'Pending': return 'bg-amber-100 text-amber-800';
       case 'Reserved': return 'bg-yellow-100 text-yellow-700';
       case 'Checked In': return 'bg-blue-100 text-blue-700';
       case 'Boarded': return 'bg-navy text-cream';
@@ -181,7 +202,13 @@ function ManageBookingContent() {
               </div>
             </div>
 
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3 border-b border-navy/10">
+              <p className="text-sm">
+                <span className="text-navy/60">Payment:</span>{' '}
+                <span className={`font-medium px-2 py-0.5 rounded ${getStatusColor(booking.payment_status || 'Pending')}`}>
+                  {booking.payment_status || 'Pending'}
+                </span>
+              </p>
               <p className="text-navy font-medium">Passengers</p>
               {booking.passengers.map((p, i) => (
                 <div key={i} className="flex justify-between text-sm border-b border-navy/5 pb-2">
@@ -197,12 +224,21 @@ function ManageBookingContent() {
             </div>
 
             <div className="p-6 flex flex-wrap gap-4">
+              {booking.payment_status === 'Pending' && booking.status !== 'Cancelled' && (
+                <Button
+                  className="bg-gold hover:bg-gold-dark text-navy"
+                  onClick={handlePayNow}
+                  disabled={paying || loading}
+                >
+                  {paying ? 'Processing...' : 'Complete payment'}
+                </Button>
+              )}
               {booking.status !== 'Cancelled' && (
                 <Button
                   variant="outline"
                   className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
                   onClick={handleCancel}
-                  disabled={loading}
+                  disabled={loading || paying}
                 >
                   Cancel Booking
                 </Button>

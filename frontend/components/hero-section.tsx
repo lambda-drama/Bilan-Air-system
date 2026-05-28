@@ -1,32 +1,109 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plane, ArrowRight, Search } from 'lucide-react';
+import { Plane, ArrowRight, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-// Sample airports - in production this would come from the API
-const airports = [
-  { code: 'NBO', name: 'Nairobi', city: 'Nairobi', country: 'Kenya' },
-  { code: 'MGQ', name: 'Mogadishu', city: 'Mogadishu', country: 'Somalia' },
-  { code: 'HGA', name: 'Hargeisa', city: 'Hargeisa', country: 'Somalia' },
-  { code: 'BBO', name: 'Bosaso', city: 'Bosaso', country: 'Somalia' },
-  { code: 'KIS', name: 'Kisumu', city: 'Kisumu', country: 'Kenya' },
-  { code: 'MBA', name: 'Mombasa', city: 'Mombasa', country: 'Kenya' },
-  { code: 'JIB', name: 'Djibouti', city: 'Djibouti', country: 'Djibouti' },
-  { code: 'ADD', name: 'Addis Ababa', city: 'Addis Ababa', country: 'Ethiopia' },
-];
+import { fetchAllRoutes, getBookingSearchDefaults } from '@/services/search';
+import {
+  buildAirportOptionsFromRoutes,
+  destinationsForOrigin,
+  type AirportOption,
+} from '@/lib/public-flight-airports';
 
 export function HeroSection() {
   const router = useRouter();
-  const [origin, setOrigin] = useState('NBO');
-  const [destination, setDestination] = useState('MGQ');
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [passengers, setPassengers] = useState(1);
   const [bookingRef, setBookingRef] = useState('');
+  const [loadingAirports, setLoadingAirports] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [origins, setOrigins] = useState<AirportOption[]>([]);
+  const [destinationsByOrigin, setDestinationsByOrigin] = useState<
+    Map<string, Map<string, AirportOption>>
+  >(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingAirports(true);
+    setLoadError('');
+    Promise.all([fetchAllRoutes(), getBookingSearchDefaults()])
+      .then(([routes, defaults]) => {
+        if (cancelled) return;
+        const { origins: originList, destinationsByOrigin: destMap } =
+          buildAirportOptionsFromRoutes(routes);
+        if (originList.length === 0) {
+          setLoadError('No flight routes are available yet. Please check back soon.');
+          setOrigins([]);
+          setDestinationsByOrigin(new Map());
+          return;
+        }
+        setOrigins(originList);
+        setDestinationsByOrigin(destMap);
+
+        const defaultOrigin =
+          originList.find((a) => a.code === defaults.origin_iata)?.code ||
+          originList[0].code;
+        const dests = destinationsForOrigin(destMap, defaultOrigin);
+        const defaultDest =
+          dests.find((a) => a.code === defaults.destination_iata)?.code ||
+          dests[0]?.code ||
+          '';
+
+        setOrigin(defaultOrigin);
+        setDestination(defaultDest);
+        if (defaults.suggested_date) {
+          setDepartureDate(defaults.suggested_date);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError('Could not load airports. Please refresh the page.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAirports(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const destinationOptions = useMemo(
+    () => destinationsForOrigin(destinationsByOrigin, origin),
+    [destinationsByOrigin, origin],
+  );
+
+  useEffect(() => {
+    if (!origin || destinationOptions.length === 0) return;
+    if (!destinationOptions.some((d) => d.code === destination)) {
+      setDestination(destinationOptions[0].code);
+    }
+  }, [origin, destinationOptions, destination]);
+
+  const handleOriginChange = (code: string) => {
+    setOrigin(code);
+    const dests = destinationsForOrigin(destinationsByOrigin, code);
+    if (dests.length > 0) {
+      setDestination((prev) =>
+        dests.some((d) => d.code === prev) ? prev : dests[0].code,
+      );
+    } else {
+      setDestination('');
+    }
+  };
 
   const handleSearch = () => {
+    if (!origin || !destination) {
+      return;
+    }
+    if (!departureDate) {
+      return;
+    }
     const params = new URLSearchParams({
       origin,
       destination,
@@ -42,9 +119,15 @@ export function HeroSection() {
     }
   };
 
+  const searchDisabled =
+    loadingAirports ||
+    !origin ||
+    !destination ||
+    !departureDate ||
+    destinationOptions.length === 0;
+
   return (
     <section className="relative min-h-screen bg-navy pt-20">
-      {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/2 right-0 transform -translate-y-1/2 text-navy-light/10 text-[20rem] font-bold tracking-wider select-none">
           BILAN AIR
@@ -54,10 +137,9 @@ export function HeroSection() {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left - Hero Content */}
           <div className="text-left">
             <p className="text-gold text-xs font-semibold tracking-[0.3em] mb-6">
-              NAIROBI &rarr; MOGADISHU
+              BOOK YOUR FLIGHT
             </p>
             <h1 className="text-cream font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6">
               Reliable regional travel with{' '}
@@ -89,57 +171,73 @@ export function HeroSection() {
               </Button>
             </div>
 
-            {/* Stats */}
             <div className="mt-16 inline-flex items-center gap-2 border border-cream/20 rounded-lg px-6 py-4">
-              <span className="text-gold text-3xl font-serif">12+</span>
-              <span className="text-cream/60 text-sm">Routes &middot; East Africa</span>
+              <span className="text-gold text-3xl font-serif">
+                {origins.length > 0 ? `${origins.length}+` : '—'}
+              </span>
+              <span className="text-cream/60 text-sm">Departure airports · live routes</span>
             </div>
           </div>
 
-          {/* Right - Search Form */}
           <div id="book" className="bg-cream rounded-2xl p-8 shadow-2xl">
             <div className="mb-6">
               <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">FLIGHT SEARCH</p>
               <h2 className="text-navy text-2xl font-serif">Find your flight</h2>
               <p className="text-navy/60 text-sm mt-1">
-                Fare appears only after route, date, and passenger search.
+                From and To lists use airports on your active routes (not sample data).
               </p>
             </div>
 
+            {loadError && (
+              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+                {loadError}
+              </p>
+            )}
+
             <div className="space-y-4">
-              {/* Origin */}
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">FROM</label>
-                <select
-                  value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
-                  className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold"
-                >
-                  {airports.map((airport) => (
-                    <option key={airport.code} value={airport.code}>
-                      {airport.city} ({airport.code})
-                    </option>
-                  ))}
-                </select>
+                {loadingAirports ? (
+                  <div className="mt-1 flex items-center gap-2 px-4 py-3 text-navy/50 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading airports…
+                  </div>
+                ) : (
+                  <select
+                    value={origin}
+                    onChange={(e) => handleOriginChange(e.target.value)}
+                    disabled={origins.length === 0}
+                    className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-60"
+                  >
+                    {origins.map((airport) => (
+                      <option key={airport.code} value={airport.code}>
+                        {airport.city} ({airport.code})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              {/* Destination */}
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">TO</label>
-                <select
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold"
-                >
-                  {airports.map((airport) => (
-                    <option key={airport.code} value={airport.code}>
-                      {airport.city} ({airport.code})
-                    </option>
-                  ))}
-                </select>
+                {loadingAirports ? (
+                  <div className="mt-1 px-4 py-3 text-navy/50 text-sm">—</div>
+                ) : (
+                  <select
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    disabled={destinationOptions.length === 0}
+                    className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-60"
+                  >
+                    {destinationOptions.map((airport) => (
+                      <option key={airport.code} value={airport.code}>
+                        {airport.city} ({airport.code})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              {/* Date */}
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">DEPARTURE</label>
                 <input
@@ -151,7 +249,6 @@ export function HeroSection() {
                 />
               </div>
 
-              {/* Passengers */}
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">PASSENGERS</label>
                 <input
@@ -166,19 +263,23 @@ export function HeroSection() {
 
               <Button
                 onClick={handleSearch}
-                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold py-6 mt-4"
+                disabled={searchDisabled}
+                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold py-6 mt-4 disabled:opacity-50"
               >
-                <Search className="w-4 h-4 mr-2" />
+                {loadingAirports ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
                 Search Flights
               </Button>
             </div>
 
-            {/* Manage Booking */}
             <div className="mt-8 pt-6 border-t border-navy/10">
               <p className="text-navy/60 text-sm mb-3">Already booked?</p>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Booking ref (e.g. BA-20261234)"
+                  placeholder="Booking ref (e.g. BA-00001)"
                   value={bookingRef}
                   onChange={(e) => setBookingRef(e.target.value)}
                   className="flex-1"

@@ -12,11 +12,12 @@ DEFAULT_USER_ROLE = "Customer"
 
 class Passenger(Document):
 	def validate(self):
-		if not self.user and not self.email:
-			frappe.throw(_("Email is required to create a login user for this passenger."))
+		if getattr(self.flags, "create_login_user", False) and not self.email:
+			frappe.throw(_("Email is required to create a website login for this passenger."))
 
 	def after_insert(self):
-		if not self.user:
+		# Desk bookings and CRM profiles must not auto-create Users — only explicit online signup.
+		if getattr(self.flags, "create_login_user", False) and not self.user:
 			self._create_and_link_user()
 
 	def _create_and_link_user(self):

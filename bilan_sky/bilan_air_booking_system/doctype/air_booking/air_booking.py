@@ -65,19 +65,29 @@ class AirBooking(Document):
                 frappe.throw(f"Passenger name is required for traveler {idx}.")
 
     def validate_seat_availability(self):
-        """Check if selected seats are still available"""
-        
+        """Check if selected seats are still available for this flight and booking."""
         for passenger in self.passengers:
-            if passenger.seat_number:
-                seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-                
-                # For new booking, seat must be Available
-                if self.is_new() and seat.status != "Available":
-                    frappe.throw(f"Seat {seat.seat_number} is no longer available")
-                
-                # For existing booking, seat must match
-                if not self.is_new() and seat.booking_reference != self.name:
-                    frappe.throw(f"Seat {seat.seat_number} belongs to another booking")
+            if not passenger.seat_number:
+                continue
+
+            seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
+
+            if seat.flight_schedule != self.flight_schedule:
+                frappe.throw(
+                    f"Seat {seat.seat_number} is not on flight {self.flight_schedule}"
+                )
+
+            # Already linked to this booking (e.g. Hold after reserve on a follow-up save)
+            if seat.booking_reference == self.name:
+                continue
+
+            if seat.booking_reference:
+                frappe.throw(f"Seat {seat.seat_number} belongs to another booking")
+
+            if seat.status != "Available":
+                frappe.throw(
+                    f"Seat {seat.seat_number} is no longer available ({seat.status})"
+                )
     
     # =========================================================
     # FARE CALCULATION
@@ -219,7 +229,11 @@ class AirBooking(Document):
     
     def check_in_passenger(self, passenger_index, baggage_weight=0):
         """Check in a specific passenger"""
-        
+        if self.payment_status != "Paid":
+            frappe.throw("Booking must be paid before check-in.")
+        if self.booking_status == "Cancelled":
+            frappe.throw("Cannot check in a cancelled booking.")
+
         if passenger_index >= len(self.passengers):
             frappe.throw("Invalid passenger index")
         
@@ -414,14 +428,19 @@ class AirBooking(Document):
         if invoice.docstatus == 0:
             invoice.submit()
 
-    def confirm_payment_and_invoice(self):
+    def confirm_payment_and_invoice(self, payment_method=None):
         """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
         if self.booking_status == "Cancelled":
             frappe.throw("Cannot record payment on a cancelled booking.")
         if self.payment_status == "Refunded":
             frappe.throw("Cannot record payment on a refunded booking.")
+        if payment_method:
+            self.payment_method = payment_method
         if not self.payment_method:
-            frappe.throw("Select a Payment Method before confirming payment.")
+            self.payment_method = (
+                frappe.db.get_single_value("BA Settings", "default_mode_of_payment")
+                or "Cash"
+            )
 
         self._validate_billing_setup()
 
