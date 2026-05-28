@@ -2,7 +2,10 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import cstr
+
+WEBSITE_CUSTOMER_ROLE = "Customer"
 
 
 def split_full_name(full_name: str, default_first: str = "User") -> tuple[str, str]:
@@ -29,10 +32,21 @@ def create_or_get_user(
 	if not email:
 		return ""
 
+	resolved_role = role
+	if resolved_role and not frappe.db.exists("Role", resolved_role):
+		if resolved_role == WEBSITE_CUSTOMER_ROLE:
+			_ensure_customer_role()
+		if not frappe.db.exists("Role", resolved_role):
+			frappe.throw(
+				_("Role {0} is not set up. Run bench migrate or add the role in Desk.").format(
+					resolved_role
+				)
+			)
+
 	if frappe.db.exists("User", email):
 		user_name = email
-		if role and frappe.db.exists("Role", role):
-			frappe.get_doc("User", user_name).add_roles(role)
+		if resolved_role:
+			frappe.get_doc("User", user_name).add_roles(resolved_role)
 		return user_name
 
 	first_name, last_name = split_full_name(full_name, default_first=default_first_name)
@@ -50,7 +64,20 @@ def create_or_get_user(
 	)
 	user.insert(ignore_permissions=True)
 
-	if role and frappe.db.exists("Role", role):
-		user.add_roles(role)
+	if resolved_role:
+		user.add_roles(resolved_role)
 
 	return user.name
+
+
+def _ensure_customer_role():
+	"""Website role for passengers who register on the public site."""
+	if frappe.db.exists("Role", WEBSITE_CUSTOMER_ROLE):
+		return
+	frappe.get_doc(
+		{
+			"doctype": "Role",
+			"role_name": WEBSITE_CUSTOMER_ROLE,
+			"desk_access": 0,
+		}
+	).insert(ignore_permissions=True)

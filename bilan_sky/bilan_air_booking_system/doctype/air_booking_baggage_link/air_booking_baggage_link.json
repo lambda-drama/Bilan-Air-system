@@ -6,13 +6,16 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_zmsf"
+  "baggage_tracking"
  ],
  "fields": [
   {
+   "allow_on_submit": 1,
    "fieldname": "baggage_tracking",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Baggage Tracking",
    "options": "Baggage Tracking",
    "reqd": 1
@@ -22,7 +25,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-27 01:31:16.299683",
+ "modified": "2026-05-28 02:49:09.169325",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking Baggage Link",

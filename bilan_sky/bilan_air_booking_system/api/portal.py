@@ -68,10 +68,95 @@ def save_flight_schedule(data):
 		doc = frappe.get_doc({"doctype": "Flight Schedule", **data})
 
 	doc.save()
-	if not frappe.db.exists("Seat Inventory", {"flight_schedule": doc.name}):
-		doc.generate_seat_inventory()
+	seats_created = doc.generate_seat_inventory()
 	frappe.db.commit()
-	return doc.as_dict()
+	result = doc.as_dict()
+	result["seats_created"] = seats_created
+	return result
+
+
+@frappe.whitelist()
+def ensure_schedule_seats(schedule_name):
+	"""Create seat inventory for a schedule if missing (e.g. legacy schedules)."""
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	doc.check_permission("write")
+	before = frappe.db.count("Seat Inventory", {"flight_schedule": doc.name})
+	created = doc.generate_seat_inventory()
+	frappe.db.commit()
+	return {
+		"schedule": doc.name,
+		"seats_before": before,
+		"seats_created": created,
+		"seats_total": frappe.db.count("Seat Inventory", {"flight_schedule": doc.name}),
+	}
+
+
+@frappe.whitelist()
+def search_bookings_for_checkin(query=None, limit=15):
+	"""Typeahead for portal check-in: PNR, payer name, phone, or email."""
+	limit = int(limit or 15)
+	q = (query or "").strip()
+
+	filters = {"booking_status": ["!=", "Cancelled"]}
+	fields = [
+		"name",
+		"flight_schedule",
+		"payer_name",
+		"payer_phone",
+		"payer_email",
+		"booking_status",
+		"payment_status",
+		"total_fare",
+		"booking_date",
+	]
+
+	if q:
+		bookings = frappe.get_all(
+			"Air Booking",
+			filters=filters,
+			or_filters=[
+				["name", "like", f"%{q}%"],
+				["payer_name", "like", f"%{q}%"],
+				["payer_phone", "like", f"%{q}%"],
+				["payer_email", "like", f"%{q}%"],
+			],
+			fields=fields,
+			order_by="booking_date desc",
+			limit_page_length=limit,
+		)
+	else:
+		bookings = frappe.get_all(
+			"Air Booking",
+			filters=filters,
+			fields=fields,
+			order_by="booking_date desc",
+			limit_page_length=limit,
+		)
+
+	results = []
+	for row in bookings:
+		departure = frappe.db.get_value(
+			"Flight Schedule",
+			row.flight_schedule,
+			["departure_date", "departure_time", "flight_number"],
+			as_dict=True,
+		)
+		results.append(
+			{
+				"pnr": row.name,
+				"payer_name": row.payer_name,
+				"payer_phone": row.payer_phone,
+				"payer_email": row.payer_email,
+				"flight_schedule": row.flight_schedule,
+				"flight_number": (departure or {}).get("flight_number") or row.flight_schedule,
+				"departure_date": (departure or {}).get("departure_date"),
+				"departure_time": (departure or {}).get("departure_time"),
+				"booking_status": row.booking_status,
+				"payment_status": row.payment_status,
+			}
+		)
+
+	return results
 
 
 @frappe.whitelist()

@@ -20,13 +20,13 @@ function FlightSearchContent() {
   const [error, setError] = useState('');
   const [selectedClass, setSelectedClass] = useState<'Economy' | 'Business' | 'First Class'>('Economy');
 
-  const origin = searchParams.get('origin') || 'NBO';
-  const destination = searchParams.get('destination') || 'MGQ';
+  const origin = searchParams.get('origin') || '';
+  const destination = searchParams.get('destination') || '';
   const date = searchParams.get('date') || '';
   const passengers = parseInt(searchParams.get('passengers') || '1');
 
   useEffect(() => {
-    if (!date) {
+    if (!date || !origin || !destination) {
       setLoading(false);
       setFlights([]);
       setError('');
@@ -143,12 +143,12 @@ function FlightSearchContent() {
             <div className="animate-spin w-10 h-10 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4" />
             <p className="text-navy/60">Searching for available flights...</p>
           </div>
-        ) : !date ? (
+        ) : !date || !origin || !destination ? (
           <div className="text-center py-20">
             <Plane className="w-16 h-16 text-navy/20 mx-auto mb-4" />
-            <h3 className="text-navy text-xl font-semibold mb-2">Choose a departure date</h3>
+            <h3 className="text-navy text-xl font-semibold mb-2">Start your search from the home page</h3>
             <p className="text-navy/60 mb-6">
-              Use the flight search on the home page with the correct route and date for your schedule.
+              Pick From, To, and departure date using airports from your airline&apos;s active routes.
             </p>
             <Button
               className="bg-gold hover:bg-gold-dark text-navy"

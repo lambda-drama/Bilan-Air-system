@@ -20,6 +20,7 @@ fixtures = [
 					"Support Agent",
 					"Pricing Manager",
 					"Baggage Handler",
+					"Customer",
 				],
 			]
 		],

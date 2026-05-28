@@ -42,6 +42,7 @@
    "unique": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "Reserved",
    "fieldname": "booking_status",
    "fieldtype": "Select",
@@ -49,6 +50,7 @@
    "in_standard_filter": 1,
    "label": "Booking Status",
    "options": "Reserved\nPaid\nChecked In\nBoarded\nArrived\nCancelled",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -165,6 +167,8 @@
    "label": "Baggage"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "baggage_tracking_numbers",
    "fieldtype": "Table",
    "label": "Baggage Tracking Numbers",
@@ -198,7 +202,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-27 20:51:52.785167",
+ "modified": "2026-05-28 02:48:56.928701",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking",

@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, User } from 'lucide-react';
+import { ArrowRight, User, Loader2 } from 'lucide-react';
 import { saveBookingDraft } from '@/lib/booking-store';
-import { registerPassenger } from '@/services/passenger';
-import { useCurrency } from '@/contexts/currency-context';
+import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { useAuth } from '@/contexts/auth-context';
 import { SearchableSelect } from '@/components/portal/searchable-select';
 
 const PASSENGER_TYPE_OPTIONS = [
@@ -28,10 +28,10 @@ interface PassengerForm {
 }
 
 function PassengerDetailsContent() {
-  const { formatMoney } = useCurrency();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+  const { isAuthenticated, isLoading, user } = useAuth();
+
   const flightId = searchParams.get('flight') || '';
   const seatClass = searchParams.get('class') || 'Economy';
   const seats = searchParams.get('seats')?.split(',').filter(Boolean) || [];
@@ -39,16 +39,42 @@ function PassengerDetailsContent() {
   const passengerCount = parseInt(searchParams.get('passengers') || '1');
   const [submitting, setSubmitting] = useState(false);
 
+  const accountPath = bookingFlowPath('/booking/account', searchParams);
+
   const [passengers, setPassengers] = useState<PassengerForm[]>(
-    Array(passengerCount).fill(null).map(() => ({
-      full_name: '',
-      id_number: '',
-      date_of_birth: '',
-      phone_number: '',
-      email: '',
-      passenger_type: 'Adult' as const,
-    }))
+    Array(passengerCount)
+      .fill(null)
+      .map(() => ({
+        full_name: '',
+        id_number: '',
+        date_of_birth: '',
+        phone_number: '',
+        email: '',
+        passenger_type: 'Adult' as const,
+      })),
   );
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace(accountPath);
+    }
+  }, [isLoading, isAuthenticated, router, accountPath]);
+
+  useEffect(() => {
+    if (!user) return;
+    setPassengers((prev) =>
+      prev.map((p, i) =>
+        i === 0
+          ? {
+              ...p,
+              full_name: p.full_name || user.full_name || '',
+              email: p.email || user.email || '',
+              phone_number: p.phone_number || user.mobile_no || user.phone || '',
+            }
+          : p,
+      ),
+    );
+  }, [user]);
 
   const updatePassenger = (index: number, field: keyof PassengerForm, value: string) => {
     const updated = [...passengers];
@@ -61,34 +87,16 @@ function PassengerDetailsContent() {
   );
 
   const handleContinue = async () => {
-    if (!isValid || submitting) return;
+    if (!isValid || submitting || !isAuthenticated) return;
     setSubmitting(true);
     try {
-      const enriched = await Promise.all(
-        passengers.map(async (p, i) => {
-          try {
-            await registerPassenger({
-              full_name: p.full_name,
-              id_number: p.id_number,
-              date_of_birth: p.date_of_birth,
-              phone_number: p.phone_number,
-              email: p.email,
-              passenger_type: p.passenger_type,
-            });
-          } catch {
-            /* may already exist */
-          }
-          return p;
-        }),
-      );
-
-      const payer = enriched[0];
+      const payer = passengers[0];
       saveBookingDraft({
         flightScheduleId: flightId,
         seatClass,
         selectedSeatIds: seats,
         selectedSeatLabels: seatLabels.length ? seatLabels : seats,
-        passengers: enriched,
+        passengers,
         payer_name: payer.full_name,
         payer_email: payer.email,
         payer_phone: payer.phone_number,
@@ -97,44 +105,47 @@ function PassengerDetailsContent() {
         departure_date: searchParams.get('date') || undefined,
       });
 
-      const params = new URLSearchParams({
-        flight: flightId,
-        class: seatClass,
-        seats: seats.join(','),
-        passengers: passengerCount.toString(),
-      });
-      router.push(`/booking/payment?${params.toString()}`);
+      router.push(bookingFlowPath('/booking/payment', searchParams));
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (isLoading || !isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-cream flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gold" />
+      </main>
+    );
+  }
+
+  const displaySeats = seatLabels.length ? seatLabels : seats;
+
   return (
     <main className="min-h-screen bg-cream">
       <Navbar />
-      
-      {/* Header */}
+
       <div className="bg-navy pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4 text-cream/60 text-sm mb-4">
             <span>Search</span>
             <ArrowRight className="w-4 h-4" />
-            <span>Seat Selection</span>
+            <span>Seats</span>
             <ArrowRight className="w-4 h-4" />
-            <span className="text-gold">Passenger Details</span>
+            <span>Account</span>
             <ArrowRight className="w-4 h-4" />
-            <span>Payment</span>
+            <span className="text-gold">Travelers</span>
           </div>
-          <h1 className="text-cream font-serif text-3xl">Passenger Details</h1>
+          <h1 className="text-cream font-serif text-3xl">Traveler details</h1>
           <p className="text-cream/60 mt-2">
-            Enter details for {passengerCount} passenger{passengerCount > 1 ? 's' : ''}
+            Signed in as {user?.email}. Enter details for {passengerCount} traveler
+            {passengerCount > 1 ? 's' : ''}.
           </p>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Passenger Forms */}
           <div className="lg:col-span-2 space-y-6">
             {passengers.map((passenger, index) => (
               <div key={index} className="bg-white rounded-xl p-6 border border-navy/10">
@@ -143,36 +154,32 @@ function PassengerDetailsContent() {
                     <User className="w-5 h-5 text-gold" />
                   </div>
                   <div>
-                    <h3 className="text-navy font-semibold">
-                      Passenger {index + 1}
-                    </h3>
-                    <p className="text-navy/60 text-sm">Seat {seats[index]}</p>
+                    <h3 className="text-navy font-semibold">Traveler {index + 1}</h3>
+                    <p className="text-navy/60 text-sm">Seat {displaySeats[index] || seats[index]}</p>
                   </div>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
-                    <label className="text-navy/60 text-sm font-medium">Full Name (as on ID)</label>
+                    <label className="text-navy/60 text-sm font-medium">Full name (as on ID)</label>
                     <Input
                       value={passenger.full_name}
                       onChange={(e) => updatePassenger(index, 'full_name', e.target.value)}
-                      placeholder="John Doe"
                       className="mt-1"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">ID/Passport Number</label>
+                    <label className="text-navy/60 text-sm font-medium">ID / passport</label>
                     <Input
                       value={passenger.id_number}
                       onChange={(e) => updatePassenger(index, 'id_number', e.target.value)}
-                      placeholder="A12345678"
                       className="mt-1"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">Date of Birth</label>
+                    <label className="text-navy/60 text-sm font-medium">Date of birth</label>
                     <Input
                       type="date"
                       value={passenger.date_of_birth}
@@ -182,7 +189,7 @@ function PassengerDetailsContent() {
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">Passenger Type</label>
+                    <label className="text-navy/60 text-sm font-medium">Type</label>
                     <div className="mt-1">
                       <SearchableSelect
                         options={PASSENGER_TYPE_OPTIONS}
@@ -190,29 +197,26 @@ function PassengerDetailsContent() {
                         onValueChange={(v) =>
                           updatePassenger(index, 'passenger_type', v as PassengerForm['passenger_type'])
                         }
-                        placeholder="Search type..."
                         clearable={false}
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">Phone Number</label>
+                    <label className="text-navy/60 text-sm font-medium">Phone</label>
                     <Input
                       type="tel"
                       value={passenger.phone_number}
                       onChange={(e) => updatePassenger(index, 'phone_number', e.target.value)}
-                      placeholder="+254 700 000 000"
                       className="mt-1"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">Email Address</label>
+                    <label className="text-navy/60 text-sm font-medium">Email</label>
                     <Input
                       type="email"
                       value={passenger.email}
                       onChange={(e) => updatePassenger(index, 'email', e.target.value)}
-                      placeholder="john@example.com"
                       className="mt-1"
                       required
                     />
@@ -222,55 +226,26 @@ function PassengerDetailsContent() {
             ))}
           </div>
 
-          {/* Booking Summary */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl p-6 border border-navy/10 sticky top-24">
-              <h3 className="text-navy font-semibold text-lg mb-4">Booking Summary</h3>
-              
-              <div className="space-y-3 mb-6 pb-6 border-b border-navy/10">
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Flight</span>
-                  <span className="text-navy font-medium">BA-101</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Route</span>
-                  <span className="text-navy font-medium">NBO → MGQ</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Class</span>
-                  <span className="text-navy font-medium">{seatClass}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Seats</span>
-                  <span className="text-navy font-medium">{seats.join(', ')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Passengers</span>
-                  <span className="text-navy font-medium">{passengerCount}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Base Fare × {passengerCount}</span>
-                  <span className="text-navy">{formatMoney(250 * passengerCount)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-navy/60">Taxes & Fees</span>
-                  <span className="text-navy">{formatMoney(30 * passengerCount)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-semibold pt-2 border-t border-navy/10">
-                  <span className="text-navy">Total</span>
-                  <span className="text-gold">{formatMoney(280 * passengerCount)}</span>
-                </div>
-              </div>
-
+              <h3 className="text-navy font-semibold text-lg mb-4">Next step</h3>
+              <p className="text-sm text-navy/60 mb-4">
+                Review your trip and either <strong>reserve with a PNR</strong> (pay within the
+                hold period) or <strong>pay now</strong> to confirm immediately.
+              </p>
+              <p className="text-sm text-navy/60 mb-6">
+                Class: {seatClass} · Seats: {displaySeats.join(', ')}
+              </p>
               <Button
                 onClick={handleContinue}
-                disabled={!isValid}
-                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isValid || submitting}
+                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
               >
-                Continue to Payment
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Continue to review'
+                )}
               </Button>
             </div>
           </div>
@@ -284,14 +259,13 @@ function PassengerDetailsContent() {
 
 export default function PassengersPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-cream">
-        <Navbar />
-        <div className="pt-32 text-center">
-          <div className="animate-spin w-10 h-10 border-4 border-gold border-t-transparent rounded-full mx-auto" />
-        </div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-cream pt-32 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gold mx-auto" />
+        </main>
+      }
+    >
       <PassengerDetailsContent />
     </Suspense>
   );

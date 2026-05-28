@@ -17,6 +17,7 @@ import { ListSearch } from "@/components/portal/list-search";
 import { useCurrency } from "@/contexts/currency-context";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
+import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -90,7 +91,7 @@ export default function PortalBookingsPage() {
             In-office bookings — click PNR for details
           </p>
         </div>
-        <BookingStartLink onSuccess={() => refresh()}>Office booking</BookingStartLink>
+        <BookingStartLink>Office booking</BookingStartLink>
       </div>
 
       <ListSearch
@@ -229,11 +230,25 @@ export default function PortalBookingsPage() {
                   <DetailRow
                     key={p.name}
                     label={p.name}
-                    value={`${p.type} · seat ${p.seat}`}
+                    value={`${p.type} · seat ${p.seat_label || p.seat}${p.ticket_number ? ` · ticket ${p.ticket_number}` : ""}`}
                   />
                 ))}
               </DetailSection>
             )}
+            <div className="pt-2">
+              <BookingBaggagePanel
+                pnr={detail.pnr}
+                travelers={detail.passengers.map((p) => ({ name: p.name }))}
+                baggage={detail.baggage || []}
+                policy={detail.baggage_policy}
+                baggageFeesTotal={detail.baggage_fees_total}
+                onUpdated={async () => {
+                  const next = await fetchBookingDetails(detail.pnr);
+                  setDetail(next);
+                  refresh();
+                }}
+              />
+            </div>
           </>
         )}
         {!detailLoading && !detail && selectedRow && (

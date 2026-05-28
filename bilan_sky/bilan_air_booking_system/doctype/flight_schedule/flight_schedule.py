@@ -2,8 +2,9 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_to_date, get_datetime
+from frappe.utils import add_to_date, cint, cstr, get_datetime
 
 from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 	assert_unique_flight_number,
@@ -26,9 +27,13 @@ class FlightSchedule(Document):
     def after_insert(self):
         self._ensure_seat_inventory()
 
+    def on_update(self):
+        self._ensure_seat_inventory()
+
     def _ensure_seat_inventory(self):
-        if not frappe.db.exists("Seat Inventory", {"flight_schedule": self.name}):
-            self.generate_seat_inventory()
+        if frappe.db.count("Seat Inventory", {"flight_schedule": self.name}):
+            return frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
+        return self.generate_seat_inventory()
 
     def _ensure_flight_number(self):
         if self.flight_number and not self.is_new():
@@ -48,45 +53,65 @@ class FlightSchedule(Document):
     # SEAT INVENTORY
     # =========================================================
 
-    def generate_seat_inventory(self):
-        """Create seat records for this flight from airplane config"""
-        
-        # Check if already exists
-        if frappe.db.exists("Seat Inventory", {"flight_schedule": self.name}):
-            frappe.msgprint("Seats already generated")
-            return
-        
-        # Get airplane seat config
+    def generate_seat_inventory(self, raise_on_error=True):
+        """Create Seat Inventory rows from the linked airplane seat configuration."""
+        existing = frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
+        if existing:
+            return existing
+
+        if not self.airplane:
+            if raise_on_error:
+                frappe.throw(_("Select an airplane before seats can be generated."))
+            return 0
+
         airplane = frappe.get_doc("Airplane", self.airplane)
-        
         if not airplane.seat_config:
-            frappe.msgprint("No seat configuration found")
-            return
-        
+            if raise_on_error:
+                frappe.throw(
+                    _(
+                        "Airplane {0} has no seat configuration. Open the Airplane record and add seat rows/columns."
+                    ).format(self.airplane)
+                )
+            return 0
+
         seats_created = 0
-        
+
         for config in airplane.seat_config:
             seat_class = config.seat_class
-            rows = config.rows
-            columns = config.columns_per_row.split(",")
-            start_row = config.start_row_number or 1
-            
+            rows = cint(config.rows)
+            columns = [
+                c.strip()
+                for c in cstr(config.columns_per_row).split(",")
+                if c.strip()
+            ]
+            start_row = cint(config.start_row_number) or 1
+
+            if rows <= 0 or not columns:
+                continue
+
             for row in range(start_row, start_row + rows):
                 for col in columns:
-                    seat_number = f"{row}{col.strip()}"
-                    
-                    seat = frappe.get_doc({
-                        "doctype": "Seat Inventory",
-                        "flight_schedule": self.name,
-                        "seat_number": seat_number,
-                        "seat_class": seat_class,
-                        "status": "Available"
-                    })
-                    seat.insert()
+                    seat_number = f"{row}{col}"
+                    seat = frappe.get_doc(
+                        {
+                            "doctype": "Seat Inventory",
+                            "flight_schedule": self.name,
+                            "seat_number": seat_number,
+                            "seat_class": seat_class,
+                            "status": "Available",
+                        }
+                    )
+                    seat.insert(ignore_permissions=True)
                     seats_created += 1
-        
-        frappe.db.commit()
-        frappe.msgprint(f"Created {seats_created} seats")
+
+        if seats_created == 0 and raise_on_error:
+            frappe.throw(
+                _(
+                    "No seats were created. Check airplane {0}: each cabin needs rows > 0 and valid columns (e.g. A,B,C,D)."
+                ).format(self.airplane)
+            )
+
+        return seats_created
     
     # =========================================================
     # SEAT AVAILABILITY

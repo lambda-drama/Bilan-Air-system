@@ -2,6 +2,30 @@
 
 import frappe
 
+
+@frappe.whitelist()
+def get_baggage_policy():
+	"""Allowance and excess fee for portal UI."""
+	settings = frappe.get_single("BA Settings")
+	return {
+		"max_baggage_kg": settings.max_baggage_kg,
+		"excess_baggage_fee_per_kg": settings.excess_baggage_fee,
+	}
+
+
+def preview_baggage_fee(weight_kg):
+	settings = frappe.get_single("BA Settings")
+	weight_kg = float(weight_kg or 0)
+	if weight_kg <= 0:
+		return {"weight_kg": 0, "is_excess": False, "fee": 0}
+	is_excess = weight_kg > settings.max_baggage_kg
+	fee = 0
+	if is_excess:
+		excess = weight_kg - settings.max_baggage_kg
+		fee = excess * settings.excess_baggage_fee
+	return {"weight_kg": weight_kg, "is_excess": is_excess, "fee": fee}
+
+
 @frappe.whitelist()
 def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenger_index=None):
     """Create baggage tracking record"""
@@ -48,9 +72,10 @@ def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenge
     
     return {
         "tracking_number": baggage.tracking_number,
-        "weight": weight_kg,
+        "weight_kg": weight_kg,
         "fee": fee,
-        "is_excess": is_excess
+        "is_excess": is_excess,
+        "passenger_name": passenger_name,
     }
 
 @frappe.whitelist(allow_guest=True)

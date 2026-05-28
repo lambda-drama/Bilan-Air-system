@@ -11,6 +11,8 @@ export interface PassengerData {
   nationality?: string;
   notes?: string;
   is_active?: number;
+  /** True only for online self-registration (creates a website User). */
+  create_login_user?: boolean | number;
 }
 
 export interface PassengerRecord extends PassengerData {

@@ -15,6 +15,29 @@ export interface AirBookingRow {
   payment_entry?: string;
 }
 
+export interface CheckInBookingSuggestion {
+  pnr: string;
+  payer_name: string;
+  payer_phone?: string;
+  payer_email?: string;
+  flight_schedule: string;
+  flight_number?: string;
+  departure_date?: string;
+  departure_time?: string;
+  booking_status: string;
+  payment_status: string;
+}
+
+export async function searchBookingsForCheckin(query?: string, limit = 15) {
+  return apiRequest<CheckInBookingSuggestion[]>(
+    methodUrl("portal", "search_bookings_for_checkin"),
+    {
+      method: "POST",
+      body: JSON.stringify({ query: query?.trim() || null, limit }),
+    },
+  );
+}
+
 export async function listBookings(opts?: {
   limit?: number;
   offset?: number;

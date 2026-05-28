@@ -32,8 +32,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 export default function PortalSchedulesPage() {
+  const router = useRouter();
   const fetchSchedules = useCallback(async (search: string) => {
     const res = await listSchedules({ limit: 100, search: search.trim() || undefined });
     return res.data;
@@ -53,6 +55,10 @@ export default function PortalSchedulesPage() {
     new_arrival_time: "",
   });
   const formAlerts = useFormDialogAlerts();
+
+  const openOfficeBooking = (scheduleId: string) => {
+    router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(scheduleId)}`);
+  };
 
   const handleRescheduleDialogOpenChange = (open: boolean) => {
     if (!open) {
@@ -179,6 +185,12 @@ export default function PortalSchedulesPage() {
                           <DropdownMenuItem onClick={() => setSelectedId(s.name)}>
                             View details
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openOfficeBooking(s.name)}
+                            disabled={!["Scheduled", "Delayed"].includes(s.status)}
+                          >
+                            Book flight
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openReschedule(s)}>
                             Reschedule
                           </DropdownMenuItem>
@@ -258,12 +270,22 @@ export default function PortalSchedulesPage() {
         isLoading={detailLoading}
         footer={
           selectedRow ? (
-            <Button
-              className="bg-gold text-navy hover:bg-gold-dark"
-              onClick={() => openReschedule(selectedRow)}
-            >
-              Reschedule flight
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              <Button
+                className="bg-gold text-navy hover:bg-gold-dark flex-1"
+                onClick={() => openOfficeBooking(selectedRow.name)}
+                disabled={!["Scheduled", "Delayed"].includes(selectedRow.status)}
+              >
+                Book flight
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => openReschedule(selectedRow)}
+              >
+                Reschedule
+              </Button>
+            </div>
           ) : undefined
         }
       >
