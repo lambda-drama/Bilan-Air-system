@@ -20,7 +20,11 @@ def get_context(context):
 def _get_route_path() -> str:
 	app_path = frappe.form_dict.get("app_path") or ""
 	if isinstance(app_path, str):
-		return app_path.strip("/")
+		route = app_path.strip("/")
+		# Home page resolves to this www route name; not a Next.js path segment.
+		if route in ("", "bilan_frontend"):
+			return ""
+		return route
 	return ""
 
 
