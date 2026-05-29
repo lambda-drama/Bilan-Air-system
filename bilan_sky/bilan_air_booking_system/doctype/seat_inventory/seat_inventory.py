@@ -322,3 +322,28 @@ class SeatInventory(Document):
             "success": True,
             "message": f"Released {released} expired seats"
         }
+
+
+def prepare_seat_for_new_booking(seat_name, current_booking=None):
+    """Release stale holds so a seat can be used for a new booking attempt."""
+    if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
+        return
+
+    seat = frappe.get_doc("Seat Inventory", seat_name)
+
+    if current_booking and seat.booking_reference == current_booking:
+        return
+
+    if seat.status in ("Hold", "Reserved"):
+        seat.release_if_expired()
+        seat.reload()
+
+    if seat.status in ("Hold", "Reserved") and seat.booking_reference:
+        booking_status = frappe.db.get_value(
+            "Air Booking", seat.booking_reference, "booking_status"
+        )
+        if booking_status == "Cancelled":
+            seat.status = "Available"
+            seat.booking_reference = None
+            seat.hold_expiry = None
+            seat.save(ignore_permissions=True)

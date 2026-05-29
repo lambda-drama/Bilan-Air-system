@@ -31,9 +31,30 @@ class FlightSchedule(Document):
         self._ensure_seat_inventory()
 
     def _ensure_seat_inventory(self):
-        if frappe.db.count("Seat Inventory", {"flight_schedule": self.name}):
-            return frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
+        expected = self._expected_seat_count()
+        existing = frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
+        if expected > 0 and existing >= expected:
+            return existing
         return self.generate_seat_inventory()
+
+    def _expected_seat_count(self):
+        """How many seats should exist for this schedule based on airplane config."""
+        if not self.airplane:
+            return 0
+
+        airplane = frappe.get_doc("Airplane", self.airplane)
+        total = 0
+        for config in airplane.seat_config or []:
+            rows = cint(config.rows)
+            columns = [
+                c.strip()
+                for c in cstr(config.columns_per_row).split(",")
+                if c.strip()
+            ]
+            if rows <= 0 or not columns:
+                continue
+            total += rows * len(columns)
+        return total
 
     def _ensure_flight_number(self):
         if self.flight_number and not self.is_new():
@@ -54,11 +75,7 @@ class FlightSchedule(Document):
     # =========================================================
 
     def generate_seat_inventory(self, raise_on_error=True):
-        """Create Seat Inventory rows from the linked airplane seat configuration."""
-        existing = frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
-        if existing:
-            return existing
-
+        """Create or backfill Seat Inventory rows from the linked airplane seat configuration."""
         if not self.airplane:
             if raise_on_error:
                 frappe.throw(_("Select an airplane before seats can be generated."))
@@ -74,6 +91,17 @@ class FlightSchedule(Document):
                 )
             return 0
 
+        expected = self._expected_seat_count()
+        existing_numbers = set(
+            frappe.get_all(
+                "Seat Inventory",
+                filters={"flight_schedule": self.name},
+                pluck="seat_number",
+            )
+        )
+        if expected > 0 and len(existing_numbers) >= expected:
+            return len(existing_numbers)
+
         seats_created = 0
 
         for config in airplane.seat_config:
@@ -84,7 +112,9 @@ class FlightSchedule(Document):
                 for c in cstr(config.columns_per_row).split(",")
                 if c.strip()
             ]
-            start_row = cint(config.start_row_number) or 1
+            start_row = cint(config.start_row_number)
+            if start_row <= 0:
+                start_row = 1
 
             if rows <= 0 or not columns:
                 continue
@@ -92,6 +122,8 @@ class FlightSchedule(Document):
             for row in range(start_row, start_row + rows):
                 for col in columns:
                     seat_number = f"{row}{col}"
+                    if seat_number in existing_numbers:
+                        continue
                     seat = frappe.get_doc(
                         {
                             "doctype": "Seat Inventory",
@@ -102,16 +134,17 @@ class FlightSchedule(Document):
                         }
                     )
                     seat.insert(ignore_permissions=True)
+                    existing_numbers.add(seat_number)
                     seats_created += 1
 
-        if seats_created == 0 and raise_on_error:
+        if seats_created == 0 and not existing_numbers and raise_on_error:
             frappe.throw(
                 _(
                     "No seats were created. Check airplane {0}: each cabin needs rows > 0 and valid columns (e.g. A,B,C,D)."
                 ).format(self.airplane)
             )
 
-        return seats_created
+        return len(existing_numbers)
     
     # =========================================================
     # SEAT AVAILABILITY

@@ -15,8 +15,12 @@ function ConfirmationContent() {
   const { formatMoney } = useCurrency();
   const searchParams = useSearchParams();
   const pnr = searchParams.get('pnr') || '';
+  const allPnrs = (searchParams.get('pnrs') || pnr)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
   const reservedOnly = searchParams.get('reserved') === '1';
-  const [booking, setBooking] = useState<BookingDetails | null>(null);
+  const [bookings, setBookings] = useState<BookingDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [holdLabel, setHoldLabel] = useState('');
 
@@ -27,15 +31,17 @@ function ConfirmationContent() {
   }, []);
 
   useEffect(() => {
-    if (!pnr) return;
-    fetchBookingDetails(pnr)
-      .then(setBooking)
-      .catch(() => setBooking(null))
+    if (allPnrs.length === 0) return;
+    Promise.all(allPnrs.map((ref) => fetchBookingDetails(ref).catch(() => null)))
+      .then((results) => setBookings(results.filter(Boolean) as BookingDetails[]))
       .finally(() => setLoading(false));
-  }, [pnr]);
+  }, [searchParams]);
 
   const isPending =
-    reservedOnly || booking?.payment_status === 'Pending' || booking?.status === 'Reserved';
+    reservedOnly ||
+    bookings.some(
+      (b) => b.payment_status === 'Pending' || b.status === 'Reserved',
+    );
 
   return (
     <main className="min-h-screen bg-cream">
@@ -58,8 +64,20 @@ function ConfirmationContent() {
             <h1 className="text-navy font-serif text-4xl mb-4">
               {isPending ? 'Booking reserved' : 'Booking confirmed'}
             </h1>
-            <p className="text-navy/60 text-lg">Your booking reference (PNR)</p>
-            <p className="text-gold text-3xl font-bold mt-2">{pnr}</p>
+            <p className="text-navy/60 text-lg">
+              Your booking reference{allPnrs.length > 1 ? 's' : ''} (PNR)
+            </p>
+            {allPnrs.length > 1 ? (
+              <div className="mt-2 space-y-1">
+                {allPnrs.map((ref) => (
+                  <p key={ref} className="text-gold text-2xl font-bold">
+                    {ref}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gold text-3xl font-bold mt-2">{pnr}</p>
+            )}
             {isPending && (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-6 max-w-lg mx-auto">
                 Status: <strong>Reserved</strong> · Payment: <strong>Pending</strong>. Seats are
@@ -71,46 +89,58 @@ function ConfirmationContent() {
 
           {loading ? (
             <p className="text-center text-navy/60">Loading booking details...</p>
-          ) : booking ? (
-            <div className="bg-white rounded-2xl border border-navy/10 overflow-hidden mb-8">
-              <div className="bg-navy p-6">
-                <p className="text-gold text-xs tracking-widest mb-1">FLIGHT</p>
-                <p className="text-cream text-2xl font-bold">{booking.flight.flight_number}</p>
-              </div>
-              <div className="p-6 border-b border-navy/10">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-navy text-2xl font-bold">{booking.flight.departure_time}</p>
-                    <p className="text-navy/60 text-sm">{booking.flight.origin}</p>
+          ) : bookings.length > 0 ? (
+            <div className="space-y-6 mb-8">
+              {bookings.map((item) => (
+                <div
+                  key={item.pnr}
+                  className="bg-white rounded-2xl border border-navy/10 overflow-hidden"
+                >
+                  <div className="bg-navy p-6 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-gold text-xs tracking-widest mb-1">FLIGHT</p>
+                      <p className="text-cream text-2xl font-bold">{item.flight.flight_number}</p>
+                    </div>
+                    <p className="text-cream/80 font-mono text-sm">{item.pnr}</p>
                   </div>
-                  <Plane className="w-6 h-6 text-gold -rotate-90" />
-                  <div className="text-right">
-                    <p className="text-navy/60 text-sm">{booking.flight.departure_date}</p>
-                    <p className="text-navy font-semibold">{booking.flight.destination}</p>
+                  <div className="p-6 border-b border-navy/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-navy text-2xl font-bold">{item.flight.departure_time}</p>
+                        <p className="text-navy/60 text-sm">{item.flight.origin}</p>
+                      </div>
+                      <Plane className="w-6 h-6 text-gold -rotate-90" />
+                      <div className="text-right">
+                        <p className="text-navy/60 text-sm">{item.flight.departure_date}</p>
+                        <p className="text-navy font-semibold">{item.flight.destination}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <p className="text-sm">
+                      <span className="text-navy/60">Booking:</span>{' '}
+                      <span className="font-medium">{item.status}</span>
+                      <span className="mx-2">·</span>
+                      <span className="text-navy/60">Payment:</span>{' '}
+                      <span className="font-medium">{item.payment_status}</span>
+                    </p>
+                    <p className="text-lg font-semibold text-gold">
+                      Total: {formatMoney(item.total_fare)}
+                    </p>
+                    <div>
+                      <p className="text-navy font-medium mb-2">Travelers</p>
+                      <ul className="space-y-2 text-sm">
+                        {item.passengers.map((p, i) => (
+                          <li key={i} className="flex justify-between border-b border-navy/5 pb-2">
+                            <span>{p.name}</span>
+                            <span className="text-navy/60">Seat {p.seat_label || p.seat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <p className="text-sm">
-                  <span className="text-navy/60">Booking:</span>{' '}
-                  <span className="font-medium">{booking.status}</span>
-                  <span className="mx-2">·</span>
-                  <span className="text-navy/60">Payment:</span>{' '}
-                  <span className="font-medium">{booking.payment_status}</span>
-                </p>
-                <p className="text-lg font-semibold text-gold">Total: {formatMoney(booking.total_fare)}</p>
-                <div>
-                  <p className="text-navy font-medium mb-2">Travelers</p>
-                  <ul className="space-y-2 text-sm">
-                    {booking.passengers.map((p, i) => (
-                      <li key={i} className="flex justify-between border-b border-navy/5 pb-2">
-                        <span>{p.name}</span>
-                        <span className="text-navy/60">Seat {p.seat_label || p.seat}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              ))}
             </div>
           ) : null}
 
@@ -119,7 +149,7 @@ function ConfirmationContent() {
               <Link href="/">Back to Home</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/manage-booking?pnr=${encodeURIComponent(pnr)}`}>
+              <Link href={`/manage-booking?pnr=${encodeURIComponent(allPnrs[0] || pnr)}`}>
                 {isPending ? 'Pay or manage booking' : 'Manage Booking'}
               </Link>
             </Button>

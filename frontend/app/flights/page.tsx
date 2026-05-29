@@ -5,10 +5,13 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
-import { Plane, Clock, Users, ArrowRight, Filter, ChevronDown } from 'lucide-react';
+import { Plane, Users, ArrowRight } from 'lucide-react';
 import type { FlightSchedule } from '@/lib/types';
 import { findFlights } from '@/services/search';
 import { useCurrency } from '@/contexts/currency-context';
+import { parseFlightsSearchParams, buildFlightsSearchUrl } from '@/lib/flights-search-url';
+import { initTripContext, upsertLegSelection } from '@/lib/trip-store';
+import { tripLegLabel } from '@/lib/trip-types';
 
 function FlightSearchContent() {
   const { formatMoney } = useCurrency();
@@ -20,10 +23,24 @@ function FlightSearchContent() {
   const [error, setError] = useState('');
   const [selectedClass, setSelectedClass] = useState<'Economy' | 'Business' | 'First Class'>('Economy');
 
-  const origin = searchParams.get('origin') || '';
-  const destination = searchParams.get('destination') || '';
-  const date = searchParams.get('date') || '';
-  const passengers = parseInt(searchParams.get('passengers') || '1');
+  const {
+    tripType,
+    passengers,
+    leg,
+    origin,
+    destination,
+    date,
+    returnDate,
+    searchLegs,
+  } = parseFlightsSearchParams(searchParams);
+
+  const totalLegs = searchLegs.length;
+  const isMultiLeg = tripType !== 'oneway' && totalLegs > 1;
+  const legTitle = tripLegLabel(searchLegs[leg] || { origin, destination, date }, leg, totalLegs);
+
+  useEffect(() => {
+    initTripContext(tripType, passengers, searchLegs);
+  }, [tripType, passengers, searchLegs]);
 
   useEffect(() => {
     if (!date || !origin || !destination) {
@@ -78,36 +95,86 @@ function FlightSearchContent() {
   };
 
   const handleSelectFlight = (flight: FlightSchedule) => {
-    const params = new URLSearchParams({
-      flight: flight.name,
-      class: selectedClass,
-      passengers: passengers.toString(),
+    const fare = getFare(flight);
+    upsertLegSelection({
+      legIndex: leg,
       origin,
       destination,
       date,
+      flightScheduleId: flight.name,
+      flightNumber: flight.flight_number,
+      seatClass: selectedClass,
+      selectedSeatIds: [],
+      selectedSeatLabels: [],
+      farePerPerson: fare,
     });
+
+    if (isMultiLeg && leg < totalLegs - 1) {
+      const nextLeg = leg + 1;
+      const next = searchLegs[nextLeg];
+      router.push(
+        buildFlightsSearchUrl({
+          tripType,
+          origin: searchLegs[0].origin,
+          destination: searchLegs[0].destination,
+          departureDate: searchLegs[0].date,
+          returnDate: tripType === 'return' ? returnDate : undefined,
+          passengers,
+          multiLegs: tripType === 'multicity' ? searchLegs : undefined,
+          leg: nextLeg,
+        }),
+      );
+      return;
+    }
+
+    const params = new URLSearchParams({
+      trip: tripType,
+      passengers: passengers.toString(),
+      leg: '0',
+    });
+    if (tripType === 'multicity') {
+      params.set('legs', searchParams.get('legs') || '');
+    } else {
+      params.set('origin', searchLegs[0]?.origin || origin);
+      params.set('destination', searchLegs[0]?.destination || destination);
+      params.set('date', searchLegs[0]?.date || date);
+      if (tripType === 'return') {
+        params.set('returnDate', returnDate);
+      }
+    }
     router.push(`/booking/seats?${params.toString()}`);
   };
 
   return (
     <main className="min-h-screen bg-cream">
       <Navbar />
-      
-      {/* Search Summary */}
+
       <div className="bg-navy pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">SEARCH RESULTS</p>
+              <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">
+                {isMultiLeg ? `${legTitle.toUpperCase()} · STEP ${leg + 1} OF ${totalLegs}` : 'SEARCH RESULTS'}
+              </p>
               <h1 className="text-cream font-serif text-3xl">
                 {origin} <ArrowRight className="inline w-6 h-6 mx-2" /> {destination}
               </h1>
               <p className="text-cream/60 mt-2">
-                {date ? new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Select a date'} &middot; {passengers} passenger{passengers > 1 ? 's' : ''}
+                {date
+                  ? new Date(date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : 'Select a date'}{' '}
+                &middot; {passengers} passenger{passengers > 1 ? 's' : ''}
+                {tripType === 'return' && ' · Return trip'}
+                {tripType === 'multicity' && ` · ${totalLegs} flights`}
               </p>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="border-cream/30 text-cream hover:bg-cream/10"
               onClick={() => router.push('/#book')}
             >
@@ -117,9 +184,7 @@ function FlightSearchContent() {
         </div>
       </div>
 
-      {/* Filters & Results */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Class Filter */}
         <div className="flex items-center gap-4 mb-8">
           <span className="text-navy/60 text-sm">Class:</span>
           {(['Economy', 'Business', 'First Class'] as const).map((cls) => (
@@ -137,7 +202,6 @@ function FlightSearchContent() {
           ))}
         </div>
 
-        {/* Flight Results */}
         {loading ? (
           <div className="text-center py-20">
             <div className="animate-spin w-10 h-10 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4" />
@@ -150,21 +214,14 @@ function FlightSearchContent() {
             <p className="text-navy/60 mb-6">
               Pick From, To, and departure date using airports from your airline&apos;s active routes.
             </p>
-            <Button
-              className="bg-gold hover:bg-gold-dark text-navy"
-              onClick={() => router.push('/#book')}
-            >
+            <Button className="bg-gold hover:bg-gold-dark text-navy" onClick={() => router.push('/#book')}>
               Open flight search
             </Button>
           </div>
         ) : error ? (
           <div className="text-center py-20">
             <p className="text-red-600">{error}</p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => router.push('/#book')}
-            >
+            <Button variant="outline" className="mt-4" onClick={() => router.push('/#book')}>
               Modify search
             </Button>
           </div>
@@ -175,10 +232,7 @@ function FlightSearchContent() {
             <p className="text-navy/60 mb-4">
               No schedules match this route and date, or seats are not available yet.
             </p>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/#book')}
-            >
+            <Button variant="outline" onClick={() => router.push('/#book')}>
               Modify search
             </Button>
           </div>
@@ -190,24 +244,18 @@ function FlightSearchContent() {
                 className="bg-white border border-navy/10 rounded-xl p-6 hover:border-gold/50 transition-colors"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                  {/* Flight Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-gold font-semibold">{flight.flight_number}</span>
-                      <span className="text-navy/40">|</span>
-                      <span className="text-navy/60 text-sm">{flight.aircraft}</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-8">
-                      {/* Departure */}
                       <div className="text-center">
                         <p className="text-navy text-2xl font-bold">{flight.departure_time}</p>
                         <p className="text-navy/60 text-sm">{flight.origin_code}</p>
                       </div>
 
-                      {/* Duration */}
                       <div className="flex-1 flex flex-col items-center">
-                        <p className="text-navy/40 text-xs mb-2">2h 30m</p>
                         <div className="w-full flex items-center gap-2">
                           <div className="flex-1 h-px bg-navy/20" />
                           <Plane className="w-4 h-4 text-gold -rotate-90" />
@@ -216,7 +264,6 @@ function FlightSearchContent() {
                         <p className="text-navy/40 text-xs mt-2">Direct</p>
                       </div>
 
-                      {/* Arrival */}
                       <div className="text-center">
                         <p className="text-navy text-2xl font-bold">{flight.arrival_time}</p>
                         <p className="text-navy/60 text-sm">{flight.destination_code}</p>
@@ -224,7 +271,6 @@ function FlightSearchContent() {
                     </div>
                   </div>
 
-                  {/* Seats & Price */}
                   <div className="flex items-center gap-6 lg:border-l lg:border-navy/10 lg:pl-6">
                     <div className="text-center">
                       <p className="text-navy/60 text-sm flex items-center gap-1">
@@ -232,11 +278,9 @@ function FlightSearchContent() {
                         {flight.available_seats} seats
                       </p>
                     </div>
-                    
+
                     <div className="text-right">
-                      <p className="text-navy text-2xl font-bold">
-                        {formatMoney(Math.round(getFare(flight)))}
-                      </p>
+                      <p className="text-navy text-2xl font-bold">{formatMoney(Math.round(getFare(flight)))}</p>
                       <p className="text-navy/60 text-sm">per person</p>
                     </div>
 
@@ -261,14 +305,16 @@ function FlightSearchContent() {
 
 export default function FlightsPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-cream">
-        <Navbar />
-        <div className="pt-32 text-center">
-          <div className="animate-spin w-10 h-10 border-4 border-gold border-t-transparent rounded-full mx-auto" />
-        </div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-cream">
+          <Navbar />
+          <div className="pt-32 text-center">
+            <div className="animate-spin w-10 h-10 border-4 border-gold border-t-transparent rounded-full mx-auto" />
+          </div>
+        </main>
+      }
+    >
       <FlightSearchContent />
     </Suspense>
   );

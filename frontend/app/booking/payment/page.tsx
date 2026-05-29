@@ -22,6 +22,7 @@ import { getPublicBookingSettings } from '@/services/websiteAuth';
 import { useCurrency } from '@/contexts/currency-context';
 import { useAuth } from '@/contexts/auth-context';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { clearTripContext } from '@/lib/trip-store';
 
 function PaymentContent() {
   const { formatMoney } = useCurrency();
@@ -34,7 +35,9 @@ function PaymentContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [holdLabel, setHoldLabel] = useState('15 minutes');
-  const passengerCount = parseInt(searchParams.get('passengers') || '1');
+  const draft = loadBookingDraft();
+  const legCount = draft?.legs?.length || 1;
+  const passengerCount = parseInt(searchParams.get('passengers') || '1', 10);
 
   const accountPath = bookingFlowPath('/booking/account', searchParams);
 
@@ -52,41 +55,52 @@ function PaymentContent() {
       .catch(() => {});
   }, []);
 
-  const buildBookingPayload = () => {
+  const buildBookingPayloads = () => {
     const draft = loadBookingDraft();
     if (!draft) return null;
 
-    const bookingPassengers = draft.passengers.map((p, i) => ({
-      passenger_name: p.full_name,
-      id_number: p.id_number,
-      date_of_birth: p.date_of_birth,
-      passenger_type: p.passenger_type,
-      seat_number: draft.selectedSeatIds[i],
-      phone_number: p.phone_number,
-      email: p.email,
-      register_profile: true,
-    }));
+    const legs = draft.legs?.length
+      ? draft.legs
+      : [
+          {
+            flightScheduleId: draft.flightScheduleId,
+            seatClass: draft.seatClass,
+            selectedSeatIds: draft.selectedSeatIds,
+            selectedSeatLabels: draft.selectedSeatLabels,
+          },
+        ];
 
-    return {
+    return legs.map((leg) => ({
       booking_source: 'online' as const,
-      flight_schedule: draft.flightScheduleId,
+      flight_schedule: leg.flightScheduleId,
       payer_name: draft.payer_name,
       payer_email: draft.payer_email,
       payer_phone: draft.payer_phone,
-      passengers: bookingPassengers,
-    };
+      passengers: draft.passengers.map((p, i) => ({
+        passenger_name: p.full_name,
+        id_number: p.id_number,
+        date_of_birth: p.date_of_birth,
+        passenger_type: p.passenger_type,
+        seat_number: leg.selectedSeatIds[i],
+        phone_number: p.phone_number,
+        email: p.email,
+        register_profile: true,
+      })),
+    }));
   };
 
-  const finishWithPnr = (pnr: string, paid: boolean) => {
+  const finishWithPnrs = (pnrs: string[], paid: boolean) => {
     clearBookingDraft();
-    const q = new URLSearchParams({ pnr });
+    clearTripContext();
+    const q = new URLSearchParams({ pnr: pnrs[0] });
+    if (pnrs.length > 1) q.set('pnrs', pnrs.join(','));
     if (!paid) q.set('reserved', '1');
     router.push(`/booking/confirmation?${q.toString()}`);
   };
 
   const handleReserve = async () => {
-    const payload = buildBookingPayload();
-    if (!payload) {
+    const payloads = buildBookingPayloads();
+    if (!payloads?.length) {
       setError('Booking session expired. Please start again from the home page.');
       return;
     }
@@ -94,8 +108,12 @@ function PaymentContent() {
     setProcessing(true);
     setError('');
     try {
-      const created = await createBooking(payload);
-      finishWithPnr(created.pnr, false);
+      const pnrs: string[] = [];
+      for (const payload of payloads) {
+        const created = await createBooking(payload);
+        pnrs.push(created.pnr);
+      }
+      finishWithPnrs(pnrs, false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create booking');
     } finally {
@@ -104,8 +122,8 @@ function PaymentContent() {
   };
 
   const handlePayNow = async () => {
-    const payload = buildBookingPayload();
-    if (!payload) {
+    const payloads = buildBookingPayloads();
+    if (!payloads?.length) {
       setError('Booking session expired. Please start again from the home page.');
       return;
     }
@@ -113,10 +131,14 @@ function PaymentContent() {
     setProcessing(true);
     setError('');
     try {
-      const created = await createBooking(payload);
-      const method = paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
-      await processPayment(created.pnr, method, phoneNumber || undefined);
-      finishWithPnr(created.pnr, true);
+      const pnrs: string[] = [];
+      for (const payload of payloads) {
+        const created = await createBooking(payload);
+        const method = paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
+        await processPayment(created.pnr, method, phoneNumber || undefined);
+        pnrs.push(created.pnr);
+      }
+      finishWithPnrs(pnrs, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Payment failed');
     } finally {
@@ -227,8 +249,10 @@ function PaymentContent() {
               <CreditCard className="w-5 h-5" /> Pay now
             </h3>
             <p className="text-sm text-navy/60 mb-4">
-              Creates your PNR and marks the booking <strong>Paid</strong> in one step ({passengerCount}{' '}
-              traveler{passengerCount > 1 ? 's' : ''}).
+              Creates your PNR{legCount > 1 ? 's' : ''} and marks{' '}
+              {legCount > 1 ? 'each booking' : 'the booking'} <strong>Paid</strong> in one step (
+              {passengerCount} traveler{passengerCount > 1 ? 's' : ''}
+              {legCount > 1 ? ` · ${legCount} flights` : ''}).
             </p>
             <Button
               onClick={handlePayNow}

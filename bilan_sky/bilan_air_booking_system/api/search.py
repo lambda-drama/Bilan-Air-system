@@ -26,6 +26,79 @@ def _count_available_seats(schedule_name):
 	)
 
 
+def _count_total_seats(schedule_name):
+	return frappe.db.count("Seat Inventory", {"flight_schedule": schedule_name})
+
+
+def _prepare_schedule_for_search(schedule_name):
+	"""Backfill incomplete inventory and release expired holds before search."""
+	try:
+		doc = frappe.get_doc("Flight Schedule", schedule_name, ignore_permissions=True)
+		doc.generate_seat_inventory(raise_on_error=False)
+		doc.release_expired_seats()
+	except Exception:
+		frappe.log_error(
+			title="Public flight search seat preparation",
+			message=frappe.get_traceback(),
+		)
+
+
+def _search_error_for_route(routes, date, passengers):
+	departure_date = _normalize_departure_date(date)
+	total_inventory = 0
+	total_available = 0
+	total_expected = 0
+
+	for route in routes:
+		route_name = _row_val(route, "name")
+		schedules = _public_get_all(
+			"Flight Schedule",
+			filters={
+				"route": route_name,
+				"departure_date": departure_date,
+				"status": ["in", ["Scheduled", "Delayed"]],
+				"docstatus": 1,
+			},
+			fields=["name"],
+		)
+		for sched in schedules:
+			schedule_name = _row_val(sched, "name")
+			_prepare_schedule_for_search(schedule_name)
+			total_inventory += _count_total_seats(schedule_name)
+			total_available += _count_available_seats(schedule_name)
+			try:
+				doc = frappe.get_doc("Flight Schedule", schedule_name, ignore_permissions=True)
+				total_expected += doc._expected_seat_count()
+			except Exception:
+				pass
+
+	if total_inventory == 0:
+		return (
+			"Flights are scheduled on this date but seat inventory has not been generated yet. "
+			"Open the flight schedule in Desk, confirm an airplane is linked, and save to generate seats."
+		)
+	if total_expected and total_inventory < total_expected:
+		return (
+			f"Flights are scheduled but seat inventory is incomplete ({total_inventory} of about "
+			f"{total_expected} seats). Staff should open the flight schedule in Desk and save it to "
+			f"regenerate missing seats."
+		)
+	if total_available == 0:
+		return (
+			"Flights are scheduled on this date but all seats are currently held or booked. "
+			"Cancel unused bookings or wait for expired holds to release."
+		)
+	if total_available < int(passengers):
+		return (
+			f"Flights are scheduled but only {total_available} seat(s) are available for "
+			f"{passengers} passenger(s). Try fewer passengers or another date."
+		)
+	return (
+		"Flights are scheduled on this date but no seats are available to book. "
+		"Staff should open the flight schedule in Desk and ensure seat inventory is complete."
+	)
+
+
 def _count_schedules_on_date(route_name, departure_date):
 	return frappe.db.count(
 		"Flight Schedule",
@@ -191,7 +264,6 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 			_count_schedules_on_date(_row_val(r, "name"), date) for r in routes
 		)
 		if scheduled_count > 0:
-			# Schedules exist but no bookable seats — try generating inventory once (e.g. after submit).
 			departure_date = _normalize_departure_date(date)
 			for route in routes:
 				route_name = _row_val(route, "name")
@@ -206,19 +278,7 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 					fields=["name"],
 				)
 				for sched in schedules:
-					schedule_name = _row_val(sched, "name")
-					if _count_available_seats(schedule_name) >= passengers:
-						continue
-					try:
-						doc = frappe.get_doc(
-							"Flight Schedule", schedule_name, ignore_permissions=True
-						)
-						doc.generate_seat_inventory(raise_on_error=False)
-					except Exception:
-						frappe.log_error(
-							title="Public flight search seat generation",
-							message=frappe.get_traceback(),
-						)
+					_prepare_schedule_for_search(_row_val(sched, "name"))
 			results = _find_schedules_for_routes(routes, date, passengers)
 
 	if not results:
@@ -226,10 +286,7 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 			_count_schedules_on_date(_row_val(r, "name"), date) for r in routes
 		)
 		if scheduled_count > 0:
-			error = (
-				"Flights are scheduled on this date but no seats are available to book. "
-				"Staff should open the flight schedule in Desk and ensure seat inventory is generated."
-			)
+			error = _search_error_for_route(routes, date, passengers)
 		else:
 			error = "No flights found for this route on the selected date"
 
