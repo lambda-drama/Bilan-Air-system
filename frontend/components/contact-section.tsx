@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
+const contactFieldClass = cn(
+  'bilan-light-field mt-1',
+  'focus-visible:border-gold focus-visible:ring-gold/30',
+);
 
 export function ContactSection() {
   const [formData, setFormData] = useState({
@@ -83,7 +89,7 @@ export function ContactSection() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="John Doe"
-                  className="mt-1"
+                  className={contactFieldClass}
                   required
                 />
               </div>
@@ -94,7 +100,7 @@ export function ContactSection() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="john@example.com"
-                  className="mt-1"
+                  className={contactFieldClass}
                   required
                 />
               </div>
@@ -105,7 +111,7 @@ export function ContactSection() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+254 700 000 000"
-                  className="mt-1"
+                  className={contactFieldClass}
                 />
               </div>
               <div>
@@ -115,7 +121,10 @@ export function ContactSection() {
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   placeholder="How can we help you?"
                   rows={4}
-                  className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold resize-none"
+                  className={cn(
+                    contactFieldClass,
+                    'w-full px-4 py-3 rounded-lg resize-none focus:outline-none focus:ring-2',
+                  )}
                   required
                 />
               </div>

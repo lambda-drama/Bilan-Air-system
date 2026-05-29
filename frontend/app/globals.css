@@ -173,4 +173,18 @@
   .bilan-form-control {
     @apply flex h-9 w-full items-center [&_[data-slot=select-trigger]]:h-9 [&_[data-slot=select-trigger]]:w-full [&_input]:h-9;
   }
+
+  /* Cream/white cards on public pages: keep inputs readable in dark/system theme */
+  .bilan-light-field {
+    @apply bg-white text-navy border-navy/20 placeholder:text-navy/45;
+    @apply dark:bg-white dark:text-navy dark:border-navy/20 dark:placeholder:text-navy/45;
+  }
+
+  .bilan-light-field:-webkit-autofill,
+  .bilan-light-field:-webkit-autofill:hover,
+  .bilan-light-field:-webkit-autofill:focus {
+    -webkit-text-fill-color: oklch(0.18 0.03 250) !important;
+    box-shadow: 0 0 0 1000px #fff inset !important;
+    caret-color: oklch(0.18 0.03 250);
+  }
 }

@@ -11,6 +11,10 @@ import {
   destinationsForOrigin,
   type AirportOption,
 } from '@/lib/public-flight-airports';
+import { cn } from '@/lib/utils';
+
+const heroFieldClass =
+  'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
 
 export function HeroSection() {
   const router = useRouter();
@@ -207,7 +211,7 @@ export function HeroSection() {
                     value={origin}
                     onChange={(e) => handleOriginChange(e.target.value)}
                     disabled={origins.length === 0}
-                    className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-60"
+                    className={cn(heroFieldClass, 'disabled:opacity-60')}
                   >
                     {origins.map((airport) => (
                       <option key={airport.code} value={airport.code}>
@@ -227,7 +231,7 @@ export function HeroSection() {
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
                     disabled={destinationOptions.length === 0}
-                    className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-60"
+                    className={cn(heroFieldClass, 'disabled:opacity-60')}
                   >
                     {destinationOptions.map((airport) => (
                       <option key={airport.code} value={airport.code}>
@@ -245,7 +249,7 @@ export function HeroSection() {
                   value={departureDate}
                   onChange={(e) => setDepartureDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold"
+                  className={heroFieldClass}
                 />
               </div>
 
@@ -257,7 +261,7 @@ export function HeroSection() {
                   max={9}
                   value={passengers}
                   onChange={(e) => setPassengers(parseInt(e.target.value) || 1)}
-                  className="w-full mt-1 px-4 py-3 bg-white border border-navy/10 rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-gold"
+                  className={heroFieldClass}
                 />
               </div>
 
@@ -281,8 +285,8 @@ export function HeroSection() {
                 <Input
                   placeholder="Booking ref (e.g. BA-00001)"
                   value={bookingRef}
-                  onChange={(e) => setBookingRef(e.target.value)}
-                  className="flex-1"
+                  onChange={(e) => setBookingRef(e.target.value.toUpperCase())}
+                  className="bilan-light-field flex-1 h-11"
                 />
                 <Button
                   onClick={handleManageBooking}
