@@ -16,7 +16,7 @@ export default function PortalLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ username: '', password: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,10 +24,10 @@ export default function PortalLoginPage() {
     setError('');
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.username, formData.password);
       router.push('/portal');
     } catch {
-      setError('Invalid credentials. Use your Frappe user email and password.');
+      setError('Invalid credentials. Use your Frappe email, username, and password.');
     } finally {
       setIsLoading(false);
     }
@@ -59,12 +59,14 @@ export default function PortalLoginPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Email or username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="admin@example.com or Administrator"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   required
                 />
               </div>

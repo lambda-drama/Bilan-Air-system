@@ -49,6 +49,7 @@ website_route_rules = [
 website_redirects = [
 	{"source": "/bilan", "target": "/"},
 	{"source": r"/bilan/(.*)", "target": r"/\1"},
+	{"source": "/login", "target": "/account?redirect=/app"},
 ]
 
 # Guest landing page (overrides Website Settings when unset)

@@ -29,13 +29,21 @@ export async function ensureCSRF(forceRefresh = false): Promise<string | null> {
 
   csrfFetchInFlight = (async () => {
     try {
-      const res = await fetch("/api/method/frappe.sessions.get_csrf_token", {
-        credentials: "include",
-      });
-      const data = await res.json().catch(() => ({}));
-      const token = data?.message || null;
-      if (token && win) win.csrf_token = token;
-      return token;
+      const endpoints = [
+        `/api/method/${API}.website_auth.get_csrf_token`,
+        "/api/method/frappe.sessions.get_csrf_token",
+      ];
+      for (const url of endpoints) {
+        const res = await fetch(url, { credentials: "include" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) continue;
+        const token = data?.message || null;
+        if (token && typeof token === "string") {
+          if (win) win.csrf_token = token;
+          return token;
+        }
+      }
+      return null;
     } catch {
       return null;
     } finally {

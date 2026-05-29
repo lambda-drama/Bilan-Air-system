@@ -2,8 +2,13 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Search } from 'lucide-react';
 
 export function LoginSection() {
+  const scrollToSearch = () => {
+    document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <section className="bg-cream py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -18,25 +23,46 @@ export function LoginSection() {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Agent Login */}
-          <div className="bg-white border border-navy/10 rounded-xl p-8">
-            <h3 className="text-navy text-xl font-semibold mb-3">Agent Login</h3>
-            <p className="text-navy/60 mb-6">
-              Approved agents manage bookings and statements. Access your dedicated portal to handle reservations and track commissions.
+        {/* Mobile: search + agent side by side; desktop: three cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 max-w-5xl mx-auto">
+          <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-1">
+            <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
+              Search Flights
+            </h3>
+            <p className="text-navy/60 text-sm mb-4 md:mb-6 hidden sm:block">
+              Find routes, dates, and fares for your next trip.
             </p>
-            <Button asChild className="bg-gold hover:bg-gold-dark text-navy">
+            <Button
+              type="button"
+              onClick={scrollToSearch}
+              className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base"
+            >
+              <Search className="h-4 w-4 mr-2 shrink-0" />
+              Search
+            </Button>
+          </div>
+
+          <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-1">
+            <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
+              Agent Login
+            </h3>
+            <p className="text-navy/60 text-sm mb-4 md:mb-6 hidden sm:block">
+              Approved agents manage bookings, schedules, and the staff portal.
+            </p>
+            <Button asChild className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base">
               <Link href="/portal/login">Agent Login</Link>
             </Button>
           </div>
 
-          {/* Traveler account */}
-          <div className="bg-white border border-navy/10 rounded-xl p-8">
-            <h3 className="text-navy text-xl font-semibold mb-3">My Account</h3>
-            <p className="text-navy/60 mb-6">
-              Sign in with your email to view bookings, manage trips, and book faster on your next flight.
+          <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-2 md:col-span-1">
+            <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
+              My Account
+            </h3>
+            <p className="text-navy/60 text-sm mb-4 md:mb-6">
+              Sign in with your email to view bookings, manage trips, and book faster on your next
+              flight.
             </p>
-            <Button asChild className="bg-gold hover:bg-gold-dark text-navy">
+            <Button asChild className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base">
               <Link href="/account">My Account</Link>
             </Button>
           </div>

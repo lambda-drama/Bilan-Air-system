@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { StaffDeskLink } from '@/components/staff-desk-link';
 
 const footerLinks = {
   fly: [
@@ -83,6 +84,11 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <StaffDeskLink className="text-cream/60 hover:text-cream text-sm transition-colors">
+                  Staff Desk
+                </StaffDeskLink>
+              </li>
             </ul>
           </div>
         </div>
