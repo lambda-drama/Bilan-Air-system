@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { TravelerAuthForm } from '@/components/traveler-auth-form';
 import { useAuth } from '@/contexts/auth-context';
 import { getMyAccount, type WebsiteAccountProfile } from '@/services/websiteAuth';
+import { followAuthRedirect, getSafeRedirect } from '@/lib/auth-redirect';
 import {
   Calendar,
   Loader2,
@@ -18,7 +20,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function AccountPage() {
+function AccountPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = getSafeRedirect(searchParams.get('redirect'));
   const { user, isLoading, isAuthenticated, logout, refreshUser } = useAuth();
   const [profile, setProfile] = useState<WebsiteAccountProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -36,16 +41,25 @@ export default function AccountPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isLoading || !isAuthenticated || !redirectTo) return;
+    followAuthRedirect(redirectTo);
+  }, [isLoading, isAuthenticated, redirectTo]);
+
+  useEffect(() => {
+    if (isAuthenticated && !redirectTo) {
       loadProfile();
-    } else {
+    } else if (!isAuthenticated) {
       setProfile(null);
     }
-  }, [isAuthenticated, loadProfile]);
+  }, [isAuthenticated, redirectTo, loadProfile]);
 
   const handleAuthSuccess = async () => {
     await refreshUser();
     toast.success('Welcome back');
+    if (redirectTo) {
+      followAuthRedirect(redirectTo);
+      return;
+    }
     loadProfile();
   };
 
@@ -53,9 +67,12 @@ export default function AccountPage() {
     await logout();
     setProfile(null);
     toast.success('Signed out');
+    router.replace('/account');
   };
 
-  if (isLoading) {
+  const isDeskGate = redirectTo === '/app';
+
+  if (isLoading || (isAuthenticated && redirectTo)) {
     return (
       <main className="min-h-screen bg-cream flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-gold" />
@@ -70,11 +87,15 @@ export default function AccountPage() {
       <div className="bg-navy pt-24 pb-10">
         <div className="max-w-lg mx-auto px-4 text-center">
           <User className="h-10 w-10 text-gold mx-auto mb-4" />
-          <h1 className="text-cream font-serif text-3xl">My Account</h1>
+          <h1 className="text-cream font-serif text-3xl">
+            {isDeskGate && !isAuthenticated ? 'Staff sign in' : 'My Account'}
+          </h1>
           <p className="text-cream/60 mt-2 text-sm">
             {isAuthenticated
               ? 'Manage your profile and view your trips'
-              : 'Sign in with your email or create an account to see your bookings'}
+              : isDeskGate
+                ? 'Sign in with your email or username to open the staff desk'
+                : 'Sign in with your email or create an account to see your bookings'}
           </p>
         </div>
       </div>
@@ -135,6 +156,9 @@ export default function AccountPage() {
                     Manage booking (PNR)
                   </Link>
                 </Button>
+                <Button asChild variant="outline" className="w-full border-navy/20">
+                  <a href="/app">Open staff desk</a>
+                </Button>
               </div>
 
               <Button
@@ -158,5 +182,19 @@ export default function AccountPage() {
 
       <Footer />
     </main>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-cream flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gold" />
+        </main>
+      }
+    >
+      <AccountPageContent />
+    </Suspense>
   );
 }

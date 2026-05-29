@@ -155,21 +155,21 @@ export function HeroSection() {
             <div className="flex flex-wrap gap-4">
               <Button
                 onClick={() => document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' })}
-                className="bg-gold hover:bg-gold-dark text-navy font-semibold px-8 py-6"
+                className="bg-gold hover:bg-gold-dark text-navy font-semibold px-8 py-6 w-full sm:w-auto"
               >
                 Search Flights
               </Button>
               <Button
                 variant="outline"
                 onClick={() => router.push('/manage-booking')}
-                className="border-cream/30 text-cream hover:bg-cream/10 px-8 py-6"
+                className="border-cream/30 text-cream hover:bg-cream/10 px-8 py-6 w-full sm:w-auto"
               >
                 Manage Booking
               </Button>
               <Button
                 variant="outline"
                 onClick={() => router.push('/portal/login')}
-                className="border-cream/30 text-cream hover:bg-cream/10 px-8 py-6"
+                className="hidden md:inline-flex border-cream/30 text-cream hover:bg-cream/10 px-8 py-6"
               >
                 Agent Login
               </Button>

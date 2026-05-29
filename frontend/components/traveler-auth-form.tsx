@@ -27,7 +27,7 @@ export function TravelerAuthForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({
     full_name: '',
     email: '',
@@ -43,7 +43,7 @@ export function TravelerAuthForm({
     setSubmitting(true);
     setError('');
     try {
-      await login(loginForm.email.trim(), loginForm.password);
+      await login(loginForm.username.trim(), loginForm.password);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
@@ -121,15 +121,16 @@ export function TravelerAuthForm({
       {mode === 'login' ? (
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <Label htmlFor="traveler-login-email">Email</Label>
+            <Label htmlFor="traveler-login-username">Email or username</Label>
             <Input
-              id="traveler-login-email"
-              type="email"
+              id="traveler-login-username"
+              type="text"
               required
-              autoComplete="email"
+              autoComplete="username"
+              placeholder="admin@example.com or Administrator"
               className="mt-1 bilan-light-field"
-              value={loginForm.email}
-              onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+              value={loginForm.username}
+              onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
             />
           </div>
           <div>

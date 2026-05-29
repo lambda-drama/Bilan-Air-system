@@ -140,6 +140,12 @@ def _enrich_booking_rows(bookings: list[dict]) -> list[dict]:
 
 
 @frappe.whitelist(allow_guest=True)
+def get_csrf_token():
+	"""Guest-safe CSRF token for public website forms."""
+	return frappe.sessions.get_csrf_token()
+
+
+@frappe.whitelist(allow_guest=True)
 def get_public_booking_settings():
 	"""Hold window and labels for the traveler booking UI."""
 	settings = frappe.get_single("BA Settings")

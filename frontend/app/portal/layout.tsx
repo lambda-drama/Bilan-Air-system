@@ -24,6 +24,7 @@ import {
   BarChart3,
   ClipboardCheck,
   Luggage,
+  MessageSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,6 +43,7 @@ const sidebarLinks = [
   { href: "/portal/check-in", label: "Check-in", icon: ClipboardCheck },
   { href: "/portal/baggage", label: "Baggage", icon: Luggage },
   { href: "/portal/passengers", label: "Passengers", icon: Users },
+  { href: "/portal/direct-messages", label: "Direct Message", icon: MessageSquare },
   { href: "/portal/routes", label: "Routes", icon: MapPin },
   { href: "/portal/invoices", label: "Invoices", icon: FileText },
   { href: "/portal/payments", label: "Payments", icon: CreditCard },
