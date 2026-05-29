@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { fetchSeatMap, type SeatMapEntry } from '@/services/flightSchedule';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { parseFlightsSearchParams } from '@/lib/flights-search-url';
+import { getLegSelection, loadTripContext, upsertLegSelection } from '@/lib/trip-store';
+import { tripLegLabel } from '@/lib/trip-types';
 
 interface SeatRow {
   name: string;
@@ -24,12 +27,26 @@ function SeatSelectionContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const flightId = searchParams.get('flight') || '';
-  const seatClass = searchParams.get('class') || 'Economy';
-  const passengers = parseInt(searchParams.get('passengers') || '1');
+  const { tripType, passengers, leg, searchLegs } = parseFlightsSearchParams(searchParams);
+  const tripCtx = loadTripContext();
+  const legSelection = getLegSelection(leg);
+  const isMultiLeg = tripType !== 'oneway' && searchLegs.length > 1;
+
+  const flightId =
+    legSelection?.flightScheduleId || searchParams.get('flight') || '';
+  const seatClass =
+    legSelection?.seatClass || searchParams.get('class') || 'Economy';
+  const activeLeg = searchLegs[leg] || {
+    origin: searchParams.get('origin') || '',
+    destination: searchParams.get('destination') || '',
+    date: searchParams.get('date') || '',
+  };
+  const legTitle = tripLegLabel(activeLeg, leg, searchLegs.length || 1);
 
   useEffect(() => {
     if (!flightId) return;
+    setSelectedSeats([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setLoading(true);
     fetchSeatMap(flightId)
       .then((map) => {
@@ -70,15 +87,36 @@ function SeatSelectionContent() {
     const labels = selectedSeats.map(
       (id) => seats.find((s) => s.name === id)?.seat_number || id,
     );
+
+    if (isMultiLeg && legSelection) {
+      upsertLegSelection({
+        ...legSelection,
+        selectedSeatIds: selectedSeats,
+        selectedSeatLabels: labels,
+      });
+
+      const totalLegs = searchLegs.length;
+      if (leg < totalLegs - 1) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('leg', String(leg + 1));
+        router.push(`/booking/seats?${params.toString()}`);
+        return;
+      }
+
+      router.push(bookingFlowPath('/booking/account', searchParams));
+      return;
+    }
+
     const params = new URLSearchParams({
+      trip: tripType,
       flight: flightId,
       class: seatClass,
       seats: selectedSeats.join(','),
       seatLabels: labels.join(','),
       passengers: passengers.toString(),
-      origin: searchParams.get('origin') || '',
-      destination: searchParams.get('destination') || '',
-      date: searchParams.get('date') || '',
+      origin: activeLeg.origin,
+      destination: activeLeg.destination,
+      date: activeLeg.date,
     });
     router.push(bookingFlowPath('/booking/account', params));
   };
@@ -96,6 +134,15 @@ function SeatSelectionContent() {
     seatsByRow[row].push(seat);
   });
 
+  if (isMultiLeg && !legSelection) {
+    return (
+      <main className="min-h-screen bg-cream pt-32 text-center px-4">
+        <p className="text-navy/70 mb-4">Please select your flights before choosing seats.</p>
+        <Button onClick={() => router.push('/#book')}>Back to search</Button>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-cream">
       <Navbar />
@@ -104,7 +151,10 @@ function SeatSelectionContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-cream font-serif text-3xl">Select Your Seats</h1>
           <p className="text-cream/60 mt-2">
-            {seatClass} &middot; Select {passengers} seat{passengers > 1 ? 's' : ''}
+            {isMultiLeg && `${legTitle} · `}
+            {activeLeg.origin} → {activeLeg.destination} · {seatClass} · Select {passengers} seat
+            {passengers > 1 ? 's' : ''}
+            {legSelection?.flightNumber ? ` · ${legSelection.flightNumber}` : ''}
           </p>
         </div>
       </div>
@@ -116,6 +166,31 @@ function SeatSelectionContent() {
           <p className="text-center text-red-600">{error}</p>
         ) : (
           <div className="bg-white rounded-xl p-8 border border-navy/10">
+            <div className="sticky top-20 z-10 -mx-8 -mt-8 mb-6 px-8 py-4 bg-white/95 backdrop-blur border-b border-navy/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm text-navy/70">
+                {selectedSeats.length}/{passengers} seat{passengers > 1 ? 's' : ''} selected
+                {selectedSeats.length > 0 && (
+                  <span className="text-navy font-medium">
+                    {' '}
+                    ·{' '}
+                    {selectedSeats
+                      .map((id) => seats.find((s) => s.name === id)?.seat_number || id)
+                      .join(', ')}
+                  </span>
+                )}
+              </p>
+              <Button
+                onClick={handleContinue}
+                disabled={selectedSeats.length !== passengers}
+                className="bg-gold hover:bg-gold-dark text-navy shrink-0 w-full sm:w-auto"
+              >
+                {isMultiLeg && leg < searchLegs.length - 1 ? (
+                  <>Next flight <ArrowRight className="w-4 h-4 ml-2" /></>
+                ) : (
+                  <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>
+                )}
+              </Button>
+            </div>
             <div className="space-y-2">
               {Object.keys(seatsByRow)
                 .map(Number)
@@ -138,15 +213,6 @@ function SeatSelectionContent() {
                       ))}
                   </div>
                 ))}
-            </div>
-            <div className="mt-8 flex justify-end">
-              <Button
-                onClick={handleContinue}
-                disabled={selectedSeats.length !== passengers}
-                className="bg-gold hover:bg-gold-dark text-navy"
-              >
-                Continue <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
             </div>
           </div>
         )}

@@ -51,7 +51,7 @@
   },
   {
    "fieldname": "seat_number",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Seat",
    "options": "Seat Inventory",
@@ -93,7 +93,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-28 02:37:33.249632",
+ "modified": "2026-05-29 22:18:53.594501",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking Passenger",

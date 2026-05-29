@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plane, ArrowRight, Search, Loader2 } from 'lucide-react';
+import { Plane, ArrowRight, Search, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { fetchAllRoutes, getBookingSearchDefaults } from '@/services/search';
@@ -12,6 +12,9 @@ import {
   type AirportOption,
 } from '@/lib/public-flight-airports';
 import { cn } from '@/lib/utils';
+import { TripTypeSelector } from '@/components/trip-type-selector';
+import { buildFlightsSearchUrl } from '@/lib/flights-search-url';
+import type { TripSearchLeg, TripType } from '@/lib/trip-types';
 
 const heroFieldClass =
   'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
@@ -20,7 +23,13 @@ export function HeroSection() {
   const router = useRouter();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [tripType, setTripType] = useState<TripType>('oneway');
   const [departureDate, setDepartureDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [multiLegs, setMultiLegs] = useState<TripSearchLeg[]>([
+    { origin: '', destination: '', date: '' },
+    { origin: '', destination: '', date: '' },
+  ]);
   const [passengers, setPassengers] = useState(1);
   const [bookingRef, setBookingRef] = useState('');
   const [loadingAirports, setLoadingAirports] = useState(true);
@@ -61,7 +70,12 @@ export function HeroSection() {
         setDestination(defaultDest);
         if (defaults.suggested_date) {
           setDepartureDate(defaults.suggested_date);
+          setReturnDate(defaults.suggested_date);
         }
+        setMultiLegs([
+          { origin: defaultOrigin, destination: defaultDest, date: defaults.suggested_date || '' },
+          { origin: defaultDest, destination: defaultOrigin, date: defaults.suggested_date || '' },
+        ]);
       })
       .catch(() => {
         if (!cancelled) {
@@ -101,20 +115,72 @@ export function HeroSection() {
     }
   };
 
+  const updateMultiLeg = (index: number, patch: Partial<TripSearchLeg>) => {
+    setMultiLegs((prev) =>
+      prev.map((leg, i) => (i === index ? { ...leg, ...patch } : leg)),
+    );
+  };
+
+  const handleMultiLegOriginChange = (index: number, code: string) => {
+    const dests = destinationsForOrigin(destinationsByOrigin, code);
+    setMultiLegs((prev) =>
+      prev.map((leg, i) => {
+        if (i !== index) return leg;
+        const nextDest =
+          dests.find((d) => d.code === leg.destination)?.code || dests[0]?.code || '';
+        return { ...leg, origin: code, destination: nextDest };
+      }),
+    );
+  };
+
+  const addMultiLeg = () => {
+    if (multiLegs.length >= 6) return;
+    const last = multiLegs[multiLegs.length - 1];
+    setMultiLegs([
+      ...multiLegs,
+      {
+        origin: last?.destination || origin,
+        destination: '',
+        date: last?.date || departureDate,
+      },
+    ]);
+  };
+
+  const removeMultiLeg = (index: number) => {
+    if (multiLegs.length <= 2) return;
+    setMultiLegs(multiLegs.filter((_, i) => i !== index));
+  };
+
   const handleSearch = () => {
-    if (!origin || !destination) {
+    if (tripType === 'multicity') {
+      const validLegs = multiLegs.filter((l) => l.origin && l.destination && l.date);
+      if (validLegs.length < 2) return;
+      router.push(
+        buildFlightsSearchUrl({
+          tripType: 'multicity',
+          origin: validLegs[0].origin,
+          destination: validLegs[0].destination,
+          departureDate: validLegs[0].date,
+          passengers,
+          multiLegs: validLegs,
+        }),
+      );
       return;
     }
-    if (!departureDate) {
-      return;
-    }
-    const params = new URLSearchParams({
-      origin,
-      destination,
-      date: departureDate,
-      passengers: passengers.toString(),
-    });
-    router.push(`/flights?${params.toString()}`);
+
+    if (!origin || !destination || !departureDate) return;
+    if (tripType === 'return' && !returnDate) return;
+
+    router.push(
+      buildFlightsSearchUrl({
+        tripType,
+        origin,
+        destination,
+        departureDate,
+        returnDate: tripType === 'return' ? returnDate : undefined,
+        passengers,
+      }),
+    );
   };
 
   const handleManageBooking = () => {
@@ -123,12 +189,15 @@ export function HeroSection() {
     }
   };
 
+  const multicityValid =
+    multiLegs.filter((l) => l.origin && l.destination && l.date).length >= 2;
+
   const searchDisabled =
     loadingAirports ||
-    !origin ||
-    !destination ||
-    !departureDate ||
-    destinationOptions.length === 0;
+    (tripType === 'multicity'
+      ? !multicityValid
+      : !origin || !destination || !departureDate || destinationOptions.length === 0) ||
+    (tripType === 'return' && !returnDate);
 
   return (
     <section className="relative min-h-screen bg-navy pt-20">
@@ -198,7 +267,96 @@ export function HeroSection() {
               </p>
             )}
 
+            <TripTypeSelector value={tripType} onChange={setTripType} className="mb-4" />
+
             <div className="space-y-4">
+              {tripType === 'multicity' ? (
+                <>
+                  {multiLegs.map((leg, index) => {
+                    const legDestOptions = destinationsForOrigin(destinationsByOrigin, leg.origin);
+                    return (
+                      <div
+                        key={index}
+                        className="rounded-xl border border-navy/10 p-4 space-y-3 bg-white/60"
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-navy text-xs font-semibold tracking-wider">
+                            FLIGHT {index + 1}
+                          </p>
+                          {multiLegs.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => removeMultiLeg(index)}
+                              className="text-navy/40 hover:text-red-600"
+                              aria-label={`Remove flight ${index + 1}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
+                            FROM
+                          </label>
+                          <select
+                            value={leg.origin}
+                            onChange={(e) => handleMultiLegOriginChange(index, e.target.value)}
+                            disabled={origins.length === 0}
+                            className={cn(heroFieldClass, 'disabled:opacity-60')}
+                          >
+                            {origins.map((airport) => (
+                              <option key={airport.code} value={airport.code}>
+                                {airport.city} ({airport.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
+                            TO
+                          </label>
+                          <select
+                            value={leg.destination}
+                            onChange={(e) => updateMultiLeg(index, { destination: e.target.value })}
+                            disabled={legDestOptions.length === 0}
+                            className={cn(heroFieldClass, 'disabled:opacity-60')}
+                          >
+                            {legDestOptions.map((airport) => (
+                              <option key={airport.code} value={airport.code}>
+                                {airport.city} ({airport.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
+                            DEPARTURE
+                          </label>
+                          <input
+                            type="date"
+                            value={leg.date}
+                            onChange={(e) => updateMultiLeg(index, { date: e.target.value })}
+                            min={new Date().toISOString().split('T')[0]}
+                            className={heroFieldClass}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {multiLegs.length < 6 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addMultiLeg}
+                      className="w-full border-navy/20 text-navy"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add another flight
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">FROM</label>
                 {loadingAirports ? (
@@ -243,15 +401,37 @@ export function HeroSection() {
               </div>
 
               <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">DEPARTURE</label>
+                <label className="text-navy/60 text-xs font-semibold tracking-wider">
+                  {tripType === 'return' ? 'DEPART' : 'DEPARTURE'}
+                </label>
                 <input
                   type="date"
                   value={departureDate}
-                  onChange={(e) => setDepartureDate(e.target.value)}
+                  onChange={(e) => {
+                    setDepartureDate(e.target.value);
+                    if (returnDate && e.target.value > returnDate) {
+                      setReturnDate(e.target.value);
+                    }
+                  }}
                   min={new Date().toISOString().split('T')[0]}
                   className={heroFieldClass}
                 />
               </div>
+
+              {tripType === 'return' && (
+                <div>
+                  <label className="text-navy/60 text-xs font-semibold tracking-wider">RETURN</label>
+                  <input
+                    type="date"
+                    value={returnDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    min={departureDate || new Date().toISOString().split('T')[0]}
+                    className={heroFieldClass}
+                  />
+                </div>
+              )}
+                </>
+              )}
 
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">PASSENGERS</label>

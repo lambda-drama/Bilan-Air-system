@@ -3,6 +3,10 @@
 import frappe
 from frappe.utils import now
 
+from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
+    prepare_seat_for_new_booking,
+)
+
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
     """
@@ -68,6 +72,10 @@ def create_booking(booking_data):
             "seat_number": pax.get("seat_number"),
             "fare_paid": 0,
         })
+
+    for row in passenger_links:
+        if row.get("seat_number"):
+            prepare_seat_for_new_booking(row["seat_number"])
     
     booking = frappe.get_doc({
         "doctype": "Air Booking",
@@ -85,10 +93,14 @@ def create_booking(booking_data):
 
     for passenger in booking.passengers:
         seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-        seat.reserve(booking.name)
+        result = seat.reserve(booking.name)
+        if not result.get("success"):
+            frappe.throw(result.get("message") or f"Could not reserve seat {seat.seat_number}")
 
     booking.calculate_total_fare()
-    booking.save()
+    booking.flags.ignore_validate = True
+    booking.save(ignore_permissions=True)
+    booking.flags.ignore_validate = False
     frappe.db.commit()
 
     settings = frappe.get_single("BA Settings")

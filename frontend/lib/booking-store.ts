@@ -1,3 +1,5 @@
+import type { TripType } from "./trip-types";
+
 export interface BookingPassengerDraft {
   full_name: string;
   id_number: string;
@@ -7,7 +9,21 @@ export interface BookingPassengerDraft {
   passenger_type: "Adult" | "Child" | "Infant";
 }
 
+export interface BookingLegDraft {
+  flightScheduleId: string;
+  flightNumber?: string;
+  seatClass: string;
+  selectedSeatIds: string[];
+  selectedSeatLabels: string[];
+  origin?: string;
+  destination?: string;
+  departure_date?: string;
+  farePerPerson?: number;
+}
+
 export interface BookingDraft {
+  tripType?: TripType;
+  legs?: BookingLegDraft[];
   flightScheduleId: string;
   flightNumber?: string;
   seatClass: string;

@@ -28,6 +28,24 @@ class AirBooking(Document):
         self.validate_seat_availability()
         self.calculate_total_fare()
 
+    def on_trash(self):
+        """Release linked seats before delete link check runs."""
+        self._release_all_seats()
+
+    def _release_all_seats(self):
+        for passenger in self.passengers or []:
+            if not passenger.seat_number:
+                continue
+            if not frappe.db.exists("Seat Inventory", passenger.seat_number):
+                continue
+            seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
+            if seat.booking_reference != self.name:
+                continue
+            seat.status = "Available"
+            seat.hold_expiry = None
+            seat.booking_reference = None
+            seat.save(ignore_permissions=True)
+
     def _save_status_updates(self):
         # Status transitions should not be blocked by seat validation rules.
         self.flags.ignore_validate = True
@@ -66,10 +84,15 @@ class AirBooking(Document):
 
     def validate_seat_availability(self):
         """Check if selected seats are still available for this flight and booking."""
+        from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
+            prepare_seat_for_new_booking,
+        )
+
         for passenger in self.passengers:
             if not passenger.seat_number:
                 continue
 
+            prepare_seat_for_new_booking(passenger.seat_number, self.name)
             seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
 
             if seat.flight_schedule != self.flight_schedule:
@@ -82,7 +105,11 @@ class AirBooking(Document):
                 continue
 
             if seat.booking_reference:
-                frappe.throw(f"Seat {seat.seat_number} belongs to another booking")
+                other = seat.booking_reference
+                frappe.throw(
+                    f"Seat {seat.seat_number} is held by booking {other}. "
+                    f"Pay or cancel that booking first, or choose another seat."
+                )
 
             if seat.status != "Available":
                 frappe.throw(
@@ -207,15 +234,7 @@ class AirBooking(Document):
     
     def cancel_booking(self):
         """Cancel entire booking and release seats"""
-        
-        for passenger in self.passengers:
-            if passenger.seat_number:
-                seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-                if seat.booking_reference == self.name:
-                    seat.status = "Available"
-                    seat.hold_expiry = None
-                    seat.booking_reference = None
-                    seat.save()
+        self._release_all_seats()
         
         self.booking_status = "Cancelled"
         self._save_status_updates()

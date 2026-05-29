@@ -1,5 +1,9 @@
 /** Query params carried through traveler booking steps (after seat selection). */
 export const BOOKING_FLOW_KEYS = [
+  "trip",
+  "leg",
+  "legs",
+  "returnDate",
   "flight",
   "class",
   "seats",
