@@ -30,14 +30,14 @@ export function LoginSection() {
             </Button>
           </div>
 
-          {/* Customer Login */}
+          {/* Traveler account */}
           <div className="bg-white border border-navy/10 rounded-xl p-8">
-            <h3 className="text-navy text-xl font-semibold mb-3">Customer Login</h3>
+            <h3 className="text-navy text-xl font-semibold mb-3">My Account</h3>
             <p className="text-navy/60 mb-6">
-              Customers manage trips by mobile number. View upcoming flights, manage bookings, and access your travel history.
+              Sign in with your email to view bookings, manage trips, and book faster on your next flight.
             </p>
             <Button asChild className="bg-gold hover:bg-gold-dark text-navy">
-              <Link href="/account">Customer Login</Link>
+              <Link href="/account">My Account</Link>
             </Button>
           </div>
         </div>

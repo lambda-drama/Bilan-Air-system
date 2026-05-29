@@ -5,8 +5,6 @@ const isDev = process.env.NODE_ENV !== "production"
 const nextConfig = {
   ...(isDev ? {} : { output: "export" }),
 
-  basePath: "/bilan",
-
   assetPrefix: isDev ? "" : "/assets/bilan_sky/frontend",
 
   typescript: {

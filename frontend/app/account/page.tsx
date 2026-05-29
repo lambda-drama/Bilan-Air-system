@@ -1,140 +1,159 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Phone, ArrowRight, Loader2 } from 'lucide-react';
+import { TravelerAuthForm } from '@/components/traveler-auth-form';
+import { useAuth } from '@/contexts/auth-context';
+import { getMyAccount, type WebsiteAccountProfile } from '@/services/websiteAuth';
+import {
+  Calendar,
+  Loader2,
+  LogOut,
+  Plane,
+  Ticket,
+  User,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function AccountPage() {
-  const router = useRouter();
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { user, isLoading, isAuthenticated, logout, refreshUser } = useAuth();
+  const [profile, setProfile] = useState<WebsiteAccountProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
-  const handleSendOTP = async () => {
-    if (!phone) return;
-    
-    setLoading(true);
-    setError('');
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setLoading(false);
-    setStep('otp');
-  };
-
-  const handleVerifyOTP = async () => {
-    if (otp.length !== 6) return;
-    
-    setLoading(true);
-    setError('');
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    if (otp === '123456') {
-      // Store auth state
-      sessionStorage.setItem('customerPhone', phone);
-      router.push('/account/bookings');
-    } else {
-      setError('Invalid OTP. Please try again.');
-      setLoading(false);
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true);
+    try {
+      const data = await getMyAccount();
+      setProfile(data);
+    } catch {
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadProfile();
+    } else {
+      setProfile(null);
+    }
+  }, [isAuthenticated, loadProfile]);
+
+  const handleAuthSuccess = async () => {
+    await refreshUser();
+    toast.success('Welcome back');
+    loadProfile();
   };
+
+  const handleLogout = async () => {
+    await logout();
+    setProfile(null);
+    toast.success('Signed out');
+  };
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-cream flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gold" />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-cream">
       <Navbar />
-      
-      <div className="pt-32 pb-20">
-        <div className="max-w-md mx-auto px-4">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gold/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Phone className="w-8 h-8 text-gold" />
-            </div>
-            <h1 className="text-navy font-serif text-3xl mb-2">Customer Login</h1>
-            <p className="text-navy/60">
-              {step === 'phone' 
-                ? 'Enter your phone number to access your bookings'
-                : `Enter the OTP sent to ${phone}`
-              }
-            </p>
-          </div>
 
-          <div className="bg-white rounded-xl p-6 border border-navy/10">
-            {step === 'phone' ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-navy/60 text-sm font-medium">Phone Number</label>
-                  <Input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+254 7XX XXX XXX"
-                    className="mt-1"
-                  />
-                </div>
-                <Button
-                  onClick={handleSendOTP}
-                  disabled={loading || !phone}
-                  className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <>
-                      Send OTP
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-navy/60 text-sm font-medium">Enter OTP</label>
-                  <Input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    className="mt-1 text-center text-2xl tracking-widest"
-                    maxLength={6}
-                  />
-                  <p className="text-navy/40 text-xs mt-2 text-center">
-                    For demo, use OTP: 123456
-                  </p>
-                </div>
-                {error && (
-                  <p className="text-red-500 text-sm text-center">{error}</p>
-                )}
-                <Button
-                  onClick={handleVerifyOTP}
-                  disabled={loading || otp.length !== 6}
-                  className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    'Verify & Continue'
-                  )}
-                </Button>
-                <button
-                  onClick={() => setStep('phone')}
-                  className="w-full text-navy/60 text-sm hover:text-navy"
-                >
-                  Change phone number
-                </button>
-              </div>
-            )}
-          </div>
+      <div className="bg-navy pt-24 pb-10">
+        <div className="max-w-lg mx-auto px-4 text-center">
+          <User className="h-10 w-10 text-gold mx-auto mb-4" />
+          <h1 className="text-cream font-serif text-3xl">My Account</h1>
+          <p className="text-cream/60 mt-2 text-sm">
+            {isAuthenticated
+              ? 'Manage your profile and view your trips'
+              : 'Sign in with your email or create an account to see your bookings'}
+          </p>
         </div>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 -mt-6 pb-16">
+        {isAuthenticated && user ? (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-navy/10 shadow-lg p-6">
+              {profileLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gold" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">
+                    SIGNED IN
+                  </p>
+                  <h2 className="text-navy font-serif text-2xl mb-1">
+                    {profile?.full_name || user.full_name}
+                  </h2>
+                  <p className="text-navy/60 text-sm">{profile?.email || user.email}</p>
+                  {(profile?.mobile_no || user.mobile_no) && (
+                    <p className="text-navy/60 text-sm mt-1">
+                      {profile?.mobile_no || user.mobile_no}
+                    </p>
+                  )}
+                  {profile?.passenger?.id_number && (
+                    <p className="text-navy/50 text-xs mt-3">
+                      Traveler ID: {profile.passenger.id_number}
+                    </p>
+                  )}
+                  <p className="text-navy/70 text-sm mt-4">
+                    {profile?.booking_count ?? 0} booking
+                    {(profile?.booking_count ?? 0) === 1 ? '' : 's'} on file
+                  </p>
+                </>
+              )}
+
+              <div className="grid gap-3 mt-6">
+                <Button
+                  asChild
+                  className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
+                >
+                  <Link href="/account/bookings">
+                    <Ticket className="h-4 w-4 mr-2" />
+                    My bookings
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full border-navy/20">
+                  <Link href="/#book">
+                    <Plane className="h-4 w-4 mr-2" />
+                    Book a flight
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full border-navy/20">
+                  <Link href="/manage-booking">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Manage booking (PNR)
+                  </Link>
+                </Button>
+              </div>
+
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="w-full mt-4 text-navy/60 hover:text-navy"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign out
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <TravelerAuthForm
+            onSuccess={handleAuthSuccess}
+            loginTitle="Sign in"
+            signupTitle="Create account"
+          />
+        )}
       </div>
 
       <Footer />
