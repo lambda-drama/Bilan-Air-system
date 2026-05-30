@@ -4,8 +4,11 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, now
 
+from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
+	require_portal_staff()
 	filters = filters or {}
 	total = frappe.db.count(doctype, filters=filters)
 	data = frappe.get_all(
@@ -56,6 +59,7 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 @frappe.whitelist()
 def save_flight_schedule(data):
 	"""Create or update a flight schedule."""
+	require_portal_staff()
 	if isinstance(data, str):
 		import json
 
@@ -79,6 +83,7 @@ def save_flight_schedule(data):
 @frappe.whitelist()
 def ensure_schedule_seats(schedule_name):
 	"""Create seat inventory for a schedule if missing (e.g. legacy schedules)."""
+	require_portal_staff()
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
 	doc.check_permission("write")
 	before = frappe.db.count("Seat Inventory", {"flight_schedule": doc.name})
@@ -95,6 +100,7 @@ def ensure_schedule_seats(schedule_name):
 @frappe.whitelist()
 def search_bookings_for_checkin(query=None, limit=15):
 	"""Typeahead for portal check-in: PNR, payer name, phone, or email."""
+	require_portal_staff()
 	limit = int(limit or 15)
 	q = (query or "").strip()
 
@@ -227,6 +233,7 @@ def list_passengers(limit=50, offset=0, search=None):
 
 @frappe.whitelist()
 def save_flight_route(data):
+	require_portal_staff()
 	if isinstance(data, str):
 		import json
 
@@ -301,6 +308,7 @@ def list_fare_rules(limit=50, offset=0, route=None, search=None, active_only=Non
 @frappe.whitelist()
 def save_fare_rule(data):
 	"""Create or update a fare rule from the portal."""
+	require_portal_staff()
 	if isinstance(data, str):
 		import json
 
@@ -323,6 +331,7 @@ def save_fare_rule(data):
 @frappe.whitelist()
 def delete_fare_rule(name):
 	"""Delete a fare rule from the portal."""
+	require_portal_staff()
 	if not name or not frappe.db.exists("Fare Rule", name):
 		frappe.throw(_("Fare rule not found"))
 
@@ -335,12 +344,14 @@ def delete_fare_rule(name):
 
 @frappe.whitelist()
 def list_countries():
+	require_portal_staff()
 	return frappe.get_all("Country", fields=["name"], order_by="name asc", limit_page_length=0)
 
 
 @frappe.whitelist()
 def list_crew_members(crew_role=None, for_date=None):
 	"""Active crew; optionally filter by role and exclude members assigned on for_date."""
+	require_portal_staff()
 	if crew_role and for_date:
 		from bilan_sky.bilan_air_booking_system.api.crew import fetch_available_crew_members
 
@@ -360,6 +371,7 @@ def list_crew_members(crew_role=None, for_date=None):
 
 @frappe.whitelist()
 def list_crew_roles(category=None):
+	require_portal_staff()
 	filters = {"is_active": 1}
 	if category:
 		filters["category"] = category
@@ -382,6 +394,7 @@ def get_display_currency(doc_currency=None):
 @frappe.whitelist()
 def get_print_formats(doctype):
 	"""Print format names for Frappe printview."""
+	require_portal_staff()
 	if not doctype:
 		return ["Standard"]
 
@@ -399,6 +412,7 @@ def get_portal_user_profile():
 	"""Current session user for portal profile UI."""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
 
 	user = frappe.get_doc("User", frappe.session.user)
 	return {
@@ -419,6 +433,7 @@ def update_portal_user_profile(data):
 	"""Update editable User fields for the logged-in portal user."""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
 
 	if isinstance(data, str):
 		import json
@@ -440,6 +455,7 @@ def set_portal_user_image(user_image):
 	"""Set profile picture URL after upload_file."""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
 
 	if not user_image:
 		frappe.throw(_("Image URL is required"))
@@ -486,6 +502,7 @@ def _seat_inventory_row(seat):
 @frappe.whitelist()
 def get_schedule_seat_inventory(schedule_name):
 	"""Full seat map + stats for portal agents."""
+	require_portal_staff()
 	schedule_name = _resolve_flight_schedule_name(schedule_name)
 	if not schedule_name:
 		frappe.throw(_("Flight schedule not found"))
@@ -563,6 +580,7 @@ def _seat_number_sort_key(seat_number):
 @frappe.whitelist()
 def portal_hold_seat(seat_name, booking_reference=None):
 	"""Put a seat on hold for a booking PNR or as an agent hold."""
+	require_portal_staff()
 	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
 		frappe.throw(_("Seat not found"))
 
@@ -597,6 +615,7 @@ def portal_hold_seat(seat_name, booking_reference=None):
 @frappe.whitelist()
 def portal_release_seat(seat_name):
 	"""Release a held seat back to available (agent action)."""
+	require_portal_staff()
 	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
 		frappe.throw(_("Seat not found"))
 
@@ -624,6 +643,7 @@ def portal_release_seat(seat_name):
 
 @frappe.whitelist()
 def get_dashboard_stats():
+	require_portal_staff()
 	return {
 		"total_bookings": frappe.db.count("Air Booking"),
 		"pending_payments": frappe.db.count("Air Booking", {"payment_status": "Pending"}),
@@ -658,6 +678,7 @@ def list_payment_bookings(limit=50, offset=0):
 @frappe.whitelist()
 def list_booking_invoices(limit=50, offset=0, search=None):
 	"""Sales invoices linked to air bookings."""
+	require_portal_staff()
 	limit = int(limit)
 	offset = int(offset)
 	search = (search or "").strip()
@@ -725,6 +746,7 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 @frappe.whitelist()
 def get_booking_invoice_detail(invoice_name):
 	"""Sales Invoice with linked air booking context."""
+	require_portal_staff()
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		frappe.throw(_("Invoice not found"))
 

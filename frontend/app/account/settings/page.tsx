@@ -93,7 +93,7 @@ function AccountSettingsContent() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 -mt-6 pb-16 space-y-6">
-        <div className="bg-white rounded-2xl border border-navy/10 shadow-lg p-6">
+        <div className="bilan-light-card rounded-2xl shadow-lg p-6">
           <h2 className="text-navy font-semibold text-lg mb-1">Appearance</h2>
           <p className="text-navy/60 text-sm mb-4">
             Choose light, dark, or match your device.
@@ -101,7 +101,7 @@ function AccountSettingsContent() {
           <ThemeSelector />
         </div>
 
-        <div className="bg-white rounded-2xl border border-navy/10 shadow-lg p-6">
+        <div className="bilan-light-card rounded-2xl shadow-lg p-6">
           <h2 className="text-navy font-semibold text-lg mb-1">Change password</h2>
           <p className="text-navy/60 text-sm mb-4">
             Update the password you use to sign in to My Account.
@@ -115,7 +115,7 @@ function AccountSettingsContent() {
                 autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="mt-1"
+                className="mt-1 bilan-light-field"
               />
             </div>
             <div>
@@ -126,7 +126,7 @@ function AccountSettingsContent() {
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1"
+                className="mt-1 bilan-light-field"
               />
             </div>
             <div>
@@ -137,7 +137,7 @@ function AccountSettingsContent() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1"
+                className="mt-1 bilan-light-field"
               />
             </div>
             <Button
