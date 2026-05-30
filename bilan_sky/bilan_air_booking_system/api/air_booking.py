@@ -14,8 +14,8 @@ def create_booking(booking_data):
     Create a new booking.
 
     booking_source:
-      - office: desk booking — travelers stay on the booking only; payer becomes ERPNext Customer on invoice.
-      - online: public site — optional Passenger profiles + website login when register_profile is true.
+      - office: desk booking, travelers stay on the booking only; payer becomes ERPNext Customer on invoice.
+      - online: public site, optional Passenger profiles + website login when register_profile is true.
     """
     if isinstance(booking_data, str):
         import json
@@ -438,3 +438,4 @@ def confirm_payment_and_invoice_from_booking(pnr, payment_method=None):
     booking = frappe.get_doc("Air Booking", pnr)
     booking.check_permission("write")
     return booking.confirm_payment_and_invoice(payment_method=payment_method)
+

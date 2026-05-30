@@ -27,7 +27,7 @@ export const en = {
     flightSearch: "FLIGHT SEARCH",
     findFlight: "Find your flight",
     fareHint: "Fare appears only after route, date, and passenger search.",
-    routesHint: "From and To use your active routes — type to search by city or airport code.",
+    routesHint: "From and To use your active routes, type to search by city or airport code.",
     from: "FROM",
     to: "TO",
     departure: "DEPARTURE",
@@ -128,7 +128,7 @@ export const en = {
   },
   footer: {
     tagline:
-      "Beyond Skies Together — connecting East Africa with Somali pride, reliability, and world-class service.",
+      "Beyond Skies Together, connecting East Africa with Somali pride, reliability, and world-class service.",
     fly: "FLY",
     company: "COMPANY",
     support: "SUPPORT",

@@ -80,13 +80,15 @@ export function TravelerAuthForm({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-navy/10 shadow-lg p-6">
+    <div className="bilan-light-card rounded-2xl shadow-lg p-6">
       <div className="flex gap-2 mb-6">
         <Button
           type="button"
           variant={mode === 'login' ? 'default' : 'outline'}
           className={
-            mode === 'login' ? 'flex-1 bg-gold text-navy hover:bg-gold-dark' : 'flex-1'
+            mode === 'login'
+              ? 'flex-1 bg-gold text-navy hover:bg-gold-dark'
+              : 'flex-1 border-navy/20 text-navy bg-white hover:bg-navy/5'
           }
           onClick={() => {
             setMode('login');
@@ -100,7 +102,9 @@ export function TravelerAuthForm({
           type="button"
           variant={mode === 'signup' ? 'default' : 'outline'}
           className={
-            mode === 'signup' ? 'flex-1 bg-gold text-navy hover:bg-gold-dark' : 'flex-1'
+            mode === 'signup'
+              ? 'flex-1 bg-gold text-navy hover:bg-gold-dark'
+              : 'flex-1 border-navy/20 text-navy bg-white hover:bg-navy/5'
           }
           onClick={() => {
             setMode('signup');

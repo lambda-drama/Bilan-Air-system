@@ -105,7 +105,7 @@ function AccountPageContent() {
       <div className="max-w-lg mx-auto px-4 -mt-6 pb-16">
         {isAuthenticated && user ? (
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-navy/10 shadow-lg p-6">
+            <div className="bilan-light-card rounded-2xl shadow-lg p-6">
               {profileLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-gold" />

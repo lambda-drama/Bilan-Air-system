@@ -4,10 +4,13 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, validate_email_address
 
+from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+
 
 def _require_portal_user():
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Please sign in to the portal."), frappe.PermissionError)
+	require_portal_staff()
 
 
 @frappe.whitelist(allow_guest=True)

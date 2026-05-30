@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/portal/user-avatar"
 import { formatRoleLabel } from "@/lib/user-display"
+import { hasPortalAccess } from "@/lib/portal-access"
 import { AuthProvider, useAuth } from "@/contexts/auth-context"
 import {
   Plane,
@@ -73,22 +74,33 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   const isAuthRoute = AUTH_ROUTES.some(
     (route) => pathname === route || pathname?.endsWith(route),
   )
+  const portalAccess = user ? hasPortalAccess(user.roles) : false
 
   useEffect(() => {
     if (isLoading) return
-    if (!isAuthRoute && !isAuthenticated) {
+
+    if (isAuthRoute) {
+      if (isAuthenticated && portalAccess) {
+        router.replace("/portal")
+      }
+      return
+    }
+
+    if (!isAuthenticated) {
       router.replace("/portal/login")
+      return
     }
-    if (isAuthRoute && isAuthenticated) {
-      router.replace("/portal")
+
+    if (!portalAccess) {
+      router.replace("/portal/login?reason=access_denied")
     }
-  }, [isLoading, isAuthenticated, isAuthRoute, router])
+  }, [isLoading, isAuthenticated, isAuthRoute, portalAccess, router])
 
   if (isAuthRoute) {
     return <>{children}</>
   }
 
-  if (isLoading || !isAuthenticated) {
+  if (isLoading || !isAuthenticated || !portalAccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <p className="text-muted-foreground">Loading portal...</p>
