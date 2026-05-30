@@ -21,6 +21,7 @@ export interface SearchableSelectProps {
   isLoading?: boolean;
   disabled?: boolean;
   className?: string;
+  inputClassName?: string;
   valueLabel?: string;
   clearable?: boolean;
 }
@@ -35,6 +36,7 @@ export function SearchableSelect({
   isLoading = false,
   disabled = false,
   className,
+  inputClassName,
   valueLabel,
   clearable = true,
 }: SearchableSelectProps) {
@@ -141,6 +143,7 @@ export function SearchableSelect({
             inputPadRight,
             !open && selectedOption && "text-foreground",
             open && "ring-1 ring-gold border-gold",
+            inputClassName,
           )}
         />
         <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">

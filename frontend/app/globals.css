@@ -187,4 +187,14 @@
     box-shadow: 0 0 0 1000px #fff inset !important;
     caret-color: oklch(0.18 0.03 250);
   }
+
+  /* Outline CTAs on navy hero/headers — avoid theme bg-background (white in light mode) */
+  .bilan-navy-outline-btn {
+    @apply border border-cream/40 bg-transparent text-cream shadow-none;
+    @apply hover:bg-cream/10 hover:text-cream;
+  }
+
+  .bilan-hero-cta {
+    @apply h-auto min-h-0 px-8 py-6 font-semibold;
+  }
 }

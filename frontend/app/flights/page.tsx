@@ -174,8 +174,8 @@ function FlightSearchContent() {
               </p>
             </div>
             <Button
-              variant="outline"
-              className="border-cream/30 text-cream hover:bg-cream/10"
+              variant="ghost"
+              className="bilan-navy-outline-btn"
               onClick={() => router.push('/#book')}
             >
               Modify Search

@@ -9,15 +9,20 @@ import { fetchAllRoutes, getBookingSearchDefaults } from '@/services/search';
 import {
   buildAirportOptionsFromRoutes,
   destinationsForOrigin,
+  airportsToSelectOptions,
   type AirportOption,
 } from '@/lib/public-flight-airports';
 import { cn } from '@/lib/utils';
 import { TripTypeSelector } from '@/components/trip-type-selector';
+import { SearchableSelect } from '@/components/portal/searchable-select';
 import { buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import type { TripSearchLeg, TripType } from '@/lib/trip-types';
 
 const heroFieldClass =
   'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
+
+const heroAirportSelectInputClass =
+  'bilan-light-field h-auto min-h-[2.75rem] py-2.5 text-base shadow-none mt-1';
 
 export function HeroSection() {
   const router = useRouter();
@@ -94,6 +99,12 @@ export function HeroSection() {
   const destinationOptions = useMemo(
     () => destinationsForOrigin(destinationsByOrigin, origin),
     [destinationsByOrigin, origin],
+  );
+
+  const originSelectOptions = useMemo(() => airportsToSelectOptions(origins), [origins]);
+  const destinationSelectOptions = useMemo(
+    () => airportsToSelectOptions(destinationOptions),
+    [destinationOptions],
   );
 
   useEffect(() => {
@@ -224,21 +235,21 @@ export function HeroSection() {
             <div className="flex flex-wrap gap-4">
               <Button
                 onClick={() => document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' })}
-                className="bg-gold hover:bg-gold-dark text-navy font-semibold px-8 py-6 w-full sm:w-auto"
+                className="bilan-hero-cta bg-gold hover:bg-gold-dark text-navy w-full sm:w-auto"
               >
                 Search Flights
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => router.push('/manage-booking')}
-                className="border-cream/30 text-cream hover:bg-cream/10 px-8 py-6 w-full sm:w-auto"
+                className="bilan-hero-cta bilan-navy-outline-btn w-full sm:w-auto"
               >
                 Manage Booking
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => router.push('/portal/login')}
-                className="hidden md:inline-flex border-cream/30 text-cream hover:bg-cream/10 px-8 py-6"
+                className="bilan-hero-cta bilan-navy-outline-btn hidden md:inline-flex"
               >
                 Agent Login
               </Button>
@@ -257,7 +268,7 @@ export function HeroSection() {
               <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">FLIGHT SEARCH</p>
               <h2 className="text-navy text-2xl font-serif">Find your flight</h2>
               <p className="text-navy/60 text-sm mt-1">
-                From and To lists use airports on your active routes (not sample data).
+                From and To use your active routes — type to search by city or airport code.
               </p>
             </div>
 
@@ -298,35 +309,33 @@ export function HeroSection() {
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
                             FROM
                           </label>
-                          <select
+                          <SearchableSelect
+                            options={airportsToSelectOptions(origins)}
                             value={leg.origin}
-                            onChange={(e) => handleMultiLegOriginChange(index, e.target.value)}
-                            disabled={origins.length === 0}
-                            className={cn(heroFieldClass, 'disabled:opacity-60')}
-                          >
-                            {origins.map((airport) => (
-                              <option key={airport.code} value={airport.code}>
-                                {airport.city} ({airport.code})
-                              </option>
-                            ))}
-                          </select>
+                            onValueChange={(code) => handleMultiLegOriginChange(index, code)}
+                            placeholder="Search city or airport code"
+                            emptyMessage="No matching departure airport"
+                            disabled={origins.length === 0 || loadingAirports}
+                            isLoading={loadingAirports}
+                            clearable={false}
+                            inputClassName={heroAirportSelectInputClass}
+                          />
                         </div>
                         <div>
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
                             TO
                           </label>
-                          <select
+                          <SearchableSelect
+                            options={airportsToSelectOptions(legDestOptions)}
                             value={leg.destination}
-                            onChange={(e) => updateMultiLeg(index, { destination: e.target.value })}
-                            disabled={legDestOptions.length === 0}
-                            className={cn(heroFieldClass, 'disabled:opacity-60')}
-                          >
-                            {legDestOptions.map((airport) => (
-                              <option key={airport.code} value={airport.code}>
-                                {airport.city} ({airport.code})
-                              </option>
-                            ))}
-                          </select>
+                            onValueChange={(code) => updateMultiLeg(index, { destination: code })}
+                            placeholder="Search city or airport code"
+                            emptyMessage="No matching destination airport"
+                            disabled={legDestOptions.length === 0 || loadingAirports}
+                            isLoading={loadingAirports}
+                            clearable={false}
+                            inputClassName={heroAirportSelectInputClass}
+                          />
                         </div>
                         <div>
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
@@ -365,18 +374,16 @@ export function HeroSection() {
                     Loading airports…
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
+                    options={originSelectOptions}
                     value={origin}
-                    onChange={(e) => handleOriginChange(e.target.value)}
+                    onValueChange={handleOriginChange}
+                    placeholder="Search city or airport code"
+                    emptyMessage="No matching departure airport"
                     disabled={origins.length === 0}
-                    className={cn(heroFieldClass, 'disabled:opacity-60')}
-                  >
-                    {origins.map((airport) => (
-                      <option key={airport.code} value={airport.code}>
-                        {airport.city} ({airport.code})
-                      </option>
-                    ))}
-                  </select>
+                    clearable={false}
+                    inputClassName={heroAirportSelectInputClass}
+                  />
                 )}
               </div>
 
@@ -385,18 +392,16 @@ export function HeroSection() {
                 {loadingAirports ? (
                   <div className="mt-1 px-4 py-3 text-navy/50 text-sm">—</div>
                 ) : (
-                  <select
+                  <SearchableSelect
+                    options={destinationSelectOptions}
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    onValueChange={setDestination}
+                    placeholder="Search city or airport code"
+                    emptyMessage="No matching destination airport"
                     disabled={destinationOptions.length === 0}
-                    className={cn(heroFieldClass, 'disabled:opacity-60')}
-                  >
-                    {destinationOptions.map((airport) => (
-                      <option key={airport.code} value={airport.code}>
-                        {airport.city} ({airport.code})
-                      </option>
-                    ))}
-                  </select>
+                    clearable={false}
+                    inputClassName={heroAirportSelectInputClass}
+                  />
                 )}
               </div>
 

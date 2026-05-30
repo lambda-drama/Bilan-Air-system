@@ -133,17 +133,13 @@ export default function MyBookingsPage() {
               <h1 className="text-cream font-serif text-3xl">My Bookings</h1>
             </div>
             <div className="flex gap-2">
-              <Button
-                asChild
-                variant="outline"
-                className="border-cream/30 text-cream hover:bg-cream/10"
-              >
+              <Button asChild variant="ghost" className="bilan-navy-outline-btn">
                 <Link href="/account">Account</Link>
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={handleLogout}
-                className="border-cream/30 text-cream hover:bg-cream/10"
+                className="bilan-navy-outline-btn"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign out
