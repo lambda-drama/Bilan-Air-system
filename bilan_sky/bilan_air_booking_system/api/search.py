@@ -125,6 +125,7 @@ def _fare_multiplier(route_name, departure_date):
 		filters={
 			"route": route_name,
 			"days_before_departure": [">=", days_before],
+			"is_active": 1,
 		},
 		order_by="days_before_departure asc",
 		limit=1,

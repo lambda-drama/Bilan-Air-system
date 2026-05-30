@@ -58,6 +58,7 @@ export interface BookingDetails {
   baggage?: BaggageRecord[];
   baggage_policy?: BaggagePolicy;
   baggage_fees_total?: number;
+  reason_for_cancel?: string | null;
 }
 
 export async function createBooking(booking_data: CreateBookingData): Promise<CreateBookingResult> {
@@ -74,10 +75,10 @@ export async function fetchBookingDetails(pnr: string): Promise<BookingDetails> 
   });
 }
 
-export async function cancelBooking(pnr: string) {
+export async function cancelBooking(pnr: string, reason_for_cancel: string) {
   return apiRequest(methodUrl("air_booking", "cancel_booking"), {
     method: "POST",
-    body: JSON.stringify({ pnr }),
+    body: JSON.stringify({ pnr, reason_for_cancel: reason_for_cancel.trim() }),
   });
 }
 

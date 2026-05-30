@@ -8,11 +8,12 @@
  "field_order": [
   "airport_name",
   "iata_code",
-  "country",
+  "abbrev",
+  "is_active",
   "column_break_igrk",
+  "country",
   "city",
-  "time_zone",
-  "is_active"
+  "time_zone"
  ],
  "fields": [
   {
@@ -64,12 +65,17 @@
    "fieldname": "time_zone",
    "fieldtype": "Select",
    "label": "Time Zone"
+  },
+  {
+   "fieldname": "abbrev",
+   "fieldtype": "Data",
+   "label": "Abbrev"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 11:41:45.931401",
+ "modified": "2026-05-30 12:54:24.972407",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Airport",

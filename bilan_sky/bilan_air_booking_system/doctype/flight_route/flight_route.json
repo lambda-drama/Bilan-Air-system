@@ -10,8 +10,11 @@
   "origin_airport",
   "destination_airport",
   "distance_km",
+  "airline",
   "column_break_xkze",
+  "currency",
   "base_fare",
+  "duration",
   "is_active",
   "notes"
  ],
@@ -28,7 +31,7 @@
    "unique": 1
   },
   {
-   "description": "Numeric base for flight numbers on this route (e.g. 100 → KQ100)",
+   "description": "Numeric base for flight numbers on this route (e.g. 100 \u2192 KQ100)",
    "fieldname": "flight_series_base",
    "fieldtype": "Int",
    "label": "Flight Series Base",
@@ -66,6 +69,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Base Fare (Adult, Economy)",
+   "options": "currency",
    "reqd": 1
   },
   {
@@ -82,12 +86,30 @@
   {
    "fieldname": "column_break_xkze",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "USD",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Duration",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "airline",
+   "fieldtype": "Link",
+   "label": "Airline",
+   "options": "Airline"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 12:02:21.219676",
+ "modified": "2026-05-30 13:31:26.049638",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Route",

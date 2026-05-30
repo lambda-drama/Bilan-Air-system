@@ -12,6 +12,7 @@ import { useCurrency } from '@/contexts/currency-context';
 import { parseFlightsSearchParams, buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import { initTripContext, upsertLegSelection } from '@/lib/trip-store';
 import { tripLegLabel } from '@/lib/trip-types';
+import { RevealItem, RevealStagger } from '@/components/motion/reveal';
 
 function FlightSearchContent() {
   const { formatMoney } = useCurrency();
@@ -237,11 +238,11 @@ function FlightSearchContent() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {flights.map((flight) => (
+          <RevealStagger className="space-y-4">
+            {flights.map((flight, index) => (
+              <RevealItem key={flight.name} index={index}>
               <div
-                key={flight.name}
-                className="bg-white border border-navy/10 rounded-xl p-6 hover:border-gold/50 transition-colors"
+                className="bg-white border border-navy/10 rounded-xl p-6 hover:border-gold/50 bilan-lift"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                   <div className="flex-1">
@@ -293,8 +294,9 @@ function FlightSearchContent() {
                   </div>
                 </div>
               </div>
+              </RevealItem>
             ))}
-          </div>
+          </RevealStagger>
         )}
       </div>
 

@@ -1,11 +1,12 @@
 # bilan_air/api/air_booking.py
 
 import frappe
-from frappe.utils import now
+from frappe.utils import add_to_date, get_datetime, now, strip_html
 
 from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
     prepare_seat_for_new_booking,
 )
+from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata
 
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
@@ -174,69 +175,220 @@ def _baggage_policy():
 	return {
 		"max_baggage_kg": settings.max_baggage_kg,
 		"excess_baggage_fee_per_kg": settings.excess_baggage_fee,
+		"carry_on_kg": 7,
 	}
+
+
+def _last_name(name):
+	if not name:
+		return ""
+	parts = (name or "").strip().split()
+	return parts[-1].lower() if parts else ""
+
+
+def _user_owns_booking(booking):
+	if frappe.session.user in (None, "Guest"):
+		return False
+	email = frappe.db.get_value("User", frappe.session.user, "email")
+	return bool(email and booking.payer_email and email.lower() == booking.payer_email.lower())
+
+
+def _verify_checkin_identity(booking, last_name=None):
+	if _user_owns_booking(booking):
+		return True
+
+	last_name = (last_name or "").strip()
+	if not last_name:
+		frappe.throw("Last name is required.")
+
+	ln = last_name.lower()
+	lead = booking.passengers[0].passenger_name if booking.passengers else ""
+	if _last_name(lead) == ln or _last_name(booking.payer_name) == ln:
+		return True
+
+	frappe.throw("Booking not found. Please check your reference and last name.")
+
+
+def _check_in_window_status(flight_schedule_name):
+	flight = frappe.get_doc("Flight Schedule", flight_schedule_name, ignore_permissions=True)
+	departure = get_datetime(f"{flight.departure_date} {flight.departure_time}")
+	now_dt = get_datetime()
+	opens_at = add_to_date(departure, hours=-24)
+	closes_at = add_to_date(departure, hours=-2)
+	return {
+		"open": opens_at <= now_dt <= closes_at,
+		"opens_at": str(opens_at),
+		"closes_at": str(closes_at),
+		"departure_at": str(departure),
+	}
+
+
+def _serialize_booking_details(booking):
+	passengers = []
+	for pax in booking.passengers:
+		passenger_type = pax.passenger_type or "Adult"
+		if pax.passenger:
+			profile = frappe.get_doc("Passenger", pax.passenger, ignore_permissions=True)
+			passenger_type = profile.passenger_type or passenger_type
+
+		seat_label = pax.seat_number
+		if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
+			seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
+
+		passengers.append({
+			"name": pax.passenger_name,
+			"passenger": pax.passenger,
+			"id_number": pax.id_number,
+			"type": passenger_type,
+			"seat": pax.seat_number,
+			"seat_label": seat_label,
+			"ticket_number": pax.ticket_number,
+			"check_in_status": pax.check_in_status,
+		})
+
+	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
+	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
+	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
+	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
+	check_in_window = _check_in_window_status(booking.flight_schedule)
+	all_checked_in = all(
+		p.check_in_status in ("Checked In", "Boarded") for p in booking.passengers
+	) if booking.passengers else False
+
+	return {
+		"pnr": booking.name,
+		"status": booking.booking_status,
+		"payment_status": booking.payment_status,
+		"total_fare": booking.total_fare,
+		"payer_name": booking.payer_name,
+		"payer_phone": booking.payer_phone,
+		"payer_email": booking.payer_email,
+		"passengers": passengers,
+		"baggage": _booking_baggage_rows(booking),
+		"baggage_policy": _baggage_policy(),
+		"baggage_fees_total": booking._get_baggage_total_fee(),
+		"check_in_window": check_in_window,
+		"can_check_in": (
+			booking.payment_status == "Paid"
+			and booking.booking_status != "Cancelled"
+			and check_in_window["open"]
+			and not all_checked_in
+		),
+		"all_checked_in": all_checked_in,
+		"reason_for_cancel": strip_html(booking.reason_for_cancel or "").strip() or None,
+		"flight": {
+			"flight_number": flight.flight_number,
+			"origin": route.origin_airport,
+			"destination": route.destination_airport,
+			"origin_code": origin_iata,
+			"destination_code": dest_iata,
+			"departure_date": str(flight.departure_date),
+			"departure_time": flight.departure_time,
+			"arrival_date": str(flight.arrival_date),
+			"arrival_time": flight.arrival_time,
+			"status": flight.status,
+		},
+	}
+
+
+def _boarding_passes_for_booking(booking):
+	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
+	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
+	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
+	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
+	departure = get_datetime(f"{flight.departure_date} {flight.departure_time}")
+	boarding_time = add_to_date(departure, minutes=-45)
+
+	passes = []
+	for pax in booking.passengers:
+		if pax.check_in_status not in ("Checked In", "Boarded"):
+			continue
+		seat_label = pax.seat_number
+		if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
+			seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
+		passes.append({
+			"passenger_name": pax.passenger_name,
+			"ticket_number": pax.ticket_number,
+			"seat": seat_label,
+			"flight_number": flight.flight_number,
+			"origin_code": origin_iata,
+			"destination_code": dest_iata,
+			"departure_date": str(flight.departure_date),
+			"departure_time": flight.departure_time,
+			"boarding_time": str(boarding_time)[11:16] if boarding_time else flight.departure_time,
+			"gate": "TBC",
+			"pnr": booking.name,
+		})
+	return passes
 
 
 @frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
     """Get booking by PNR"""
     
-    booking = frappe.get_doc("Air Booking", pnr)
-    
-    passengers = []
-    for pax in booking.passengers:
-        passenger_type = pax.passenger_type or "Adult"
-        if pax.passenger:
-            profile = frappe.get_doc("Passenger", pax.passenger)
-            passenger_type = profile.passenger_type or passenger_type
-
-        seat_label = pax.seat_number
-        if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
-            seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
-
-        passengers.append({
-            "name": pax.passenger_name,
-            "passenger": pax.passenger,
-            "id_number": pax.id_number,
-            "type": passenger_type,
-            "seat": pax.seat_number,
-            "seat_label": seat_label,
-            "ticket_number": pax.ticket_number,
-            "check_in_status": pax.check_in_status,
-        })
-    
-    flight = frappe.get_doc("Flight Schedule", booking.flight_schedule)
-    route = frappe.get_doc("Flight Route", flight.route)
-    
-    return {
-        "pnr": booking.name,
-        "status": booking.booking_status,
-        "payment_status": booking.payment_status,
-        "total_fare": booking.total_fare,
-        "payer_name": booking.payer_name,
-        "payer_phone": booking.payer_phone,
-        "payer_email": booking.payer_email,
-        "passengers": passengers,
-        "baggage": _booking_baggage_rows(booking),
-        "baggage_policy": _baggage_policy(),
-        "baggage_fees_total": booking._get_baggage_total_fee(),
-        "flight": {
-            "flight_number": flight.flight_number,
-            "origin": route.origin_airport,
-            "destination": route.destination_airport,
-            "departure_date": flight.departure_date,
-            "departure_time": flight.departure_time
-        }
-    }
+    booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+    return _serialize_booking_details(booking)
 
 @frappe.whitelist(allow_guest=True)
-def cancel_booking(pnr):
+def cancel_booking(pnr, reason_for_cancel=None):
     """Cancel a booking"""
     
-    booking = frappe.get_doc("Air Booking", pnr)
-    booking.cancel_booking()
+    booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+    booking.cancel_booking(reason_for_cancel=reason_for_cancel)
     
     return {"success": True, "pnr": booking.name, "status": "Cancelled"}
+
+
+@frappe.whitelist(allow_guest=True)
+def lookup_booking_for_checkin(pnr, last_name=None):
+	"""Verify PNR + last name (or logged-in payer) and return check-in eligible booking."""
+	pnr = (pnr or "").strip()
+	if not pnr or not frappe.db.exists("Air Booking", pnr):
+		frappe.throw("Booking not found. Please check your reference and last name.")
+
+	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	_verify_checkin_identity(booking, last_name)
+	return _serialize_booking_details(booking)
+
+
+@frappe.whitelist(allow_guest=True)
+def self_check_in(pnr, last_name=None, passenger_index=0, baggage_weight=0):
+	"""Guest self check-in for one traveler on a booking."""
+	pnr = (pnr or "").strip()
+	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	_verify_checkin_identity(booking, last_name)
+
+	window = _check_in_window_status(booking.flight_schedule)
+	if not window["open"]:
+		frappe.throw("Online check-in is only available from 24 hours until 2 hours before departure.")
+
+	result = booking.check_in_passenger(int(passenger_index), float(baggage_weight or 0))
+	booking.reload()
+	return {
+		**result,
+		"booking": _serialize_booking_details(booking),
+		"boarding_passes": _boarding_passes_for_booking(booking),
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def self_check_in_all(pnr, last_name=None):
+	"""Guest self check-in for all travelers on a booking."""
+	pnr = (pnr or "").strip()
+	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	_verify_checkin_identity(booking, last_name)
+
+	window = _check_in_window_status(booking.flight_schedule)
+	if not window["open"]:
+		frappe.throw("Online check-in is only available from 24 hours until 2 hours before departure.")
+
+	result = booking.check_in_all_passengers()
+	booking.reload()
+	return {
+		**result,
+		"booking": _serialize_booking_details(booking),
+		"boarding_passes": _boarding_passes_for_booking(booking),
+	}
 
 @frappe.whitelist()
 def process_check_in(pnr, passenger_index, baggage_weight=0):

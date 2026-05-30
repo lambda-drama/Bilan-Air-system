@@ -246,7 +246,8 @@ class SeatInventory(Document):
         fare_rule = frappe.get_all("Fare Rule",
             filters={
                 "route": flight.route,
-                "days_before_departure": [">=", days_before]
+                "days_before_departure": [">=", days_before],
+                "is_active": 1,
             },
             order_by="days_before_departure asc",
             limit=1

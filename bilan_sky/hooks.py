@@ -5,6 +5,9 @@ app_description = "Air booking system"
 app_email = "maniajrmania@gmail.com"
 app_license = "mit"
 
+# Desk home for this app (Bilan workspace)
+app_home = "/app/bilan"
+
 # Fixtures (exported with: bench --site <site> export-fixtures)
 fixtures = [
 	{
@@ -25,6 +28,10 @@ fixtures = [
 			]
 		],
 	},
+	{
+		"dt": "Workspace",
+		"filters": [["name", "in", ["Bilan"]]],
+	},
 ]
 
 # Apps
@@ -37,7 +44,7 @@ add_to_apps_screen = [
 		"name": "bilan_sky",
 		"logo": "/assets/bilan_sky/image/logo_1.jpg",
 		"title": "Bilan Air",
-		"route": "/",
+		"route": app_home,
 	},
 ]
 

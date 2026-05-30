@@ -160,7 +160,8 @@ class AirBooking(Document):
             
             fare_rule = frappe.get_all("Fare Rule", filters={
                 "route": flight.route,
-                "days_before_departure": [">=", days_before]
+                "days_before_departure": [">=", days_before],
+                "is_active": 1,
             }, order_by="days_before_departure asc", limit=1)
             
             fare_multiplier = 1.0
@@ -232,8 +233,13 @@ class AirBooking(Document):
         
         frappe.msgprint(f"Booking {self.name} confirmed. PNR: {self.name}")
     
-    def cancel_booking(self):
+    def cancel_booking(self, reason_for_cancel=None):
         """Cancel entire booking and release seats"""
+        reason = (reason_for_cancel or "").strip()
+        if not reason:
+            frappe.throw("Please provide a reason for cancellation.")
+
+        self.reason_for_cancel = reason
         self._release_all_seats()
         
         self.booking_status = "Cancelled"
