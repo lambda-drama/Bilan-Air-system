@@ -9,6 +9,14 @@ const __dirname = path.dirname(__filename);
 const outDir = path.join(__dirname, "../out");
 const publicFrontendDir = path.join(__dirname, "../../bilan_sky/public/frontend");
 
+function fixFaviconPaths(html) {
+	const favicon = "/assets/bilan_sky/frontend/favicon.svg";
+	return html.replace(
+		/href="\/(?:favicon\.svg|icon\.svg|icon-light-32x32\.png|icon-dark-32x32\.png|apple-icon\.png)"/g,
+		`href="${favicon}"`,
+	);
+}
+
 function copyHtmlFiles(srcDir, destDir) {
 	for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
 		const srcPath = path.join(srcDir, entry.name);
@@ -24,7 +32,8 @@ function copyHtmlFiles(srcDir, destDir) {
 
 		const destPath = path.join(destDir, entry.name);
 		fs.mkdirSync(path.dirname(destPath), { recursive: true });
-		fs.copyFileSync(srcPath, destPath);
+		const html = fixFaviconPaths(fs.readFileSync(srcPath, "utf8"));
+		fs.writeFileSync(destPath, html);
 	}
 }
 

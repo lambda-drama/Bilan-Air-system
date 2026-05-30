@@ -146,6 +146,22 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Public pages use bg-cream / text-navy — map to theme tokens in dark mode */
+  .dark main.bg-cream,
+  .dark section.bg-cream {
+    @apply bg-background text-foreground;
+  }
+
+  .dark main.bg-cream [class*='text-navy'],
+  .dark section.bg-cream [class*='text-navy'] {
+    @apply text-foreground;
+  }
+
+  .dark main.bg-cream [class*='text-muted'],
+  .dark section.bg-cream [class*='text-muted'] {
+    color: var(--muted-foreground);
+  }
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;
