@@ -68,7 +68,7 @@ const CITIES = [
 
 const en: AboutPageContent = {
   meta: {
-    title: "About Bilan Air — A Somali Aviation Brand Built for Africa",
+    title: "About Bilan Air, A Somali Aviation Brand Built for Africa",
     description:
       "Learn how Bilan Air connects East Africa with Somali pride — our fleet, values, network, and journey from Nairobi to the region.",
   },
@@ -81,7 +81,7 @@ const en: AboutPageContent = {
   fleet: {
     eyebrow: "Our Fleet",
     title: "Boeing 737-700",
-    subtitle: "Our planned aircraft — reliable, efficient and perfect for East African routes",
+    subtitle: "Our planned aircraft, reliable, efficient and perfect for East African routes",
     badge: "Acquisition in progress",
     stats: [
       { label: "Registration", value: "TBC" },
@@ -130,7 +130,7 @@ const en: AboutPageContent = {
     eyebrow: "What We Stand For",
     title: "Our values",
     subtitle:
-      "Five principles guide every decision we make — from the cockpit to the customer desk.",
+      "Five principles guide every decision we make,from the cockpit to the customer desk.",
     items: [
       {
         num: "01",
@@ -201,7 +201,7 @@ const en: AboutPageContent = {
       {
         year: "2024",
         title: "50,000 Passengers Milestone",
-        body: "We reach 50,000 passengers carried — a proud moment for our team and a testament to the trust placed in us by the Somali community.",
+        body: "We reach 50,000 passengers carried, a proud moment for our team and a testament to the trust placed in us by the Somali community.",
       },
       {
         year: "2025",
