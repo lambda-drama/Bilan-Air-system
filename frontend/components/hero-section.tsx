@@ -17,6 +17,7 @@ import { TripTypeSelector } from '@/components/trip-type-selector';
 import { SearchableSelect } from '@/components/portal/searchable-select';
 import { buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import type { TripSearchLeg, TripType } from '@/lib/trip-types';
+import { useLocale, useTranslations } from '@/contexts/locale-context';
 
 const heroFieldClass =
   'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
@@ -26,6 +27,8 @@ const heroAirportSelectInputClass =
 
 export function HeroSection() {
   const router = useRouter();
+  const { isRtl } = useLocale();
+  const t = useTranslations();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [tripType, setTripType] = useState<TripType>('oneway');
@@ -54,7 +57,7 @@ export function HeroSection() {
         const { origins: originList, destinationsByOrigin: destMap } =
           buildAirportOptionsFromRoutes(routes);
         if (originList.length === 0) {
-          setLoadError('No flight routes are available yet. Please check back soon.');
+          setLoadError(t.hero.noRoutes);
           setOrigins([]);
           setDestinationsByOrigin(new Map());
           return;
@@ -84,7 +87,7 @@ export function HeroSection() {
       })
       .catch(() => {
         if (!cancelled) {
-          setLoadError('Could not load airports. Please refresh the page.');
+          setLoadError(t.hero.loadError);
         }
       })
       .finally(() => {
@@ -220,56 +223,70 @@ export function HeroSection() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div className="text-left">
-            <p className="text-gold text-xs font-semibold tracking-[0.3em] mb-6">
-              BOOK YOUR FLIGHT
+        <div className={`grid lg:grid-cols-2 gap-16 items-center ${isRtl ? 'lg:[direction:rtl]' : ''}`}>
+          <div className={isRtl ? 'text-right lg:[direction:rtl]' : 'text-left'}>
+            <p
+              className="bilan-hero-rise text-gold text-xs font-semibold tracking-[0.3em] mb-6"
+              style={{ animationDelay: "0.08s" }}
+            >
+              {t.hero.eyebrow}
             </p>
-            <h1 className="text-cream font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6">
-              Reliable regional travel with{' '}
-              <span className="text-gold">Somali pride.</span>
+            <h1
+              className="bilan-hero-rise text-cream font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6"
+              style={{ animationDelay: "0.18s" }}
+            >
+              {t.hero.title}{' '}
+              <span className="text-gold">{t.hero.titleHighlight}</span>
             </h1>
-            <p className="text-cream/60 text-lg mb-8 max-w-lg">
-              Safe, smooth, and dependable travel across East Africa.
+            <p
+              className="bilan-hero-rise text-cream/60 text-lg mb-8 max-w-lg"
+              style={{ animationDelay: "0.28s" }}
+            >
+              {t.hero.subtitle}
             </p>
-            <div className="flex flex-wrap gap-4">
+            <div
+              className={`bilan-hero-rise flex flex-wrap gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}
+              style={{ animationDelay: "0.36s" }}
+            >
               <Button
                 onClick={() => document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' })}
                 className="bilan-hero-cta bg-gold hover:bg-gold-dark text-navy w-full sm:w-auto"
               >
-                Search Flights
+                {t.hero.searchFlights}
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => router.push('/manage-booking')}
                 className="bilan-hero-cta bilan-navy-outline-btn w-full sm:w-auto"
               >
-                Manage Booking
+                {t.hero.manageBooking}
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => router.push('/portal/login')}
                 className="bilan-hero-cta bilan-navy-outline-btn hidden md:inline-flex"
               >
-                Agent Login
+                {t.hero.agentLogin}
               </Button>
             </div>
 
-            <div className="mt-16 inline-flex items-center gap-2 border border-cream/20 rounded-lg px-6 py-4">
+            <div className={`mt-16 inline-flex items-center gap-2 border border-cream/20 rounded-lg px-6 py-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
               <span className="text-gold text-3xl font-serif">
                 {origins.length > 0 ? `${origins.length}+` : '—'}
               </span>
-              <span className="text-cream/60 text-sm">Departure airports · live routes</span>
+              <span className="text-cream/60 text-sm">{t.hero.routesLive}</span>
             </div>
           </div>
 
-          <div id="book" className="bg-cream rounded-2xl p-8 shadow-2xl">
+          <div
+            id="book"
+            className="bilan-hero-rise bg-cream rounded-2xl p-8 shadow-2xl"
+            style={{ animationDelay: "0.42s" }}
+          >
             <div className="mb-6">
-              <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">FLIGHT SEARCH</p>
-              <h2 className="text-navy text-2xl font-serif">Find your flight</h2>
-              <p className="text-navy/60 text-sm mt-1">
-                From and To use your active routes — type to search by city or airport code.
-              </p>
+              <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">{t.hero.flightSearch}</p>
+              <h2 className="text-navy text-2xl font-serif">{t.hero.findFlight}</h2>
+              <p className="text-navy/60 text-sm mt-1">{t.hero.routesHint}</p>
             </div>
 
             {loadError && (
@@ -292,7 +309,7 @@ export function HeroSection() {
                       >
                         <div className="flex items-center justify-between">
                           <p className="text-navy text-xs font-semibold tracking-wider">
-                            FLIGHT {index + 1}
+                            {t.hero.flight} {index + 1}
                           </p>
                           {multiLegs.length > 2 && (
                             <button
@@ -307,14 +324,14 @@ export function HeroSection() {
                         </div>
                         <div>
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                            FROM
+                            {t.hero.from}
                           </label>
                           <SearchableSelect
                             options={airportsToSelectOptions(origins)}
                             value={leg.origin}
                             onValueChange={(code) => handleMultiLegOriginChange(index, code)}
-                            placeholder="Search city or airport code"
-                            emptyMessage="No matching departure airport"
+                            placeholder={t.hero.searchPlaceholder}
+                            emptyMessage={t.hero.noOrigin}
                             disabled={origins.length === 0 || loadingAirports}
                             isLoading={loadingAirports}
                             clearable={false}
@@ -323,14 +340,14 @@ export function HeroSection() {
                         </div>
                         <div>
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                            TO
+                            {t.hero.to}
                           </label>
                           <SearchableSelect
                             options={airportsToSelectOptions(legDestOptions)}
                             value={leg.destination}
                             onValueChange={(code) => updateMultiLeg(index, { destination: code })}
-                            placeholder="Search city or airport code"
-                            emptyMessage="No matching destination airport"
+                            placeholder={t.hero.searchPlaceholder}
+                            emptyMessage={t.hero.noDestination}
                             disabled={legDestOptions.length === 0 || loadingAirports}
                             isLoading={loadingAirports}
                             clearable={false}
@@ -339,7 +356,7 @@ export function HeroSection() {
                         </div>
                         <div>
                           <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                            DEPARTURE
+                            {t.hero.departure}
                           </label>
                           <input
                             type="date"
@@ -359,27 +376,27 @@ export function HeroSection() {
                       onClick={addMultiLeg}
                       className="w-full border-navy/20 text-navy"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add another flight
+                      <Plus className="w-4 h-4 me-2" />
+                      {t.hero.addFlight}
                     </Button>
                   )}
                 </>
               ) : (
                 <>
               <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">FROM</label>
+                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.from}</label>
                 {loadingAirports ? (
                   <div className="mt-1 flex items-center gap-2 px-4 py-3 text-navy/50 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading airports…
+                    {t.hero.loadingAirports}
                   </div>
                 ) : (
                   <SearchableSelect
                     options={originSelectOptions}
                     value={origin}
                     onValueChange={handleOriginChange}
-                    placeholder="Search city or airport code"
-                    emptyMessage="No matching departure airport"
+                    placeholder={t.hero.searchPlaceholder}
+                    emptyMessage={t.hero.noOrigin}
                     disabled={origins.length === 0}
                     clearable={false}
                     inputClassName={heroAirportSelectInputClass}
@@ -388,7 +405,7 @@ export function HeroSection() {
               </div>
 
               <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">TO</label>
+                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.to}</label>
                 {loadingAirports ? (
                   <div className="mt-1 px-4 py-3 text-navy/50 text-sm">—</div>
                 ) : (
@@ -396,8 +413,8 @@ export function HeroSection() {
                     options={destinationSelectOptions}
                     value={destination}
                     onValueChange={setDestination}
-                    placeholder="Search city or airport code"
-                    emptyMessage="No matching destination airport"
+                    placeholder={t.hero.searchPlaceholder}
+                    emptyMessage={t.hero.noDestination}
                     disabled={destinationOptions.length === 0}
                     clearable={false}
                     inputClassName={heroAirportSelectInputClass}
@@ -407,7 +424,7 @@ export function HeroSection() {
 
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                  {tripType === 'return' ? 'DEPART' : 'DEPARTURE'}
+                  {tripType === 'return' ? t.hero.depart : t.hero.departure}
                 </label>
                 <input
                   type="date"
@@ -425,7 +442,7 @@ export function HeroSection() {
 
               {tripType === 'return' && (
                 <div>
-                  <label className="text-navy/60 text-xs font-semibold tracking-wider">RETURN</label>
+                  <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.return}</label>
                   <input
                     type="date"
                     value={returnDate}
@@ -439,7 +456,7 @@ export function HeroSection() {
               )}
 
               <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">PASSENGERS</label>
+                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.passengers}</label>
                 <input
                   type="number"
                   min={1}
@@ -456,19 +473,19 @@ export function HeroSection() {
                 className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold py-6 mt-4 disabled:opacity-50"
               >
                 {loadingAirports ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 me-2 animate-spin" />
                 ) : (
-                  <Search className="w-4 h-4 mr-2" />
+                  <Search className="w-4 h-4 me-2" />
                 )}
-                Search Flights
+                {t.hero.search}
               </Button>
             </div>
 
             <div className="mt-8 pt-6 border-t border-navy/10">
-              <p className="text-navy/60 text-sm mb-3">Already booked?</p>
-              <div className="flex gap-2">
+              <p className="text-navy/60 text-sm mb-3">{t.hero.alreadyBooked}</p>
+              <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
                 <Input
-                  placeholder="Booking ref (e.g. BA-00001)"
+                  placeholder={t.hero.bookingRefPlaceholder}
                   value={bookingRef}
                   onChange={(e) => setBookingRef(e.target.value.toUpperCase())}
                   className="bilan-light-field flex-1 h-11"
@@ -476,9 +493,9 @@ export function HeroSection() {
                 <Button
                   onClick={handleManageBooking}
                   variant="outline"
-                  className="border-navy/20 text-navy hover:bg-navy/5"
+                  className="border-navy/20 text-navy hover:bg-navy/5 gap-1"
                 >
-                  Manage <ArrowRight className="w-4 h-4 ml-1" />
+                  {t.hero.manage} <ArrowRight className={`w-4 h-4 ${isRtl ? 'rotate-180' : ''}`} />
                 </Button>
               </div>
             </div>

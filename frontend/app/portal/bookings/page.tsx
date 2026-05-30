@@ -1,19 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
 import {
+  cancelBooking,
   confirmPaymentAndInvoice,
   fetchBookingDetails,
   type BookingDetails,
 } from "@/services/airBooking";
+import { openDeskDocument } from "@/services/desk";
 import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
 import { ListSearch } from "@/components/portal/list-search";
+import { PortalBookingSheetFooter } from "@/components/portal/portal-booking-actions";
 import { useCurrency } from "@/contexts/currency-context";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
@@ -48,9 +50,17 @@ export default function PortalBookingsPage() {
     fetchBookings,
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCancelForm, setShowCancelForm] = useState(false);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [processingPnr, setProcessingPnr] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  const reloadDetail = useCallback(async (pnr: string) => {
+    const next = await fetchBookingDetails(pnr);
+    setDetail(next);
+    return next;
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -68,17 +78,43 @@ export default function PortalBookingsPage() {
 
   const isUnpaid = (status: string) => status !== "Paid" && status !== "Refunded";
 
+  const openDetails = (pnr: string, opts?: { cancel?: boolean }) => {
+    setShowCancelForm(!!opts?.cancel);
+    setSelectedId(pnr);
+  };
+
+  const closeDetails = () => {
+    setSelectedId(null);
+    setShowCancelForm(false);
+  };
+
   const handleConfirmPaymentAndInvoice = async (pnr: string) => {
     setProcessingPnr(pnr);
     try {
       await confirmPaymentAndInvoice(pnr);
       toast.success("Payment confirmed and sales invoice created");
       refresh();
-      if (selectedId === pnr) fetchBookingDetails(pnr).then(setDetail);
+      if (selectedId === pnr) await reloadDetail(pnr);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to confirm payment");
     } finally {
       setProcessingPnr(null);
+    }
+  };
+
+  const handleCancelBooking = async (reason: string) => {
+    if (!selectedId) return;
+    setCancelling(true);
+    try {
+      await cancelBooking(selectedId, reason);
+      toast.success("Booking cancelled");
+      refresh();
+      await reloadDetail(selectedId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel booking");
+      throw e;
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -88,7 +124,7 @@ export default function PortalBookingsPage() {
         <div>
           <h2 className="text-2xl font-semibold">Bookings</h2>
           <p className="text-sm text-muted-foreground">
-            In-office bookings — click PNR for details
+            In-office bookings — click PNR for details, edit, or cancel
           </p>
         </div>
         <BookingStartLink>Office booking</BookingStartLink>
@@ -130,10 +166,10 @@ export default function PortalBookingsPage() {
                   <TableRow
                     key={b.name}
                     className="cursor-pointer"
-                    onClick={() => setSelectedId(b.name)}
+                    onClick={() => openDetails(b.name)}
                   >
                     <TableCell>
-                      <DocLink onClick={() => setSelectedId(b.name)}>{b.name}</DocLink>
+                      <DocLink onClick={() => openDetails(b.name)}>{b.name}</DocLink>
                     </TableCell>
                     <TableCell>{b.flight_schedule}</TableCell>
                     <TableCell>{b.payer_name}</TableCell>
@@ -149,14 +185,22 @@ export default function PortalBookingsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedId(b.name)}>
+                            <DropdownMenuItem onClick={() => openDetails(b.name)}>
                               View details
                             </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/manage-booking?pnr=${encodeURIComponent(b.name)}`}>
-                                Manage booking
-                              </Link>
+                            <DropdownMenuItem
+                              onClick={() => openDeskDocument("Air Booking", b.name)}
+                            >
+                              Edit
                             </DropdownMenuItem>
+                            {b.booking_status !== "Cancelled" && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => openDetails(b.name, { cancel: true })}
+                              >
+                                Cancel booking
+                              </DropdownMenuItem>
+                            )}
                             {isUnpaid(b.payment_status) && (
                               <>
                                 <DropdownMenuSeparator />
@@ -182,7 +226,7 @@ export default function PortalBookingsPage() {
 
       <DetailSheet
         open={!!selectedId}
-        onOpenChange={(open) => !open && setSelectedId(null)}
+        onOpenChange={(open) => !open && closeDetails()}
         title={selectedId || ""}
         subtitle={selectedRow?.payer_name}
         badge={
@@ -192,16 +236,19 @@ export default function PortalBookingsPage() {
         }
         isLoading={detailLoading}
         footer={
-          selectedRow && isUnpaid(selectedRow.payment_status) ? (
-            <Button
-              className="bg-gold text-navy hover:bg-gold-dark"
-              disabled={!!processingPnr}
-              onClick={() => selectedId && handleConfirmPaymentAndInvoice(selectedId)}
-            >
-              {processingPnr === selectedId
-                ? "Processing..."
-                : "Confirm payment & invoice"}
-            </Button>
+          selectedId ? (
+            <PortalBookingSheetFooter
+              pnr={selectedId}
+              detail={detail}
+              row={selectedRow}
+              showCancelForm={showCancelForm}
+              onShowCancelForm={setShowCancelForm}
+              onCancelComplete={() => refresh()}
+              processingPayment={processingPnr === selectedId}
+              cancelling={cancelling}
+              onConfirmPayment={() => handleConfirmPaymentAndInvoice(selectedId)}
+              onSubmitCancel={handleCancelBooking}
+            />
           ) : undefined
         }
       >
@@ -212,6 +259,9 @@ export default function PortalBookingsPage() {
               <DetailRow label="Status" value={detail.status} />
               <DetailRow label="Payment" value={detail.payment_status} />
               <DetailRow label="Total fare" value={formatMoney(detail.total_fare)} />
+              {detail.reason_for_cancel && (
+                <DetailRow label="Cancel reason" value={detail.reason_for_cancel} />
+              )}
             </DetailSection>
             <DetailSection title="Flight">
               <DetailRow label="Flight" value={detail.flight.flight_number} />
@@ -243,8 +293,7 @@ export default function PortalBookingsPage() {
                 policy={detail.baggage_policy}
                 baggageFeesTotal={detail.baggage_fees_total}
                 onUpdated={async () => {
-                  const next = await fetchBookingDetails(detail.pnr);
-                  setDetail(next);
+                  await reloadDetail(detail.pnr);
                   refresh();
                 }}
               />

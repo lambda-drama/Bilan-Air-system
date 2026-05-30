@@ -60,6 +60,10 @@ export default function PortalSchedulesPage() {
     router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(scheduleId)}`);
   };
 
+  const openSeatInventory = (scheduleId: string) => {
+    router.push(`/portal/seat-inventory?schedule=${encodeURIComponent(scheduleId)}`);
+  };
+
   const handleRescheduleDialogOpenChange = (open: boolean) => {
     if (!open) {
       setRescheduleTarget(null);
@@ -185,6 +189,9 @@ export default function PortalSchedulesPage() {
                           <DropdownMenuItem onClick={() => setSelectedId(s.name)}>
                             View details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openSeatInventory(s.name)}>
+                            View seat map
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => openOfficeBooking(s.name)}
                             disabled={!["Scheduled", "Delayed"].includes(s.status)}
@@ -277,6 +284,13 @@ export default function PortalSchedulesPage() {
                 disabled={!["Scheduled", "Delayed"].includes(selectedRow.status)}
               >
                 Book flight
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => openSeatInventory(selectedRow.name)}
+              >
+                View seat map
               </Button>
               <Button
                 variant="outline"

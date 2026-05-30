@@ -19,9 +19,15 @@ import { cn } from '@/lib/utils';
 type TravelerProfileMenuProps = {
   onNavigate?: () => void;
   triggerClassName?: string;
+  /** Icon-only circular trigger (navbar). */
+  compact?: boolean;
 };
 
-export function TravelerProfileMenu({ onNavigate, triggerClassName }: TravelerProfileMenuProps) {
+export function TravelerProfileMenu({
+  onNavigate,
+  triggerClassName,
+  compact = false,
+}: TravelerProfileMenuProps) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
@@ -43,15 +49,21 @@ export function TravelerProfileMenu({ onNavigate, triggerClassName }: TravelerPr
         <Button
           variant="ghost"
           className={cn(
-            'flex h-auto items-center gap-2 px-2 py-1.5 text-cream hover:bg-navy-light hover:text-cream',
+            compact
+              ? 'h-9 w-9 rounded-full border border-gold/40 p-0 hover:bg-gold/10 hover:text-cream'
+              : 'flex h-auto items-center gap-2 px-2 py-1.5 text-cream hover:bg-navy-light hover:text-cream',
             triggerClassName,
           )}
         >
-          <UserAvatar user={user} />
-          <span className="hidden max-w-[120px] truncate text-sm font-medium lg:inline">
-            {user.full_name || user.email}
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-80" />
+          <UserAvatar user={user} className={compact ? 'h-8 w-8' : undefined} />
+          {!compact && (
+            <>
+              <span className="hidden max-w-[120px] truncate text-sm font-medium lg:inline">
+                {user.full_name || user.email}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-80" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

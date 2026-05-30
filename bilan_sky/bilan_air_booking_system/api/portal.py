@@ -2,6 +2,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import add_to_date, now
 
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
@@ -244,6 +245,95 @@ def save_flight_route(data):
 
 
 @frappe.whitelist()
+def list_fare_rules(limit=50, offset=0, route=None, search=None, active_only=None):
+	"""List fare rules for the portal pricing screen."""
+	filters = {}
+	if route:
+		filters["route"] = route
+	if active_only in (1, "1", True, "true"):
+		filters["is_active"] = 1
+
+	or_filters = None
+	if search:
+		q = f"%{search.strip()}%"
+		or_filters = {
+			"name": ["like", q],
+			"route": ["like", q],
+		}
+
+	result = _paginated(
+		"Fare Rule",
+		[
+			"name",
+			"route",
+			"days_before_departure",
+			"price_increase_percentage",
+			"is_active",
+			"priority",
+			"modified",
+		],
+		filters=filters,
+		or_filters=or_filters,
+		order_by="route asc, days_before_departure asc, priority asc",
+		limit=limit,
+		offset=offset,
+	)
+
+	route_names = {row["route"] for row in result["data"] if row.get("route")}
+	route_meta = {}
+	if route_names:
+		for route_row in frappe.get_all(
+			"Flight Route",
+			filters={"name": ["in", list(route_names)]},
+			fields=["name", "route_name", "origin_airport", "destination_airport"],
+		):
+			route_meta[route_row.name] = route_row
+
+	for row in result["data"]:
+		meta = route_meta.get(row.get("route")) or {}
+		row["route_name"] = meta.get("route_name") or row.get("route")
+		row["origin_airport"] = meta.get("origin_airport")
+		row["destination_airport"] = meta.get("destination_airport")
+
+	return result
+
+
+@frappe.whitelist()
+def save_fare_rule(data):
+	"""Create or update a fare rule from the portal."""
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+
+	name = data.get("name")
+	if name:
+		doc = frappe.get_doc("Fare Rule", name)
+		doc.check_permission("write")
+		doc.update(data)
+	else:
+		doc = frappe.get_doc({"doctype": "Fare Rule", **data})
+		doc.check_permission("create")
+
+	doc.save()
+	frappe.db.commit()
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def delete_fare_rule(name):
+	"""Delete a fare rule from the portal."""
+	if not name or not frappe.db.exists("Fare Rule", name):
+		frappe.throw(_("Fare rule not found"))
+
+	doc = frappe.get_doc("Fare Rule", name)
+	doc.check_permission("delete")
+	doc.delete()
+	frappe.db.commit()
+	return {"success": True, "name": name}
+
+
+@frappe.whitelist()
 def list_countries():
 	return frappe.get_all("Country", fields=["name"], order_by="name asc", limit_page_length=0)
 
@@ -359,6 +449,177 @@ def set_portal_user_image(user_image):
 	user.save(ignore_permissions=True)
 	frappe.db.commit()
 	return get_portal_user_profile()
+
+
+def _resolve_flight_schedule_name(schedule_name):
+	"""Accept schedule document name or flight number (e.g. KQ107)."""
+	key = (schedule_name or "").strip()
+	if not key:
+		return None
+	if frappe.db.exists("Flight Schedule", key):
+		return key
+	match = frappe.db.get_value(
+		"Flight Schedule",
+		{"flight_number": key},
+		"name",
+		order_by="departure_date desc",
+	)
+	return match
+
+
+def _seat_inventory_row(seat):
+	class_name = seat.seat_class
+	if frappe.db.exists("Seat Class", seat.seat_class):
+		class_name = frappe.db.get_value("Seat Class", seat.seat_class, "class_name") or seat.seat_class
+
+	return {
+		"name": seat.name,
+		"seat_number": seat.seat_number,
+		"seat_class": seat.seat_class,
+		"seat_class_name": class_name,
+		"status": seat.status,
+		"booking_reference": seat.booking_reference,
+		"hold_expiry": seat.hold_expiry,
+	}
+
+
+@frappe.whitelist()
+def get_schedule_seat_inventory(schedule_name):
+	"""Full seat map + stats for portal agents."""
+	schedule_name = _resolve_flight_schedule_name(schedule_name)
+	if not schedule_name:
+		frappe.throw(_("Flight schedule not found"))
+
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	doc.check_permission("read")
+
+	route = frappe.get_doc("Flight Route", doc.route)
+	expected_numbers = set(doc.expected_seat_numbers())
+	existing_numbers = set(
+		frappe.get_all(
+			"Seat Inventory",
+			filters={"flight_schedule": schedule_name},
+			pluck="seat_number",
+		)
+	)
+	missing_numbers = sorted(expected_numbers - existing_numbers, key=_seat_number_sort_key)
+
+	seats = frappe.get_all(
+		"Seat Inventory",
+		filters={"flight_schedule": schedule_name},
+		fields=[
+			"name",
+			"seat_number",
+			"seat_class",
+			"status",
+			"booking_reference",
+			"hold_expiry",
+		],
+		order_by="seat_number asc",
+	)
+
+	stats = {"Available": 0, "Hold": 0, "Booked": 0, "Occupied": 0, "Reserved": 0}
+	by_class = {}
+	rows = []
+
+	for seat in seats:
+		row = dict(seat)
+		class_name = seat.seat_class
+		if frappe.db.exists("Seat Class", seat.seat_class):
+			class_name = frappe.db.get_value("Seat Class", seat.seat_class, "class_name") or class_name
+		row["seat_class_name"] = class_name
+		stats[seat.status] = stats.get(seat.status, 0) + 1
+		by_class.setdefault(class_name, []).append(row)
+		rows.append(row)
+
+	return {
+		"schedule": {
+			"name": doc.name,
+			"flight_number": doc.flight_number,
+			"route": doc.route,
+			"airplane": doc.airplane,
+			"departure_date": str(doc.departure_date),
+			"departure_time": doc.departure_time,
+			"status": doc.status,
+			"origin": route.origin_airport,
+			"destination": route.destination_airport,
+		},
+		"expected_seats": len(expected_numbers),
+		"total_seats": len(seats),
+		"missing_seats": len(missing_numbers),
+		"missing_seat_numbers": missing_numbers[:100],
+		"stats": stats,
+		"seats_by_class": by_class,
+		"seats": rows,
+	}
+
+
+def _seat_number_sort_key(seat_number):
+	digits = "".join(ch for ch in seat_number if ch.isdigit())
+	letters = "".join(ch for ch in seat_number if not ch.isdigit())
+	return (int(digits) if digits else 0, letters)
+
+
+@frappe.whitelist()
+def portal_hold_seat(seat_name, booking_reference=None):
+	"""Put a seat on hold for a booking PNR or as an agent hold."""
+	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
+		frappe.throw(_("Seat not found"))
+
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	seat.check_permission("write")
+
+	booking_reference = (booking_reference or "").strip() or None
+
+	if booking_reference:
+		if not frappe.db.exists("Air Booking", booking_reference):
+			frappe.throw(_("Booking {0} not found").format(booking_reference))
+		booking = frappe.get_doc("Air Booking", booking_reference)
+		if booking.flight_schedule != seat.flight_schedule:
+			frappe.throw(_("Booking {0} is not on this flight").format(booking_reference))
+		result = seat.reserve(booking_reference)
+		if not result.get("success"):
+			frappe.throw(result.get("message"))
+	else:
+		if not seat.is_available():
+			frappe.throw(_("Seat {0} is not available ({1})").format(seat.seat_number, seat.status))
+		settings = frappe.get_single("BA Settings")
+		hold_minutes = int(settings.hold_duration or 15)
+		seat.status = "Hold"
+		seat.booking_reference = None
+		seat.hold_expiry = add_to_date(now(), minutes=hold_minutes)
+		seat.save()
+
+	frappe.db.commit()
+	return _seat_inventory_row(frappe.get_doc("Seat Inventory", seat_name))
+
+
+@frappe.whitelist()
+def portal_release_seat(seat_name):
+	"""Release a held seat back to available (agent action)."""
+	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
+		frappe.throw(_("Seat not found"))
+
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	seat.check_permission("write")
+
+	if seat.status in ("Booked", "Occupied"):
+		frappe.throw(
+			_("Seat {0} is {1}. Cancel or change the booking instead of releasing here.").format(
+				seat.seat_number, seat.status
+			)
+		)
+
+	if seat.status == "Available":
+		frappe.throw(_("Seat {0} is already available").format(seat.seat_number))
+
+	seat.status = "Available"
+	seat.booking_reference = None
+	seat.hold_expiry = None
+	seat.save()
+	frappe.db.commit()
+
+	return _seat_inventory_row(seat)
 
 
 @frappe.whitelist()

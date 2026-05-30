@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { submitContactMessage } from '@/services/contact';
 import { toast } from 'sonner';
+import { Reveal } from '@/components/motion/reveal';
+import { useTranslations } from '@/contexts/locale-context';
 
 const contactFieldClass = cn(
   'bilan-light-field mt-1',
@@ -14,6 +16,7 @@ const contactFieldClass = cn(
 );
 
 export function ContactSection() {
+  const t = useTranslations();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,12 +37,12 @@ export function ContactSection() {
         phone: formData.phone.trim() || undefined,
         message_body: formData.message.trim(),
       });
-      const text = res.message || 'Thank you. We received your message.';
+      const text = res.message || t.contact.success;
       setStatus({ type: 'success', text });
       toast.success(text);
       setFormData({ name: '', email: '', phone: '', message: '' });
     } catch (err) {
-      const text = err instanceof Error ? err.message : 'Could not send message';
+      const text = err instanceof Error ? err.message : t.contact.error;
       setStatus({ type: 'error', text });
       toast.error(text);
     } finally {
@@ -48,20 +51,21 @@ export function ContactSection() {
   };
 
   return (
-    <section id="contact" className="bg-navy py-24">
+    <Reveal as="section" id="contact" className="bg-navy py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16">
           {/* Left - Contact Info */}
+          <Reveal delay={0}>
           <div>
             <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-4 flex items-center gap-3">
               <span className="w-8 h-px bg-gold" />
-              CONTACT US
+              {t.contact.eyebrow}
             </p>
             <h2 className="text-cream font-serif text-3xl sm:text-4xl mb-6">
-              Get in touch with us
+              {t.contact.title}
             </h2>
             <p className="text-cream/60 text-lg leading-relaxed mb-12">
-              Have questions about our flights or services? Our team is here to help you with anything you need.
+              {t.contact.body}
             </p>
 
             <div className="space-y-6">
@@ -70,7 +74,7 @@ export function ContactSection() {
                   <Phone className="w-5 h-5 text-gold" />
                 </div>
                 <div>
-                  <h4 className="text-cream font-medium mb-1">Phone</h4>
+                  <h4 className="text-cream font-medium mb-1">{t.contact.phone}</h4>
                   <p className="text-cream/60">+254 700 000 000</p>
                   <p className="text-cream/60">+252 61 000 0000</p>
                 </div>
@@ -81,7 +85,7 @@ export function ContactSection() {
                   <Mail className="w-5 h-5 text-gold" />
                 </div>
                 <div>
-                  <h4 className="text-cream font-medium mb-1">Email</h4>
+                  <h4 className="text-cream font-medium mb-1">{t.contact.email}</h4>
                   <p className="text-cream/60">info@bilanair.com</p>
                   <p className="text-cream/60">bookings@bilanair.com</p>
                 </div>
@@ -92,17 +96,19 @@ export function ContactSection() {
                   <MapPin className="w-5 h-5 text-gold" />
                 </div>
                 <div>
-                  <h4 className="text-cream font-medium mb-1">Offices</h4>
+                  <h4 className="text-cream font-medium mb-1">{t.contact.offices}</h4>
                   <p className="text-cream/60">Jomo Kenyatta International Airport, Nairobi</p>
                   <p className="text-cream/60">Aden Adde International Airport, Mogadishu</p>
                 </div>
               </div>
             </div>
           </div>
+          </Reveal>
 
           {/* Right - Contact Form */}
-          <div className="bg-cream rounded-2xl p-8">
-            <h3 className="text-navy text-xl font-semibold mb-6">Send us a message</h3>
+          <Reveal delay={120}>
+          <div className="bg-cream rounded-2xl p-8 bilan-lift">
+            <h3 className="text-navy text-xl font-semibold mb-6">{t.contact.formTitle}</h3>
             {status && (
               <p
                 className={cn(
@@ -118,31 +124,31 @@ export function ContactSection() {
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-navy/60 text-sm font-medium">Your Name</label>
+                <label className="text-navy/60 text-sm font-medium">{t.contact.name}</label>
                 <Input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="John Doe"
+                  placeholder={t.contact.namePlaceholder}
                   className={contactFieldClass}
                   required
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="text-navy/60 text-sm font-medium">Email Address</label>
+                <label className="text-navy/60 text-sm font-medium">{t.contact.emailLabel}</label>
                 <Input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="john@example.com"
+                  placeholder={t.contact.emailPlaceholder}
                   className={contactFieldClass}
                   required
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="text-navy/60 text-sm font-medium">Phone Number</label>
+                <label className="text-navy/60 text-sm font-medium">{t.contact.phoneNumber}</label>
                 <Input
                   type="tel"
                   value={formData.phone}
@@ -153,11 +159,11 @@ export function ContactSection() {
                 />
               </div>
               <div>
-                <label className="text-navy/60 text-sm font-medium">Message</label>
+                <label className="text-navy/60 text-sm font-medium">{t.contact.message}</label>
                 <textarea
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  placeholder="How can we help you?"
+                  placeholder={t.contact.messagePlaceholder}
                   rows={4}
                   className={cn(
                     contactFieldClass,
@@ -174,20 +180,21 @@ export function ContactSection() {
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Sending…
+                    <Loader2 className="w-4 h-4 me-2 animate-spin" />
+                    {t.contact.sending}
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Message
+                    <Send className="w-4 h-4 me-2" />
+                    {t.contact.send}
                   </>
                 )}
               </Button>
             </form>
           </div>
+          </Reveal>
         </div>
       </div>
-    </section>
+    </Reveal>
   );
 }

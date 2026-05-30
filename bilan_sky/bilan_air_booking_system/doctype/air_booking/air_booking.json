@@ -28,7 +28,9 @@
   "baggage_section",
   "baggage_tracking_numbers",
   "notes",
-  "amended_from"
+  "amended_from",
+  "section_break_yrlx",
+  "reason_for_cancel"
  ],
  "fields": [
   {
@@ -49,7 +51,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Booking Status",
-   "options": "Reserved\nPaid\nChecked In\nBoarded\nArrived\nCancelled",
+   "options": "Reserved\nPaid\nChecked In\nBoarded\nArrived\nCancelled\nRefunded",
    "read_only": 1,
    "reqd": 1
   },
@@ -196,13 +198,22 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "section_break_yrlx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "reason_for_cancel",
+   "fieldtype": "Text Editor",
+   "label": "Reason for Cancel"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-28 02:48:56.928701",
+ "modified": "2026-05-30 15:42:45.734956",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking",

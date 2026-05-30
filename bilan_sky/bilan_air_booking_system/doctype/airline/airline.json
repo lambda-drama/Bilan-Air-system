@@ -18,6 +18,7 @@
    "fieldname": "airline_name",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Airline Name",
    "reqd": 1,
    "unique": 1
@@ -26,6 +27,7 @@
    "fieldname": "iata_code",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "IATA Code",
    "length": 3,
    "reqd": 1,
@@ -34,6 +36,8 @@
   {
    "fieldname": "icao_code",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "ICAO Code",
    "length": 3
   },
@@ -41,6 +45,7 @@
    "fieldname": "country",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Country",
    "options": "Country",
    "reqd": 1
@@ -59,7 +64,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 11:44:23.496359",
+ "modified": "2026-05-30 13:24:54.223295",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Airline",

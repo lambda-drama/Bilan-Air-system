@@ -12,6 +12,7 @@ import { getMyAccount, type WebsiteAccountProfile } from '@/services/websiteAuth
 import { followAuthRedirect, getSafeRedirect } from '@/lib/auth-redirect';
 import {
   Calendar,
+  ClipboardCheck,
   Loader2,
   LogOut,
   Plane,
@@ -136,6 +137,15 @@ function AccountPageContent() {
               )}
 
               <div className="grid gap-3 mt-6">
+                <Button
+                  asChild
+                  className="w-full bg-navy hover:bg-navy-light text-cream font-semibold"
+                >
+                  <Link href="/check-in">
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    Online check-in
+                  </Link>
+                </Button>
                 <Button
                   asChild
                   className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"

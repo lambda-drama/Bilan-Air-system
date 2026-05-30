@@ -7,6 +7,7 @@ import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { TravelerAuthForm } from '@/components/traveler-auth-form';
+import { BookingDetailsSheet } from '@/components/booking/booking-details-sheet';
 import { useAuth } from '@/contexts/auth-context';
 import { listMyBookings, type MyBookingRow } from '@/services/websiteAuth';
 import { useCurrency } from '@/contexts/currency-context';
@@ -28,6 +29,8 @@ export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<MyBookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
+  const [selectedPnr, setSelectedPnr] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -53,6 +56,11 @@ export default function MyBookingsPage() {
   const handleLogout = async () => {
     await logout();
     router.push('/account');
+  };
+
+  const openBookingDetails = (pnr: string) => {
+    setSelectedPnr(pnr);
+    setSheetOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -188,80 +196,105 @@ export default function MyBookingsPage() {
         ) : (
           <div className="space-y-4">
             {filteredBookings.map((booking) => (
-              <Link
+              <div
                 key={booking.name}
-                href={`/manage-booking?pnr=${encodeURIComponent(booking.pnr)}`}
-                className="block bg-white rounded-xl border border-navy/10 p-6 hover:border-gold/50 transition-colors"
+                className="bg-white rounded-xl border border-navy/10 p-6 hover:border-gold/50 transition-colors"
               >
-                <div className="flex items-start justify-between mb-4 gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gold/10 rounded-lg flex items-center justify-center shrink-0">
-                      <Plane className="w-5 h-5 text-gold" />
+                <button
+                  type="button"
+                  onClick={() => openBookingDetails(booking.pnr)}
+                  className="block w-full text-left"
+                >
+                  <div className="flex items-start justify-between mb-4 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gold/10 rounded-lg flex items-center justify-center shrink-0">
+                        <Plane className="w-5 h-5 text-gold" />
+                      </div>
+                      <div>
+                        <p className="text-gold font-semibold">
+                          {booking.flight_number || 'Flight'}
+                        </p>
+                        <p className="text-navy/60 text-sm">{booking.route_name || '—'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gold font-semibold">
-                        {booking.flight_number || 'Flight'}
-                      </p>
-                      <p className="text-navy/60 text-sm">{booking.route_name || '—'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}
-                    >
-                      {booking.status}
-                    </span>
-                    {booking.payment_status === 'Pending' && (
-                      <p className="text-amber-700 text-xs mt-1">Payment pending</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-4 gap-4 mb-4">
-                  {booking.departure_date && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-navy/40" />
-                      <span className="text-navy text-sm">
-                        {new Date(booking.departure_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}
+                      >
+                        {booking.status}
                       </span>
+                      {booking.payment_status === 'Pending' && (
+                        <p className="text-amber-700 text-xs mt-1">Payment pending</p>
+                      )}
                     </div>
-                  )}
-                  {booking.departure_time && (
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-navy/40" />
-                      <span className="text-navy text-sm">{booking.departure_time}</span>
-                    </div>
-                  )}
-                  {booking.seat && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-navy/40" />
-                      <span className="text-navy text-sm">Seat {booking.seat}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span className="text-navy/60 text-sm">PNR:</span>
-                    <span className="text-navy font-mono text-sm">{booking.pnr}</span>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-navy/10">
-                  <span className="text-gold font-semibold">
-                    {formatMoney(booking.fare_amount)}
-                  </span>
-                  <span className="text-navy/60 text-sm flex items-center gap-1">
-                    View details
-                    <ChevronRight className="w-4 h-4" />
-                  </span>
-                </div>
-              </Link>
+                  <div className="grid sm:grid-cols-4 gap-4 mb-4">
+                    {booking.departure_date && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-navy/40" />
+                        <span className="text-navy text-sm">
+                          {new Date(booking.departure_date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {booking.departure_time && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-navy/40" />
+                        <span className="text-navy text-sm">{booking.departure_time}</span>
+                      </div>
+                    )}
+                    {booking.seat && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-navy/40" />
+                        <span className="text-navy text-sm">Seat {booking.seat}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-navy/60 text-sm">PNR:</span>
+                      <span className="text-navy font-mono text-sm">{booking.pnr}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-navy/10">
+                    <span className="text-gold font-semibold">
+                      {formatMoney(booking.fare_amount)}
+                    </span>
+                    <span className="text-navy/60 text-sm flex items-center gap-1">
+                      View details
+                      <ChevronRight className="w-4 h-4" />
+                    </span>
+                  </div>
+                </button>
+
+                {booking.payment_status === 'Paid' &&
+                  booking.status !== 'Cancelled' &&
+                  booking.status !== 'Checked In' &&
+                  booking.status !== 'Boarded' && (
+                    <div className="mt-4 pt-4 border-t border-navy/10">
+                      <Button asChild size="sm" className="bg-navy hover:bg-navy-light text-cream">
+                        <Link href={`/check-in?pnr=${encodeURIComponent(booking.pnr)}`}>
+                          Check in online
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      <BookingDetailsSheet
+        pnr={selectedPnr}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onUpdated={loadBookings}
+      />
 
       <Footer />
     </main>

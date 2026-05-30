@@ -146,9 +146,33 @@ class FlightSchedule(Document):
 
         return len(existing_numbers)
     
-    # =========================================================
-    # SEAT AVAILABILITY
-    # =========================================================
+    def expected_seat_numbers(self):
+        """Seat numbers that should exist for this schedule from the airplane layout."""
+        if not self.airplane:
+            return []
+
+        airplane = frappe.get_doc("Airplane", self.airplane)
+        numbers = []
+
+        for config in airplane.seat_config or []:
+            rows = cint(config.rows)
+            columns = [
+                c.strip()
+                for c in cstr(config.columns_per_row).split(",")
+                if c.strip()
+            ]
+            start_row = cint(config.start_row_number)
+            if start_row <= 0:
+                start_row = 1
+
+            if rows <= 0 or not columns:
+                continue
+
+            for row in range(start_row, start_row + rows):
+                for col in columns:
+                    numbers.append(f"{row}{col}")
+
+        return numbers
     
     def available_seats(self, seat_class=None):
         """Count available seats"""

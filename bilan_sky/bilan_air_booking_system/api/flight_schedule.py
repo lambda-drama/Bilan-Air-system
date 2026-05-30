@@ -3,7 +3,7 @@
 import frappe
 from frappe.utils import nowdate
 
-from bilan_sky.bilan_air_booking_system.utils.airports import resolve_airport_name
+from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata, resolve_airport_name
 
 @frappe.whitelist(allow_guest=True)
 def search_available_flights(origin, destination, date, passengers=1):
@@ -77,6 +77,7 @@ def search_available_flights(origin, destination, date, passengers=1):
                     filters={
                         "route": route.name,
                         "days_before_departure": [">=", days_before],
+                        "is_active": 1,
                     },
                     order_by="days_before_departure asc",
                     limit=1,
@@ -151,4 +152,114 @@ def fetch_flight_details(schedule_id):
         "arrival_time": schedule.arrival_time,
         "aircraft": airplane.registration_number,
         "aircraft_model": airplane.aircraft_model
+    }
+
+
+def _schedule_status_row(schedule, route_cache=None):
+    route_cache = route_cache or {}
+    route_name = schedule.route if isinstance(schedule, dict) else schedule.get("route")
+    if route_name not in route_cache:
+        route = frappe.get_doc("Flight Route", route_name, ignore_permissions=True)
+        route_cache[route_name] = route
+
+    route = route_cache[route_name]
+    origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
+    dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
+
+    if isinstance(schedule, dict):
+        row = schedule
+    else:
+        row = schedule.as_dict()
+
+    return {
+        "schedule_id": row.name,
+        "flight_number": row.flight_number,
+        "route": route_name,
+        "origin": route.origin_airport,
+        "destination": route.destination_airport,
+        "origin_code": origin_iata,
+        "destination_code": dest_iata,
+        "departure_date": str(row.departure_date),
+        "departure_time": row.departure_time,
+        "arrival_date": str(row.arrival_date),
+        "arrival_time": row.arrival_time,
+        "status": row.status,
+        "terminal_gate": "TBC",
+        "airplane": row.airplane,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def list_flight_status(
+    date=None,
+    flight_number=None,
+    origin=None,
+    destination=None,
+    booking_reference=None,
+):
+    """Public flight status board for the website."""
+    from frappe.utils import getdate, now, nowdate
+
+    search_date = getdate(date) if date else nowdate()
+    filters = {
+        "departure_date": search_date,
+        "docstatus": 1,
+    }
+
+    booking_reference = (booking_reference or "").strip()
+    if booking_reference:
+        if not frappe.db.exists("Air Booking", booking_reference):
+            return {"flights": [], "date": str(search_date), "updated_at": now()}
+        schedule_name = frappe.db.get_value("Air Booking", booking_reference, "flight_schedule")
+        if not schedule_name:
+            return {"flights": [], "date": str(search_date), "updated_at": now()}
+        filters["name"] = schedule_name
+    else:
+        flight_number = (flight_number or "").strip()
+        if flight_number:
+            filters["flight_number"] = ["like", f"%{flight_number}%"]
+
+        origin_airport = resolve_airport_name(origin) if origin else None
+        destination_airport = resolve_airport_name(destination) if destination else None
+        if origin or destination:
+            route_filters = {"is_active": 1}
+            if origin_airport:
+                route_filters["origin_airport"] = origin_airport
+            if destination_airport:
+                route_filters["destination_airport"] = destination_airport
+            routes = frappe.get_all(
+                "Flight Route",
+                filters=route_filters,
+                pluck="name",
+                ignore_permissions=True,
+            )
+            if not routes:
+                return {"flights": [], "date": str(search_date), "updated_at": now()}
+            filters["route"] = ["in", routes]
+
+    schedules = frappe.get_all(
+        "Flight Schedule",
+        filters=filters,
+        fields=[
+            "name",
+            "flight_number",
+            "route",
+            "airplane",
+            "departure_date",
+            "departure_time",
+            "arrival_date",
+            "arrival_time",
+            "status",
+        ],
+        order_by="departure_time asc",
+        ignore_permissions=True,
+    )
+
+    route_cache = {}
+    flights = [_schedule_status_row(schedule, route_cache) for schedule in schedules]
+
+    return {
+        "flights": flights,
+        "date": str(search_date),
+        "updated_at": now(),
     }

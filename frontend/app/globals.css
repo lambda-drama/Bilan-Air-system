@@ -137,8 +137,19 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    scroll-behavior: smooth;
+  }
+  html[dir="rtl"] body {
+    text-align: right;
+  }
   body {
     @apply bg-background text-foreground;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
@@ -176,8 +187,9 @@
 
   /* Cream/white cards on public pages: keep inputs readable in dark/system theme */
   .bilan-light-field {
-    @apply bg-white text-navy border-navy/20 placeholder:text-navy/45;
-    @apply dark:bg-white dark:text-navy dark:border-navy/20 dark:placeholder:text-navy/45;
+    @apply !bg-white !text-navy border-navy/20 placeholder:text-navy/45;
+    @apply dark:!bg-white dark:!text-navy dark:border-navy/20 dark:placeholder:text-navy/45;
+    color-scheme: light;
   }
 
   .bilan-light-field:-webkit-autofill,
@@ -196,5 +208,142 @@
 
   .bilan-hero-cta {
     @apply h-auto min-h-0 px-8 py-6 font-semibold;
+  }
+
+  /* Page & scroll motion */
+  @keyframes bilan-page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes bilan-page-enter-portal {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bilan-reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bilan-stagger-item {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bilan-nav-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes bilan-hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .bilan-page-enter {
+    animation: bilan-page-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .bilan-page-enter-portal {
+    animation: bilan-page-enter-portal 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  .bilan-reveal {
+    opacity: 0;
+  }
+
+  .bilan-reveal--visible {
+    animation: bilan-reveal-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .bilan-stagger-item {
+    opacity: 0;
+  }
+
+  .bilan-stagger--visible .bilan-stagger-item {
+    animation: bilan-stagger-item 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .bilan-nav-progress-bar {
+    animation: bilan-nav-progress 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .bilan-hero-rise {
+    opacity: 0;
+    animation: bilan-hero-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .bilan-lift {
+    transition:
+      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.2s ease;
+  }
+
+  @keyframes bilan-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .bilan-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px color-mix(in oklch, var(--navy) 12%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bilan-page-enter,
+    .bilan-page-enter-portal,
+    .bilan-reveal,
+    .bilan-reveal--visible,
+    .bilan-stagger-item,
+    .bilan-stagger--visible .bilan-stagger-item,
+    .bilan-nav-progress-bar,
+    .bilan-hero-rise {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+      filter: none !important;
+    }
   }
 }
