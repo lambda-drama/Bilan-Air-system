@@ -46,3 +46,11 @@ export function destinationsForOrigin(
   if (!map) return [];
   return [...map.values()].sort((a, b) => a.city.localeCompare(b.city));
 }
+
+export function airportsToSelectOptions(airports: AirportOption[]) {
+  return airports.map((airport) => ({
+    value: airport.code,
+    label: `${airport.city} (${airport.code})`,
+    description: airport.code,
+  }));
+}

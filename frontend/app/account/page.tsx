@@ -15,6 +15,7 @@ import {
   Loader2,
   LogOut,
   Plane,
+  Settings,
   Ticket,
   User,
 } from 'lucide-react';
@@ -148,6 +149,12 @@ function AccountPageContent() {
                   <Link href="/#book">
                     <Plane className="h-4 w-4 mr-2" />
                     Book a flight
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full border-navy/20">
+                  <Link href="/account/settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full border-navy/20">

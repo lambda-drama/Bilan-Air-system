@@ -23,7 +23,7 @@ export function LoginSection() {
           </h2>
         </div>
 
-        {/* Mobile: search + agent side by side; desktop: three cards */}
+        {/* Travelers first: Search + My Account, then Agent Login */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 max-w-5xl mx-auto">
           <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-1">
             <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
@@ -44,6 +44,19 @@ export function LoginSection() {
 
           <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-1">
             <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
+              My Account
+            </h3>
+            <p className="text-navy/60 text-sm mb-4 md:mb-6 hidden sm:block">
+              Sign in with your email to view bookings, manage trips, and book faster on your next
+              flight.
+            </p>
+            <Button asChild className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base">
+              <Link href="/account">My Account</Link>
+            </Button>
+          </div>
+
+          <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-2 md:col-span-1">
+            <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
               Agent Login
             </h3>
             <p className="text-navy/60 text-sm mb-4 md:mb-6 hidden sm:block">
@@ -51,19 +64,6 @@ export function LoginSection() {
             </p>
             <Button asChild className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base">
               <Link href="/portal/login">Agent Login</Link>
-            </Button>
-          </div>
-
-          <div className="bg-white border border-navy/10 rounded-xl p-5 md:p-8 col-span-2 md:col-span-1">
-            <h3 className="text-navy text-lg md:text-xl font-semibold mb-2 md:mb-3">
-              My Account
-            </h3>
-            <p className="text-navy/60 text-sm mb-4 md:mb-6">
-              Sign in with your email to view bookings, manage trips, and book faster on your next
-              flight.
-            </p>
-            <Button asChild className="w-full bg-gold hover:bg-gold-dark text-navy text-sm md:text-base">
-              <Link href="/account">My Account</Link>
             </Button>
           </div>
         </div>
