@@ -3,12 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
-import {
-  cancelBooking,
-  confirmPaymentAndInvoice,
-  fetchBookingDetails,
-  type BookingDetails,
-} from "@/services/airBooking";
+import { cancelBooking, fetchBookingDetails, type BookingDetails } from "@/services/airBooking";
+import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
 import { openDeskDocument } from "@/services/desk";
 import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
@@ -53,7 +49,7 @@ export default function PortalBookingsPage() {
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [processingPnr, setProcessingPnr] = useState<string | null>(null);
+  const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
   const reloadDetail = useCallback(async (pnr: string) => {
@@ -86,20 +82,6 @@ export default function PortalBookingsPage() {
   const closeDetails = () => {
     setSelectedId(null);
     setShowCancelForm(false);
-  };
-
-  const handleConfirmPaymentAndInvoice = async (pnr: string) => {
-    setProcessingPnr(pnr);
-    try {
-      await confirmPaymentAndInvoice(pnr);
-      toast.success("Payment confirmed and sales invoice created");
-      refresh();
-      if (selectedId === pnr) await reloadDetail(pnr);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to confirm payment");
-    } finally {
-      setProcessingPnr(null);
-    }
   };
 
   const handleCancelBooking = async (reason: string) => {
@@ -204,10 +186,7 @@ export default function PortalBookingsPage() {
                             {isUnpaid(b.payment_status) && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  disabled={processingPnr === b.name}
-                                  onClick={() => handleConfirmPaymentAndInvoice(b.name)}
-                                >
+                                <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
                                   Confirm payment & invoice
                                 </DropdownMenuItem>
                               </>
@@ -244,9 +223,8 @@ export default function PortalBookingsPage() {
               showCancelForm={showCancelForm}
               onShowCancelForm={setShowCancelForm}
               onCancelComplete={() => refresh()}
-              processingPayment={processingPnr === selectedId}
               cancelling={cancelling}
-              onConfirmPayment={() => handleConfirmPaymentAndInvoice(selectedId)}
+              onConfirmPayment={() => setPaymentDialogPnr(selectedId)}
               onSubmitCancel={handleCancelBooking}
             />
           ) : undefined
@@ -308,6 +286,17 @@ export default function PortalBookingsPage() {
           </DetailSection>
         )}
       </DetailSheet>
+
+      <ConfirmPaymentDialog
+        open={!!paymentDialogPnr}
+        pnr={paymentDialogPnr}
+        onOpenChange={(open) => !open && setPaymentDialogPnr(null)}
+        onSuccess={(pnr) => {
+          toast.success("Payment confirmed and sales invoice created");
+          refresh();
+          if (selectedId === pnr) void reloadDetail(pnr);
+        }}
+      />
     </div>
   );
 }

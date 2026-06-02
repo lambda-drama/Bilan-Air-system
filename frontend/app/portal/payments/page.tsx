@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { listPaymentBookings, type AirBookingRow } from "@/services/portal";
-import { confirmPaymentAndInvoice, fetchBookingDetails, type BookingDetails } from "@/services/airBooking";
+import { fetchBookingDetails, type BookingDetails } from "@/services/airBooking";
+import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
+import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
@@ -46,6 +48,7 @@ export default function PortalPaymentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -71,16 +74,6 @@ export default function PortalPaymentsPage() {
   }, [selectedId]);
 
   const selectedRow = rows.find((b) => b.name === selectedId);
-
-  const confirmPayment = async (pnr: string) => {
-    try {
-      await confirmPaymentAndInvoice(pnr);
-      load();
-      if (selectedId === pnr) fetchBookingDetails(pnr).then(setDetail);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -152,7 +145,7 @@ export default function PortalPaymentsPage() {
                           {b.payment_status === "Pending" && (
                             <>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => confirmPayment(b.name)}>
+                              <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
                                 Confirm payment
                               </DropdownMenuItem>
                             </>
@@ -183,7 +176,7 @@ export default function PortalPaymentsPage() {
           selectedRow?.payment_status === "Pending" ? (
             <Button
               className="bg-gold text-navy hover:bg-gold-dark"
-              onClick={() => selectedId && confirmPayment(selectedId)}
+              onClick={() => selectedId && setPaymentDialogPnr(selectedId)}
             >
               Confirm payment
             </Button>
@@ -206,6 +199,17 @@ export default function PortalPaymentsPage() {
           )
         )}
       </DetailSheet>
+
+      <ConfirmPaymentDialog
+        open={!!paymentDialogPnr}
+        pnr={paymentDialogPnr}
+        onOpenChange={(open) => !open && setPaymentDialogPnr(null)}
+        onSuccess={(pnr) => {
+          toast.success("Payment confirmed");
+          load();
+          if (selectedId === pnr) fetchBookingDetails(pnr).then(setDetail);
+        }}
+      />
     </div>
   );
 }

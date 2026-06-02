@@ -100,10 +100,42 @@ export async function createSalesInvoice(pnr: string, submit = 1) {
   });
 }
 
-export async function confirmPaymentAndInvoice(pnr: string, payment_method?: string) {
+export type PaymentModeOption = {
+  name: string;
+  default_account?: string | null;
+  type?: string;
+};
+
+export type PaymentConfirmationOptions = {
+  remote: boolean;
+  company?: string | null;
+  site_url?: string | null;
+  default_mode_of_payment?: string | null;
+  default_cash_account?: string | null;
+  default_mpesa_account?: string | null;
+  modes_of_payment: PaymentModeOption[];
+  accounts: { name: string; account_name?: string; account_type?: string }[];
+};
+
+export async function getPaymentConfirmationOptions(): Promise<PaymentConfirmationOptions> {
+  return apiRequest(methodUrl("air_booking", "get_payment_confirmation_options"), {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function confirmPaymentAndInvoice(
+  pnr: string,
+  payment_method?: string,
+  paid_account?: string,
+) {
   return apiRequest(methodUrl("air_booking", "confirm_payment_and_invoice_from_booking"), {
     method: "POST",
-    body: JSON.stringify({ pnr, payment_method: payment_method || null }),
+    body: JSON.stringify({
+      pnr,
+      payment_method: payment_method || null,
+      paid_account: paid_account || null,
+    }),
   });
 }
 

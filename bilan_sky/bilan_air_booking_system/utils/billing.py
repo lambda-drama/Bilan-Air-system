@@ -2,11 +2,22 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
 
 def resolve_paid_to_account(settings, mode_of_payment=None, company=None):
 	"""Bank/cash account used as paid_to on a Receive Payment Entry."""
+	if is_remote_accounting_enabled():
+		from bilan_sky.bilan_air_booking_system.utils.remote_billing import (
+			resolve_remote_paid_to_account,
+		)
+
+		return resolve_remote_paid_to_account(settings, mode_of_payment)
+
 	if not company:
 		company = frappe.db.get_single_value("Global Defaults", "default_company")
+
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting_from_doc
 
 	if mode_of_payment and frappe.db.exists("Mode of Payment", mode_of_payment):
 		account = frappe.db.get_value(
@@ -19,13 +30,16 @@ def resolve_paid_to_account(settings, mode_of_payment=None, company=None):
 
 		label = (mode_of_payment or "").lower()
 		if "mpesa" in label or "m-pesa" in label:
-			if settings.default_mpesa_account:
-				return settings.default_mpesa_account
+			mpesa = get_ba_setting_from_doc(settings, "default_mpesa_account")
+			if mpesa:
+				return mpesa
 
-	if settings.default_cash_account:
-		return settings.default_cash_account
-	if settings.default_mpesa_account:
-		return settings.default_mpesa_account
+	cash = get_ba_setting_from_doc(settings, "default_cash_account")
+	if cash:
+		return cash
+	mpesa = get_ba_setting_from_doc(settings, "default_mpesa_account")
+	if mpesa:
+		return mpesa
 
 	from erpnext.accounts.doctype.journal_entry.journal_entry import get_default_bank_cash_account
 
@@ -36,6 +50,18 @@ def resolve_paid_to_account(settings, mode_of_payment=None, company=None):
 
 
 def create_and_submit_payment_entry(invoice_name, mode_of_payment=None, paid_account=None, reference_no=None):
+	if is_remote_accounting_enabled():
+		from bilan_sky.bilan_air_booking_system.utils.remote_billing import (
+			create_remote_payment_entry,
+		)
+
+		return create_remote_payment_entry(
+			invoice_name,
+			mode_of_payment=mode_of_payment,
+			paid_account=paid_account,
+			reference_no=reference_no,
+		)
+
 	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
 	invoice = frappe.get_doc("Sales Invoice", invoice_name)

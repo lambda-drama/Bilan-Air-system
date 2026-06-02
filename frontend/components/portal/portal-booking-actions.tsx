@@ -16,7 +16,6 @@ type PortalBookingSheetFooterProps = {
   onShowCancelForm: (show: boolean) => void;
   onCancelComplete: () => void;
   onConfirmPayment?: () => void;
-  processingPayment?: boolean;
   cancelling?: boolean;
   onSubmitCancel: (reason: string) => Promise<void>;
 };
@@ -29,7 +28,6 @@ export function PortalBookingSheetFooter({
   onShowCancelForm,
   onCancelComplete,
   onConfirmPayment,
-  processingPayment,
   cancelling,
   onSubmitCancel,
 }: PortalBookingSheetFooterProps) {
@@ -134,10 +132,9 @@ export function PortalBookingSheetFooter({
       {isUnpaid && onConfirmPayment && (
         <Button
           className="bg-gold text-navy hover:bg-gold-dark flex-1 min-w-[160px]"
-          disabled={processingPayment}
           onClick={onConfirmPayment}
         >
-          {processingPayment ? "Processing…" : "Confirm payment & invoice"}
+          Confirm payment & invoice
         </Button>
       )}
     </div>
