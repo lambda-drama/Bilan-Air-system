@@ -434,8 +434,72 @@ def create_sales_invoice_from_booking(pnr, submit=0):
 
 
 @frappe.whitelist()
-def confirm_payment_and_invoice_from_booking(pnr, payment_method=None):
+def get_payment_confirmation_options():
+	"""Modes of payment and bank/cash accounts for portal confirm-payment dialog."""
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
+	from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
+	default_mode = get_ba_setting("default_mode_of_payment", "Cash")
+	default_cash = get_ba_setting("default_cash_account")
+	default_mpesa = get_ba_setting("default_mpesa_account")
+
+	if is_remote_accounting_enabled():
+		from bilan_sky.bilan_air_booking_system.api.remote_accounting import (
+			get_remote_accounting_options,
+		)
+
+		remote = get_remote_accounting_options()
+		return {
+			"remote": True,
+			"company": remote.get("company"),
+			"site_url": remote.get("site_url"),
+			"default_mode_of_payment": default_mode,
+			"default_cash_account": default_cash,
+			"default_mpesa_account": default_mpesa,
+			"modes_of_payment": remote.get("modes_of_payment") or [],
+			"accounts": remote.get("accounts") or [],
+		}
+
+	company = frappe.db.get_single_value("Global Defaults", "default_company")
+	modes = []
+	for row in frappe.get_all("Mode of Payment", filters={"enabled": 1}, fields=["name"], order_by="name asc"):
+		account = frappe.db.get_value(
+			"Mode of Payment Account",
+			{"parent": row.name, "company": company},
+			"default_account",
+		)
+		modes.append({"name": row.name, "default_account": account})
+
+	accounts = frappe.get_all(
+		"Account",
+		filters={
+			"company": company,
+			"is_group": 0,
+			"account_type": ["in", ["Bank", "Cash"]],
+			"disabled": 0,
+		},
+		fields=["name"],
+		order_by="name asc",
+		limit=200,
+	)
+
+	return {
+		"remote": False,
+		"company": company,
+		"default_mode_of_payment": default_mode,
+		"default_cash_account": default_cash,
+		"default_mpesa_account": default_mpesa,
+		"modes_of_payment": modes,
+		"accounts": accounts,
+	}
+
+
+@frappe.whitelist()
+def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_account=None):
     booking = frappe.get_doc("Air Booking", pnr)
     booking.check_permission("write")
-    return booking.confirm_payment_and_invoice(payment_method=payment_method)
+    return booking.confirm_payment_and_invoice(
+        payment_method=payment_method,
+        paid_account=paid_account,
+    )
 

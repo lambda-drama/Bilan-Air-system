@@ -11,9 +11,14 @@
 // Validates seat selection and booking cutoff
 
 frappe.ui.form.on('Air Booking', {
+    onload: function(frm) {
+        setup_remote_payment_method_options(frm);
+    },
+
     refresh: function(frm) {
         validate_booking_cutoff(frm);
         update_seat_availability_message(frm);
+        setup_remote_payment_method_options(frm);
         
         // Add custom buttons
         if (frm.doc.booking_status === 'Reserved' && frm.doc.payment_status === 'Paid') {
@@ -162,6 +167,19 @@ function lookup_passenger_by_id(frm, cdt, cdn) {
             }
             frappe.model.set_value(cdt, cdn, 'passenger', r.message.name);
             sync_passenger_from_profile(frm, cdt, cdn);
+        },
+    });
+}
+
+function setup_remote_payment_method_options(frm) {
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.api.remote_accounting.get_remote_accounting_options',
+        callback: function(r) {
+            if (!r.message || !r.message.enabled) {
+                return;
+            }
+            const options = (r.message.modes_of_payment || []).map(function(m) { return m.name; }).join('\n');
+            frm.set_df_property('payment_method', 'options', options);
         },
     });
 }

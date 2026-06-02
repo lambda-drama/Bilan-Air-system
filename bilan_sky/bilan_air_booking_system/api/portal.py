@@ -683,22 +683,49 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 	offset = int(offset)
 	search = (search or "").strip()
 
+	from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
 	conditions = ["link.invoice IS NOT NULL", "link.invoice != ''"]
 	params = {"limit": limit, "offset": offset}
 
 	if search:
 		like = f"%{search}%"
-		conditions.append(
-			"""(
-			link.invoice LIKE %(search)s
-			OR link.parent LIKE %(search)s
-			OR ab.payer_name LIKE %(search)s
-			OR si.customer LIKE %(search)s
-		)"""
-		)
+		if is_remote_accounting_enabled():
+			conditions.append(
+				"""(
+				link.invoice LIKE %(search)s
+				OR link.parent LIKE %(search)s
+				OR ab.payer_name LIKE %(search)s
+			)"""
+			)
+		else:
+			conditions.append(
+				"""(
+				link.invoice LIKE %(search)s
+				OR link.parent LIKE %(search)s
+				OR ab.payer_name LIKE %(search)s
+				OR si.customer LIKE %(search)s
+			)"""
+			)
 		params["search"] = like
 
 	where = " AND ".join(conditions)
+	join_si = "" if is_remote_accounting_enabled() else "LEFT JOIN `tabSales Invoice` si ON si.name = link.invoice"
+	si_select = (
+		"NULL AS customer, NULL AS posting_date, NULL AS due_date, "
+		"NULL AS grand_total, NULL AS outstanding_amount, NULL AS invoice_status, "
+		"NULL AS currency, NULL AS docstatus"
+		if is_remote_accounting_enabled()
+		else """si.customer,
+			si.posting_date,
+			si.due_date,
+			si.grand_total,
+			si.outstanding_amount,
+			si.status AS invoice_status,
+			si.currency,
+			si.docstatus"""
+	)
+	order_by = "link.modified DESC" if is_remote_accounting_enabled() else "si.modified DESC, link.modified DESC"
 
 	rows = frappe.db.sql(
 		f"""
@@ -710,31 +737,43 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 			ab.payment_status,
 			ab.booking_status,
 			ab.payment_entry,
-			si.customer,
-			si.posting_date,
-			si.due_date,
-			si.grand_total,
-			si.outstanding_amount,
-			si.status AS invoice_status,
-			si.currency,
-			si.docstatus
+			{si_select}
 		FROM `tabAir Booking Invoice Link` link
 		INNER JOIN `tabAir Booking` ab ON ab.name = link.parent
-		LEFT JOIN `tabSales Invoice` si ON si.name = link.invoice
+		{join_si}
 		WHERE {where}
-		ORDER BY si.modified DESC, link.modified DESC
+		ORDER BY {order_by}
 		LIMIT %(limit)s OFFSET %(offset)s
 		""",
 		params,
 		as_dict=True,
 	)
 
+	if is_remote_accounting_enabled():
+		from bilan_sky.bilan_air_booking_system.utils.remote_billing import fetch_remote_sales_invoice
+
+		for row in rows:
+			remote = fetch_remote_sales_invoice(row.name)
+			if remote:
+				row.update(
+					{
+						"customer": remote.get("customer"),
+						"posting_date": remote.get("posting_date"),
+						"due_date": remote.get("due_date"),
+						"grand_total": remote.get("grand_total"),
+						"outstanding_amount": remote.get("outstanding_amount"),
+						"invoice_status": remote.get("status"),
+						"currency": remote.get("currency"),
+						"docstatus": remote.get("docstatus"),
+					}
+				)
+
 	count = frappe.db.sql(
 		f"""
 		SELECT COUNT(*) AS cnt
 		FROM `tabAir Booking Invoice Link` link
 		INNER JOIN `tabAir Booking` ab ON ab.name = link.parent
-		LEFT JOIN `tabSales Invoice` si ON si.name = link.invoice
+		{join_si}
 		WHERE {where}
 		""",
 		{k: v for k, v in params.items() if k not in ("limit", "offset")},
@@ -747,11 +786,34 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 def get_booking_invoice_detail(invoice_name):
 	"""Sales Invoice with linked air booking context."""
 	require_portal_staff()
-	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
+	if not invoice_name:
 		frappe.throw(_("Invoice not found"))
 
-	invoice = frappe.get_doc("Sales Invoice", invoice_name)
-	invoice.check_permission("read")
+	from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
+	if is_remote_accounting_enabled():
+		from bilan_sky.bilan_air_booking_system.utils.remote_billing import fetch_remote_sales_invoice
+
+		invoice = fetch_remote_sales_invoice(invoice_name)
+		if not invoice:
+			frappe.throw(_("Invoice not found on the accounting site"))
+	else:
+		if not frappe.db.exists("Sales Invoice", invoice_name):
+			frappe.throw(_("Invoice not found"))
+		local = frappe.get_doc("Sales Invoice", invoice_name)
+		local.check_permission("read")
+		invoice = {
+			"name": local.name,
+			"customer": local.customer,
+			"posting_date": local.posting_date,
+			"due_date": local.due_date,
+			"grand_total": local.grand_total,
+			"outstanding_amount": local.outstanding_amount,
+			"status": local.status,
+			"currency": local.currency,
+			"docstatus": local.docstatus,
+			"remarks": local.remarks,
+		}
 
 	link = frappe.db.get_value(
 		"Air Booking Invoice Link",
@@ -780,17 +842,17 @@ def get_booking_invoice_detail(invoice_name):
 		)
 
 	return {
-		"name": invoice.name,
+		"name": invoice.get("name"),
 		"invoice_type": link.invoice_type if link else None,
 		"booking_pnr": link.parent if link else None,
-		"customer": invoice.customer,
-		"posting_date": invoice.posting_date,
-		"due_date": invoice.due_date,
-		"grand_total": invoice.grand_total,
-		"outstanding_amount": invoice.outstanding_amount,
-		"status": invoice.status,
-		"currency": invoice.currency,
-		"docstatus": invoice.docstatus,
-		"remarks": invoice.remarks,
+		"customer": invoice.get("customer"),
+		"posting_date": invoice.get("posting_date"),
+		"due_date": invoice.get("due_date"),
+		"grand_total": invoice.get("grand_total"),
+		"outstanding_amount": invoice.get("outstanding_amount"),
+		"status": invoice.get("status"),
+		"currency": invoice.get("currency"),
+		"docstatus": invoice.get("docstatus"),
+		"remarks": invoice.get("remarks"),
 		"booking": booking,
 	}

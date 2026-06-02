@@ -4,7 +4,7 @@
 # import frappe
 import frappe
 from frappe.model.document import Document
-from frappe.utils import flt, get_datetime, getdate, now, nowdate
+from frappe.utils import add_days, flt, get_datetime, getdate, now, nowdate
 
 class AirBooking(Document):
     def autoname(self):
@@ -376,17 +376,30 @@ class AirBooking(Document):
             frappe.throw("Set Baggage Fee item in BA Settings before creating invoice.")
         return settings
 
+    def _invoice_is_accessible(self, invoice_name):
+        if not invoice_name:
+            return False
+        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
+        if is_remote_accounting_enabled():
+            from bilan_sky.bilan_air_booking_system.utils.remote_erp import get_remote_client
+
+            return get_remote_client().doc_exists("Sales Invoice", invoice_name)
+        return bool(frappe.db.exists("Sales Invoice", invoice_name))
+
     def _get_main_fare_invoice(self):
         for row in self.invoices or []:
             if not row.invoice:
                 continue
             if (row.invoice_type or "Main Fare") != "Main Fare":
                 continue
-            if frappe.db.exists("Sales Invoice", row.invoice):
+            if self._invoice_is_accessible(row.invoice):
                 return row.invoice
         return None
 
     def create_sales_invoice(self, submit=False):
+        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
         existing = self._get_main_fare_invoice()
         if existing:
             if submit:
@@ -394,6 +407,20 @@ class AirBooking(Document):
             return {"success": True, "invoice": existing, "created": False}
 
         settings = self._validate_billing_setup()
+
+        if is_remote_accounting_enabled():
+            from bilan_sky.bilan_air_booking_system.utils.remote_billing import (
+                create_remote_sales_invoice,
+            )
+
+            invoice_name = create_remote_sales_invoice(self, submit=submit)
+            self.append("invoices", {"invoice": invoice_name, "invoice_type": "Main Fare"})
+            self.flags.ignore_validate = True
+            self.save()
+            self.flags.ignore_validate = False
+            frappe.db.commit()
+            return {"success": True, "invoice": invoice_name, "created": True}
+
         customer = self.customer_link or self._get_or_create_customer()
         company = frappe.db.get_single_value("Global Defaults", "default_company")
         if not company:
@@ -403,7 +430,7 @@ class AirBooking(Document):
         invoice.customer = customer
         invoice.company = company
         invoice.posting_date = nowdate()
-        invoice.due_date = nowdate()
+        invoice.due_date = add_days(invoice.posting_date, 7)
         invoice.currency = settings.default_currency or None
         invoice.remarks = f"Air Booking {self.name}"
 
@@ -449,12 +476,24 @@ class AirBooking(Document):
         return {"success": True, "invoice": invoice.name, "created": True}
 
     def _submit_sales_invoice(self, invoice_name):
+        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
+        if is_remote_accounting_enabled():
+            from bilan_sky.bilan_air_booking_system.utils.remote_billing import (
+                submit_remote_sales_invoice,
+            )
+
+            submit_remote_sales_invoice(invoice_name)
+            return
+
         invoice = frappe.get_doc("Sales Invoice", invoice_name)
         if invoice.docstatus == 0:
             invoice.submit()
 
-    def confirm_payment_and_invoice(self, payment_method=None):
+    def confirm_payment_and_invoice(self, payment_method=None, paid_account=None):
         """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
+        from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
+
         if self.booking_status == "Cancelled":
             frappe.throw("Cannot record payment on a cancelled booking.")
         if self.payment_status == "Refunded":
@@ -462,10 +501,9 @@ class AirBooking(Document):
         if payment_method:
             self.payment_method = payment_method
         if not self.payment_method:
-            self.payment_method = (
-                frappe.db.get_single_value("BA Settings", "default_mode_of_payment")
-                or "Cash"
-            )
+            self.payment_method = get_ba_setting("default_mode_of_payment", "Cash")
+
+        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
 
         self._validate_billing_setup()
 
@@ -477,8 +515,23 @@ class AirBooking(Document):
             self._submit_sales_invoice(invoice_name)
 
         payment_entry_name = self.payment_entry
-        if payment_entry_name and frappe.db.exists("Payment Entry", payment_entry_name):
-            if frappe.db.get_value("Payment Entry", payment_entry_name, "docstatus") == 0:
+        pe_exists = False
+        if payment_entry_name:
+            if is_remote_accounting_enabled():
+                from bilan_sky.bilan_air_booking_system.utils.remote_erp import get_remote_client
+
+                pe_exists = get_remote_client().doc_exists("Payment Entry", payment_entry_name)
+            else:
+                pe_exists = bool(frappe.db.exists("Payment Entry", payment_entry_name))
+
+        if pe_exists:
+            if is_remote_accounting_enabled():
+                from bilan_sky.bilan_air_booking_system.utils.remote_erp import get_remote_client
+
+                pe = get_remote_client().get_doc("Payment Entry", payment_entry_name)
+                if pe.get("docstatus") == 0:
+                    get_remote_client().submit("Payment Entry", payment_entry_name)
+            elif frappe.db.get_value("Payment Entry", payment_entry_name, "docstatus") == 0:
                 frappe.get_doc("Payment Entry", payment_entry_name).submit()
         else:
             from bilan_sky.bilan_air_booking_system.utils.billing import (
@@ -488,6 +541,7 @@ class AirBooking(Document):
             payment_entry_name = create_and_submit_payment_entry(
                 invoice_name,
                 mode_of_payment=self.payment_method,
+                paid_account=paid_account,
                 reference_no=self.name,
             )
             self.payment_entry = payment_entry_name

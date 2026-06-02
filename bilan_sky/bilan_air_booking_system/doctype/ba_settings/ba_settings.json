@@ -14,12 +14,19 @@
   "infant_fare_percentage",
   "child_fare_percentage",
   "sb_accounting",
+  "default_mode_of_payment",
   "default_cash_account",
   "column_break_hqlf",
   "default_mpesa_account",
   "more_info_tab",
   "fare_item",
-  "baggage_fee"
+  "baggage_fee",
+  "access_key_tab",
+  "site_url",
+  "company",
+  "column_break_wfws",
+  "secret_key",
+  "api_key"
  ],
  "fields": [
   {
@@ -82,16 +89,22 @@
    "label": "Accounting Settings"
   },
   {
-   "fieldname": "default_cash_account",
-   "fieldtype": "Link",
-   "label": "Default Cash Account",
-   "options": "Account"
+   "description": "Used when creating Payment Entries on the accounting site (company-specific account name).",
+   "fieldname": "default_mode_of_payment",
+   "fieldtype": "Data",
+   "label": "Default Mode of Payment"
   },
   {
+   "description": "Bank/Cash account name on the accounting site for this company.",
+   "fieldname": "default_cash_account",
+   "fieldtype": "Data",
+   "label": "Default Cash Account"
+  },
+  {
+   "description": "M-Pesa (or mobile money) account name on the accounting site for this company.",
    "fieldname": "default_mpesa_account",
-   "fieldtype": "Link",
-   "label": "Default M-Pesa Account",
-   "options": "Account"
+   "fieldtype": "Data",
+   "label": "Default M-Pesa Account"
   },
   {
    "fieldname": "column_break_ysvj",
@@ -117,13 +130,45 @@
    "fieldtype": "Link",
    "label": "Baggage Fee",
    "options": "Item"
+  },
+  {
+   "fieldname": "access_key_tab",
+   "fieldtype": "Tab Break",
+   "label": "Remote accounting site"
+  },
+  {
+   "description": "Base URL of the ERPNext site used for Sales Invoices and Payment Entries (e.g. https://accounts.example.com).",
+   "fieldname": "site_url",
+   "fieldtype": "Data",
+   "label": "Site URL"
+  },
+  {
+   "description": "Company on the remote site. Accounts and modes of payment are filtered to this company.",
+   "fieldname": "company",
+   "fieldtype": "Data",
+   "label": "Company",
+   "reqd": 0
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key"
+  },
+  {
+   "fieldname": "secret_key",
+   "fieldtype": "Password",
+   "label": "Secret Key"
+  },
+  {
+   "fieldname": "column_break_wfws",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-05-27 16:00:41.830360",
+ "modified": "2026-06-02 22:18:49.011182",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",
