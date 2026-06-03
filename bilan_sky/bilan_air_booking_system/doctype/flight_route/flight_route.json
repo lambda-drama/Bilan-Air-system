@@ -13,6 +13,7 @@
   "airline",
   "column_break_xkze",
   "currency",
+  "base_fares",
   "base_fare",
   "duration",
   "is_active",
@@ -64,13 +65,18 @@
    "reqd": 1
   },
   {
+   "description": "Economy base fares by passenger type. Adult is required; child and infant default from BA Settings if omitted.",
+   "fieldname": "base_fares",
+   "fieldtype": "JSON",
+   "label": "Base Fares (Adult / Child / Infant)"
+  },
+  {
    "fieldname": "base_fare",
    "fieldtype": "Currency",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Base Fare (Adult, Economy)",
+   "hidden": 1,
+   "label": "Base Fare (Adult, legacy)",
    "options": "currency",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "default": "1",

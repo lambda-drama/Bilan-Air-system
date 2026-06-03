@@ -23,13 +23,14 @@
   "section_break_lcjg",
   "cabin_crew",
   "pricing_section",
+  "base_fares_override",
   "base_fare_override",
   "cutoff_datetime",
   "amended_from"
  ],
  "fields": [
   {
-   "description": "Auto-generated as AIRLINE_IATA + number (e.g. KQ100). Based on route series and departure date.",
+   "description": "Auto-generated as AIRLINE_IATA + number (e.g. KQ103). Same number can be used on different dates; schedule ID is flight number + date.",
    "fieldname": "flight_number",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -126,9 +127,19 @@
    "label": "Pricing"
   },
   {
+   "allow_on_submit": 1,
+   "description": "Override route base fares for this flight. JSON: {\"adult\": 0, \"child\": 0, \"infant\": 0}. Omit a key to use the route fare for that type.",
+   "fieldname": "base_fares_override",
+   "fieldtype": "JSON",
+   "label": "Base Fares Override"
+  },
+  {
+   "allow_on_submit": 1,
    "fieldname": "base_fare_override",
    "fieldtype": "Currency",
-   "label": "Base Fare Override (leave empty to use route base fare)"
+   "hidden": 1,
+   "label": "Base Fare Override (legacy)",
+   "read_only": 1
   },
   {
    "fieldname": "cutoff_datetime",

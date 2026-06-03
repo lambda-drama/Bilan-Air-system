@@ -173,9 +173,6 @@ export default function PortalAirportsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedId(String(r.name))}>
-                              View details
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(r)}>Edit</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

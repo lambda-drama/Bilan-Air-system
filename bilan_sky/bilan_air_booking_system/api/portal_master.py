@@ -200,6 +200,7 @@ def list_flight_routes(limit=50, offset=0, search=None):
 			"origin_airport",
 			"destination_airport",
 			"distance_km",
+			"base_fares",
 			"base_fare",
 			"currency",
 			"airline",

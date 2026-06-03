@@ -17,6 +17,7 @@ def fetch_all_routes():
             "origin_airport",
             "destination_airport",
             "distance_km",
+            "base_fares",
             "base_fare",
             "is_active",
         ],

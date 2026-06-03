@@ -7,6 +7,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	get_airport_iata,
 	resolve_airport_name,
 )
+from bilan_sky.bilan_air_booking_system.utils.fare_pricing import prices_for_schedule_search
 from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_portal_access
 
 
@@ -155,22 +156,12 @@ def _fare_multiplier(route_name, departure_date):
 	return 1 + (rule.price_increase_percentage / 100)
 
 
-def _prices_for_schedule(schedule, route_base_fare, route_name):
-	seat_classes = _public_get_all(
-		"Seat Class",
-		fields=["name", "class_name", "price_multiplier"],
-	)
-	base_fare = _row_val(schedule, "base_fare_override") or route_base_fare
-	multiplier = _fare_multiplier(route_name, _row_val(schedule, "departure_date"))
-	prices = {}
-	for seat_class in seat_classes:
-		prices[_row_val(seat_class, "class_name")] = round(
-			base_fare * _row_val(seat_class, "price_multiplier") * multiplier, 2
-		)
-	return prices
+def _prices_for_schedule(schedule, route, route_name):
+	payload = prices_for_schedule_search(schedule, route)
+	return payload["prices"]
 
 
-def _schedule_to_flight_result(schedule, route_base_fare, route_name, passengers):
+def _schedule_to_flight_result(schedule, route, route_name, passengers):
 	schedule_name = _row_val(schedule, "name")
 	available = _count_available_seats(schedule_name)
 	if available < int(passengers):
@@ -182,7 +173,8 @@ def _schedule_to_flight_result(schedule, route_base_fare, route_name, passengers
 		"departure_time": _row_val(schedule, "departure_time"),
 		"arrival_time": _row_val(schedule, "arrival_time"),
 		"available_seats": available,
-		"prices": _prices_for_schedule(schedule, route_base_fare, route_name),
+		"prices": _prices_for_schedule(schedule, route, route_name),
+		"base_fares": prices_for_schedule_search(schedule, route)["base_fares"],
 		"route": route_name,
 	}
 
@@ -192,7 +184,6 @@ def _find_schedules_for_routes(routes, date, passengers):
 	results = []
 	for route in routes:
 		route_name = _row_val(route, "name")
-		route_base_fare = _row_val(route, "base_fare")
 		departure_date = _normalize_departure_date(date)
 		schedules = _public_get_all(
 			"Flight Schedule",
@@ -204,14 +195,13 @@ def _find_schedules_for_routes(routes, date, passengers):
 				"departure_time",
 				"arrival_date",
 				"arrival_time",
+				"base_fares_override",
 				"base_fare_override",
 				"airplane",
 			],
 		)
 		for schedule in schedules:
-			item = _schedule_to_flight_result(
-				schedule, route_base_fare, route_name, passengers
-			)
+			item = _schedule_to_flight_result(schedule, route, route_name, passengers)
 			if item:
 				results.append(item)
 	return results
@@ -240,7 +230,7 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 		route_doc = frappe.get_doc("Flight Route", route, ignore_permissions=True)
 		if not route_doc.is_active:
 			return {"error": "This route is not active", "flights": []}
-		routes = [{"name": route_doc.name, "base_fare": route_doc.base_fare}]
+		routes = [{"name": route_doc.name, "base_fares": route_doc.base_fares, "base_fare": route_doc.base_fare}]
 		origin_iata = get_airport_iata(route_doc.origin_airport) or origin
 		destination_iata = get_airport_iata(route_doc.destination_airport) or destination
 	else:
@@ -263,7 +253,7 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 				"destination_airport": destination_airport,
 				"is_active": 1,
 			},
-			fields=["name", "base_fare"],
+			fields=["name", "base_fares", "base_fare"],
 		)
 
 		if not routes:
@@ -344,7 +334,7 @@ def get_schedule_for_office_booking(schedule_id, passengers=1):
 
 	route = frappe.get_doc("Flight Route", schedule.route, ignore_permissions=True)
 	flight = _schedule_to_flight_result(
-		schedule, route.base_fare, route.name, int(passengers or 1)
+		schedule, route, route.name, int(passengers or 1)
 	)
 	if not flight:
 		return {"error": "Not enough seats available on this flight"}
@@ -365,7 +355,7 @@ def fetch_all_available_routes():
 	routes = _public_get_all(
 		"Flight Route",
 		filters={"is_active": 1},
-		fields=["name", "route_name", "origin_airport", "destination_airport", "base_fare"],
+		fields=["name", "route_name", "origin_airport", "destination_airport", "base_fares", "base_fare"],
 	)
 
 	for route in routes:

@@ -167,9 +167,6 @@ export default function PortalBookingsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openDetails(b.name)}>
-                              View details
-                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => openDeskDocument("Air Booking", b.name)}
                             >

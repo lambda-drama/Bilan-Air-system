@@ -51,6 +51,9 @@ export async function getFlightSchedule(schedule_name: string) {
     captain: string;
     first_officer: string;
     base_fare_override?: number | null;
+    base_fares?: { adult: number; child: number; infant: number };
+    route_base_fares?: { adult: number; child: number; infant: number };
+    base_fares_override?: Partial<{ adult: number; child: number; infant: number }> | null;
     docstatus: number;
   }>(methodUrl("portal", "get_flight_schedule"), {
     method: "POST",

@@ -78,7 +78,15 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 def get_flight_schedule(schedule_name):
 	"""Full schedule fields for portal amend/edit dialogs."""
 	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+		normalize_base_fares,
+		resolve_base_fares,
+	)
+
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	route = frappe.get_doc("Flight Route", doc.route, ignore_permissions=True)
+	route_fares = normalize_base_fares(route.base_fares, legacy_adult=route.base_fare)
+	effective_fares = resolve_base_fares(doc, route)
 	return {
 		"name": doc.name,
 		"flight_number": doc.flight_number,
@@ -91,6 +99,9 @@ def get_flight_schedule(schedule_name):
 		"status": doc.status,
 		"captain": doc.captain,
 		"first_officer": doc.first_officer or "",
+		"route_base_fares": route_fares,
+		"base_fares": effective_fares,
+		"base_fares_override": doc.base_fares_override,
 		"base_fare_override": doc.base_fare_override,
 		"docstatus": doc.docstatus,
 	}
@@ -105,12 +116,30 @@ def save_flight_schedule(data, submit=1):
 
 		data = json.loads(data)
 
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Schedule", name)
-		doc.update({k: v for k, v in data.items() if k != "name"})
+		updates = {k: v for k, v in data.items() if k != "name"}
+		if "base_fares_override" in updates:
+			apply_schedule_fare_override(doc, updates.pop("base_fares_override"))
+		elif "base_fare_override" in updates:
+			raw = updates.pop("base_fare_override")
+			apply_schedule_fare_override(
+				doc,
+				{"adult": raw} if raw not in (None, "") else None,
+			)
+		doc.update(updates)
 	else:
-		doc = frappe.get_doc({"doctype": "Flight Schedule", **data})
+		create_data = {k: v for k, v in data.items() if k != "name"}
+		override = create_data.pop("base_fares_override", None)
+		legacy_override = create_data.pop("base_fare_override", None)
+		doc = frappe.get_doc({"doctype": "Flight Schedule", **create_data})
+		if override is not None:
+			apply_schedule_fare_override(doc, override)
+		elif legacy_override not in (None, ""):
+			apply_schedule_fare_override(doc, {"adult": legacy_override})
 
 	doc.save()
 	seats_created = doc.generate_seat_inventory()
@@ -221,9 +250,14 @@ def amend_flight_schedule(schedule_name, data, submit=1):
 		"captain",
 		"first_officer",
 		"base_fare_override",
+		"base_fares_override",
 	}
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+
 	for key, value in data.items():
-		if key in allowed and value not in (None, ""):
+		if key == "base_fares_override":
+			apply_schedule_fare_override(amended, value)
+		elif key in allowed and value not in (None, ""):
 			amended.set(key, value)
 
 	amended.insert()

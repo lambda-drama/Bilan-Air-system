@@ -6,6 +6,15 @@ import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions, type AirportSelectRow } from "@/lib/airport-select";
 import { buildAirportDisplayByLinkName } from "@/lib/format-airport";
+import {
+  emptyPassengerFaresForm,
+  faresToForm,
+  formatFaresSummary,
+  PASSENGER_FARE_KEYS,
+  PASSENGER_FARE_LABELS,
+  parseBaseFaresInput,
+  type PassengerBaseFaresForm,
+} from "@/lib/passenger-base-fares";
 import { saveRoute } from "@/services/flightRoute";
 import { listAirlines, listCurrencies, listFlightRoutes } from "@/services/portalMaster";
 import {
@@ -44,7 +53,6 @@ const emptyRouteForm = {
   origin_airport: "",
   destination_airport: "",
   distance_km: "",
-  base_fare: "",
   airline: "",
   currency: "USD",
   duration_hours: "",
@@ -65,6 +73,7 @@ export default function PortalRoutesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState(emptyRouteForm);
+  const [baseFaresForm, setBaseFaresForm] = useState<PassengerBaseFaresForm>(emptyPassengerFaresForm);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
 
@@ -108,6 +117,7 @@ export default function PortalRoutesPage() {
     formAlerts.clearAlerts();
     setEditing(null);
     setForm(emptyRouteForm);
+    setBaseFaresForm(emptyPassengerFaresForm());
     setOpen(true);
   };
 
@@ -119,13 +129,17 @@ export default function PortalRoutesPage() {
       origin_airport: String(row.origin_airport || ""),
       destination_airport: String(row.destination_airport || ""),
       distance_km: String(row.distance_km ?? ""),
-      base_fare: String(row.base_fare ?? ""),
       airline: String(row.airline || ""),
       currency: String(row.currency || "USD"),
       duration_hours: durationSec ? String(durationSec / 3600) : "",
       is_active: !!row.is_active,
       notes: String(row.notes || ""),
     });
+    setBaseFaresForm(
+      faresToForm(
+        parseBaseFaresInput(row.base_fares, Number(row.base_fare) || null) ?? undefined,
+      ),
+    );
     setOpen(true);
   };
 
@@ -134,13 +148,17 @@ export default function PortalRoutesPage() {
       { key: "origin_airport", label: "Origin airport" },
       { key: "destination_airport", label: "Destination airport" },
       { key: "distance_km", label: "Distance (km)" },
-      { key: "base_fare", label: "Base fare" },
     ]);
     const extra: string[] = [...missing];
     const distanceKm = parseFloat(form.distance_km);
-    const baseFare = parseFloat(form.base_fare);
+    const baseFares = parseBaseFaresInput({
+      adult: baseFaresForm.adult,
+      child: baseFaresForm.child || undefined,
+      infant: baseFaresForm.infant || undefined,
+    });
     if (!distanceKm || distanceKm <= 0) extra.push("Distance (km) must be greater than zero");
-    if (!baseFare || baseFare <= 0) extra.push("Base fare must be greater than zero");
+    if (!baseFaresForm.adult.trim()) extra.push("Adult base fare");
+    if (!baseFares) extra.push("Enter valid base fares (adult required)");
     if (form.origin_airport === form.destination_airport) {
       extra.push("Origin and destination must differ");
     }
@@ -156,7 +174,8 @@ export default function PortalRoutesPage() {
       origin_airport: form.origin_airport,
       destination_airport: form.destination_airport,
       distance_km: distanceKm,
-      base_fare: baseFare,
+      base_fares: baseFares,
+      base_fare: baseFares!.adult,
       is_active: form.is_active ? 1 : 0,
       notes: form.notes || undefined,
       airline: form.airline || undefined,
@@ -201,7 +220,7 @@ export default function PortalRoutesPage() {
                 <TableHead>Destination</TableHead>
                 <TableHead>Airline</TableHead>
                 <TableHead>Distance</TableHead>
-                <TableHead>Base fare</TableHead>
+                <TableHead>Base fares (economy)</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -224,7 +243,12 @@ export default function PortalRoutesPage() {
                     <TableCell>{routeAirportLabel(r, "destination")}</TableCell>
                     <TableCell>{String(r.airline || "—")}</TableCell>
                     <TableCell>{String(r.distance_km ?? "—")}</TableCell>
-                    <TableCell>{formatMoney(r.base_fare as number)}</TableCell>
+                    <TableCell className="text-sm">
+                      {formatFaresSummary(
+                        parseBaseFaresInput(r.base_fares, Number(r.base_fare) || null),
+                        formatMoney,
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <ListRowActions doctype="Flight Route" docName={String(r.name)}>
                         <DropdownMenu>
@@ -310,15 +334,24 @@ export default function PortalRoutesPage() {
               onChange={(e) => setForm({ ...form, distance_km: e.target.value })}
             />
           </FormField>
-          <FormField label="Base fare (adult, economy)" required>
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
-              value={form.base_fare}
-              onChange={(e) => setForm({ ...form, base_fare: e.target.value })}
-            />
-          </FormField>
+          {PASSENGER_FARE_KEYS.map((key) => (
+            <FormField
+              key={key}
+              label={`${PASSENGER_FARE_LABELS[key]} base fare (economy)`}
+              required={key === "adult"}
+              hint={key !== "adult" ? "Optional — defaults from BA Settings if empty" : undefined}
+            >
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseFaresForm[key]}
+                onChange={(e) =>
+                  setBaseFaresForm({ ...baseFaresForm, [key]: e.target.value })
+                }
+              />
+            </FormField>
+          ))}
           <FormField label="Duration (hours)" hint="Optional — used for planning">
             <Input
               type="number"
@@ -360,7 +393,16 @@ export default function PortalRoutesPage() {
             <DetailRow label="Airline" value={String(selectedRoute.airline || "—")} />
             <DetailRow label="Currency" value={String(selectedRoute.currency || "—")} />
             <DetailRow label="Distance (km)" value={String(selectedRoute.distance_km ?? "—")} />
-            <DetailRow label="Base fare" value={formatMoney(selectedRoute.base_fare as number)} />
+            <DetailRow
+              label="Base fares"
+              value={formatFaresSummary(
+                parseBaseFaresInput(
+                  selectedRoute.base_fares,
+                  Number(selectedRoute.base_fare) || null,
+                ),
+                formatMoney,
+              )}
+            />
             <DetailRow label="Active" value={selectedRoute.is_active ? "Yes" : "No"} />
             <DetailRow label="Notes" value={String(selectedRoute.notes || "")} />
           </DetailSection>

@@ -76,6 +76,7 @@ export interface AvailableRoute {
   destination_code?: string;
   destination_city?: string;
   base_fare?: number;
+  base_fares?: { adult: number; child?: number; infant?: number };
 }
 
 export async function fetchAllRoutes(): Promise<AvailableRoute[]> {

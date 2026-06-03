@@ -59,6 +59,7 @@ def search_available_flights(origin, destination, date, passengers=1):
                 "arrival_date",
                 "arrival_time",
                 "airplane",
+                "base_fares_override",
                 "base_fare_override",
             ],
             ignore_permissions=True,
@@ -71,29 +72,11 @@ def search_available_flights(origin, destination, date, passengers=1):
             })
             
             if available >= int(passengers):
-                base_fare = schedule.base_fare_override or route.base_fare
-                
-                from frappe.utils import date_diff
-                days_before = date_diff(schedule.departure_date, nowdate())
-                
-                fare_rule = frappe.get_all(
-                    "Fare Rule",
-                    filters={
-                        "route": route.name,
-                        "days_before_departure": [">=", days_before],
-                        "is_active": 1,
-                    },
-                    order_by="days_before_departure asc",
-                    limit=1,
-                    ignore_permissions=True,
+                from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+                    economy_price_for_passenger,
                 )
-                
-                price_multiplier = 1.0
-                if fare_rule:
-                    rule = frappe.get_doc("Fare Rule", fare_rule[0].name)
-                    price_multiplier = 1 + (rule.price_increase_percentage / 100)
-                
-                economy_price = base_fare * price_multiplier
+
+                economy_price = economy_price_for_passenger(schedule, route, "Adult")
                 
                 flights.append({
                     "schedule_id": schedule.name,

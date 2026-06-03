@@ -129,48 +129,29 @@ class AirBooking(Document):
         flight = frappe.get_doc("Flight Schedule", self.flight_schedule)
         route = frappe.get_doc("Flight Route", flight.route)
         
-        # Get settings for child/infant percentages
-        settings = frappe.get_single("BA Settings")
-        
+        from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+            base_fare_for_passenger,
+            fare_rule_multiplier,
+        )
+
+        fare_multiplier = fare_rule_multiplier(flight.route, flight.departure_date)
+
         # Calculate fare per passenger
         for passenger in self.passengers:
             if not passenger.seat_number:
                 continue
 
-            # Get base fare (use override if exists)
-            base_fare = flight.base_fare_override or route.base_fare
-            
-            # Apply seat class multiplier
+            base_fare = base_fare_for_passenger(
+                flight,
+                route,
+                self._get_passenger_type(passenger),
+            )
+
             seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
             seat_class = frappe.get_doc("Seat Class", seat.seat_class)
             class_multiplier = seat_class.price_multiplier
-            
-            # Apply passenger type discount
-            passenger_type = self._get_passenger_type(passenger)
-            if passenger_type == "Infant":
-                passenger_multiplier = settings.infant_fare_percentage / 100
-            elif passenger_type == "Child":
-                passenger_multiplier = settings.child_fare_percentage / 100
-            else:
-                passenger_multiplier = 1.0
-            
-            # Apply fare rule (days before departure)
-            from frappe.utils import date_diff
-            days_before = date_diff(flight.departure_date, getdate(now()))
-            
-            fare_rule = frappe.get_all("Fare Rule", filters={
-                "route": flight.route,
-                "days_before_departure": [">=", days_before],
-                "is_active": 1,
-            }, order_by="days_before_departure asc", limit=1)
-            
-            fare_multiplier = 1.0
-            if fare_rule:
-                rule = frappe.get_doc("Fare Rule", fare_rule[0].name)
-                fare_multiplier = 1 + (rule.price_increase_percentage / 100)
-            
-            # Calculate final fare
-            final_fare = base_fare * class_multiplier * passenger_multiplier * fare_multiplier
+
+            final_fare = base_fare * class_multiplier * fare_multiplier
             passenger.fare_paid = round(final_fare, 2)
         
         # Calculate total

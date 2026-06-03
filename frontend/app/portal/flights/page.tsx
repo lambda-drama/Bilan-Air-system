@@ -57,6 +57,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
+import { useCurrency } from "@/contexts/currency-context";
+import {
+  buildOverridePayload,
+  emptyPassengerFaresForm,
+  faresToForm,
+  formatFaresSummary,
+  overrideFormFromApi,
+  PASSENGER_FARE_KEYS,
+  PASSENGER_FARE_LABELS,
+  parseBaseFaresInput,
+  type PassengerBaseFaresForm,
+} from "@/lib/passenger-base-fares";
 
 const FLIGHT_STATUS_OPTIONS = [
   { value: "Scheduled", label: "Scheduled" },
@@ -78,7 +90,6 @@ const emptyScheduleForm = {
   status: "Scheduled",
   captain: "",
   first_officer: "",
-  base_fare_override: "",
 };
 
 type CrewOption = { name: string; full_name: string; crew_role: string };
@@ -97,8 +108,13 @@ function canRescheduleFlight(status: string) {
   return ["Scheduled", "Delayed"].includes(status);
 }
 
+function canEditPrices(status: string) {
+  return ["Scheduled", "Delayed"].includes(status);
+}
+
 export default function PortalFlightsPage() {
   const router = useRouter();
+  const { formatMoney } = useCurrency();
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
   const fetchSchedules = useCallback(
     async (search: string) => {
@@ -128,16 +144,30 @@ export default function PortalFlightsPage() {
     if (!next) {
       formAlerts.clearAlerts();
       setForm(emptyScheduleForm);
+      setFareOverrideForm(emptyPassengerFaresForm());
     }
   };
   const [routes, setRoutes] = useState<
     {
       name: string;
       route_name?: string;
+      base_fares?: { adult?: number; child?: number; infant?: number };
+      base_fare?: number;
       origin_airport_label?: string;
       destination_airport_label?: string;
     }[]
   >([]);
+  const [fareOverrideForm, setFareOverrideForm] = useState<PassengerBaseFaresForm>(
+    emptyPassengerFaresForm(),
+  );
+  const [editPricesTarget, setEditPricesTarget] = useState<FlightScheduleRow | null>(null);
+  const [editRouteBaseFares, setEditRouteBaseFares] = useState<{
+    adult: number;
+    child: number;
+    infant: number;
+  } | null>(null);
+  const [editPricesLoading, setEditPricesLoading] = useState(false);
+  const editPricesAlerts = useFormDialogAlerts();
   const [airplanes, setAirplanes] = useState<{ name: string; registration_number: string }[]>([]);
   const [pilotRoles, setPilotRoles] = useState<{ name: string; role_name: string }[]>([]);
   const [captains, setCaptains] = useState<CrewOption[]>([]);
@@ -227,9 +257,75 @@ export default function PortalFlightsPage() {
     if (!open) {
       setAmendTarget(null);
       setAmendForm(emptyScheduleForm);
+      setFareOverrideForm(emptyPassengerFaresForm());
+      setEditRouteBaseFares(null);
       amendAlerts.clearAlerts();
     }
   };
+
+  const handleEditPricesDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      setEditPricesTarget(null);
+      setEditRouteBaseFares(null);
+      setFareOverrideForm(emptyPassengerFaresForm());
+      editPricesAlerts.clearAlerts();
+    }
+  };
+
+  const openEditPrices = async (s: FlightScheduleRow) => {
+    editPricesAlerts.clearAlerts();
+    setEditPricesTarget(s);
+    setEditPricesLoading(true);
+    try {
+      const doc = await getFlightSchedule(s.name);
+      setEditRouteBaseFares(doc.route_base_fares ?? null);
+      setFareOverrideForm(overrideFormFromApi(doc.base_fares_override ?? undefined));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load pricing");
+      setEditPricesTarget(null);
+    } finally {
+      setEditPricesLoading(false);
+    }
+  };
+
+  const submitEditPrices = async () => {
+    if (!editPricesTarget) return;
+    editPricesAlerts.clearAlerts();
+    const override = buildOverridePayload(fareOverrideForm);
+    if (override === null && PASSENGER_FARE_KEYS.some((k) => fareOverrideForm[k].trim())) {
+      editPricesAlerts.showValidation([{ key: "base_fares", label: "Base fare overrides" }]);
+      return;
+    }
+    try {
+      await saveSchedule(
+        { name: editPricesTarget.name, base_fares_override: override },
+        { submit: false },
+      );
+      toast.success(`Pricing updated for ${editPricesTarget.flight_number}`);
+      setEditPricesTarget(null);
+      setFareOverrideForm(emptyPassengerFaresForm());
+      refresh();
+      if (selectedId === editPricesTarget.name) {
+        fetchFlightDetails(editPricesTarget.name).then(setDetail).catch(() => setDetail(null));
+      }
+    } catch (e) {
+      editPricesAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to update pricing");
+    }
+  };
+
+  const selectedRouteMeta = useMemo(() => {
+    const routeName = editPricesTarget?.route || form.route || amendForm.route;
+    return routes.find((r) => r.name === routeName);
+  }, [routes, editPricesTarget, form.route, amendForm.route]);
+
+  const routeBaseFaresForHint = useMemo(() => {
+    if (editRouteBaseFares) return editRouteBaseFares;
+    if (!selectedRouteMeta) return null;
+    return parseBaseFaresInput(
+      selectedRouteMeta.base_fares,
+      Number(selectedRouteMeta.base_fare) || null,
+    );
+  }, [editRouteBaseFares, selectedRouteMeta]);
 
   const openAmend = async (s: FlightScheduleRow) => {
     amendAlerts.clearAlerts();
@@ -247,9 +343,9 @@ export default function PortalFlightsPage() {
         status: "Scheduled",
         captain: doc.captain,
         first_officer: doc.first_officer || "",
-        base_fare_override:
-          doc.base_fare_override != null ? String(doc.base_fare_override) : "",
       });
+      setFareOverrideForm(overrideFormFromApi(doc.base_fares_override ?? undefined));
+      setEditRouteBaseFares(doc.route_base_fares ?? null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load schedule");
       setAmendTarget(null);
@@ -285,9 +381,8 @@ export default function PortalFlightsPage() {
         captain: amendForm.captain,
       };
       if (amendForm.first_officer) payload.first_officer = amendForm.first_officer;
-      if (amendForm.base_fare_override) {
-        payload.base_fare_override = parseFloat(amendForm.base_fare_override);
-      }
+      const fareOverride = buildOverridePayload(fareOverrideForm);
+      if (fareOverride) payload.base_fares_override = fareOverride;
       const created = await amendFlightSchedule(amendTarget.name, payload, { submit: true });
       const newName = typeof created.name === "string" ? created.name : "";
       const seats = created.seats_created ?? 0;
@@ -484,9 +579,8 @@ export default function PortalFlightsPage() {
         captain: form.captain,
       };
       if (form.first_officer) payload.first_officer = form.first_officer;
-      if (form.base_fare_override) {
-        payload.base_fare_override = parseFloat(form.base_fare_override);
-      }
+      const fareOverride = buildOverridePayload(fareOverrideForm);
+      if (fareOverride) payload.base_fares_override = fareOverride;
       const created = await saveSchedule(payload, { submit: true });
       const seats = Number(created.seats_created ?? 0);
       const published = created.submitted !== false;
@@ -617,9 +711,11 @@ export default function PortalFlightsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setSelectedId(s.name)}>
-                                View details
-                              </DropdownMenuItem>
+                              {canEditPrices(s.status) && (
+                                <DropdownMenuItem onClick={() => openEditPrices(s)}>
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => openSeatInventory(s.name)}>
                                 View seat map
                               </DropdownMenuItem>
@@ -779,21 +875,92 @@ export default function PortalFlightsPage() {
           </FormGrid>
         </FormSection>
 
-        <FormSection title="Pricing" className="mt-4">
-          <FormField
-            label="Base fare override"
-            fullWidth
-            hint="Leave empty to use the route base fare"
-          >
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
-              value={form.base_fare_override}
-              onChange={(e) => setForm({ ...form, base_fare_override: e.target.value })}
-            />
-          </FormField>
+        <FormSection title="Pricing overrides (optional)" className="mt-4">
+          {routeBaseFaresForHint && (
+            <p className="text-xs text-muted-foreground -mt-1 mb-2">
+              Route defaults: {formatFaresSummary(routeBaseFaresForHint, formatMoney)}
+            </p>
+          )}
+          <FormGrid>
+            {PASSENGER_FARE_KEYS.map((key) => (
+              <FormField
+                key={key}
+                label={`${PASSENGER_FARE_LABELS[key]} override`}
+                hint="Empty = use route fare"
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={fareOverrideForm[key]}
+                  onChange={(e) =>
+                    setFareOverrideForm({ ...fareOverrideForm, [key]: e.target.value })
+                  }
+                  placeholder={
+                    routeBaseFaresForHint?.[key] != null
+                      ? formatMoney(routeBaseFaresForHint[key])
+                      : undefined
+                  }
+                />
+              </FormField>
+            ))}
+          </FormGrid>
         </FormSection>
+      </BilanFormDialog>
+
+      <BilanFormDialog
+        open={!!editPricesTarget}
+        onOpenChange={handleEditPricesDialogOpenChange}
+        title={`Edit pricing — ${editPricesTarget?.flight_number ?? ""}`}
+        description={
+          routeBaseFaresForHint
+            ? `Route defaults: ${formatFaresSummary(routeBaseFaresForHint, formatMoney)}. Leave a field empty to use the route fare for that passenger type.`
+            : "Set per-passenger base fare overrides for this flight, or leave empty to use route fares."
+        }
+        validationErrors={editPricesAlerts.validationErrors}
+        submitError={editPricesAlerts.submitError}
+        onDismissAlerts={editPricesAlerts.clearAlerts}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEditPricesTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-gold text-navy hover:bg-gold-dark"
+              onClick={submitEditPrices}
+              disabled={editPricesLoading}
+            >
+              Save pricing
+            </Button>
+          </>
+        }
+      >
+        <FormGrid>
+          {PASSENGER_FARE_KEYS.map((key) => (
+            <FormField
+              key={key}
+              label={`${PASSENGER_FARE_LABELS[key]} base fare (economy)`}
+              hint="Empty = use route fare for this type"
+            >
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={fareOverrideForm[key]}
+                onChange={(e) => {
+                  setFareOverrideForm({ ...fareOverrideForm, [key]: e.target.value });
+                  editPricesAlerts.clearAlerts();
+                }}
+                disabled={editPricesLoading}
+                placeholder={
+                  routeBaseFaresForHint?.[key] != null
+                    ? formatMoney(routeBaseFaresForHint[key])
+                    : undefined
+                }
+              />
+            </FormField>
+          ))}
+        </FormGrid>
       </BilanFormDialog>
 
       <BilanFormDialog
@@ -973,22 +1140,32 @@ export default function PortalFlightsPage() {
                 </FormField>
               </FormGrid>
             </FormSection>
-            <FormSection title="Pricing" className="mt-4">
-              <FormField
-                label="Base fare override"
-                fullWidth
-                hint="Leave empty to use the route base fare"
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={amendForm.base_fare_override}
-                  onChange={(e) =>
-                    setAmendForm({ ...amendForm, base_fare_override: e.target.value })
-                  }
-                />
-              </FormField>
+            <FormSection title="Pricing overrides (optional)" className="mt-4">
+              {routeBaseFaresForHint && (
+                <p className="text-xs text-muted-foreground -mt-1 mb-2">
+                  Route defaults: {formatFaresSummary(routeBaseFaresForHint, formatMoney)}
+                </p>
+              )}
+              <FormGrid>
+                {PASSENGER_FARE_KEYS.map((key) => (
+                  <FormField key={key} label={`${PASSENGER_FARE_LABELS[key]} override`}>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={fareOverrideForm[key]}
+                      onChange={(e) =>
+                        setFareOverrideForm({ ...fareOverrideForm, [key]: e.target.value })
+                      }
+                      placeholder={
+                        routeBaseFaresForHint?.[key] != null
+                          ? formatMoney(routeBaseFaresForHint[key])
+                          : undefined
+                      }
+                    />
+                  </FormField>
+                ))}
+              </FormGrid>
             </FormSection>
           </>
         )}
@@ -1079,6 +1256,15 @@ export default function PortalFlightsPage() {
                 </Button>
               ) : (
                 <>
+                  {canEditPrices(selectedRow.status) && (
+                    <Button
+                      variant="outline"
+                      className="flex-1 min-w-[140px]"
+                      onClick={() => openEditPrices(selectedRow)}
+                    >
+                      Edit pricing
+                    </Button>
+                  )}
                   <Button
                     className="bg-gold text-navy hover:bg-gold-dark flex-1 min-w-[140px]"
                     onClick={() => openOfficeBooking(selectedRow.name)}

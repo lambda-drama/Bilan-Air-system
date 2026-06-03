@@ -9,14 +9,14 @@ Flight number format: {Airline IATA (2 letters)}{1-4 digit number}
 Route name format: {Origin IATA}-{Destination IATA}
   e.g. NBO-JFK
 
-Numeric part uses a per-route series base; each new schedule on that route
-increments by 2 (odd numbers for outbound legs, per common practice).
-Flight Schedule document name is the flight number (e.g. KQ100).
+Each route has a series base (e.g. 103 → KQ103). The same flight number may run on
+many dates; document name is ``{flight_number}-{departure_date}`` (e.g. KQ103-2026-06-15).
+A second flight on the same route and date bumps the numeric part (+2, +4, …).
 """
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr
+from frappe.utils import cint, cstr, getdate
 
 
 def format_route_name(origin_airport: str, destination_airport: str) -> str:
@@ -48,6 +48,11 @@ def ensure_route_series_base(route_doc) -> int:
 	return base
 
 
+def schedule_document_name(flight_number: str, departure_date) -> str:
+	"""Unique Flight Schedule primary key (flight number is reused across dates)."""
+	return f"{cstr(flight_number).strip()}-{getdate(departure_date).isoformat()}"
+
+
 def generate_flight_number(
 	*,
 	airplane: str,
@@ -67,18 +72,24 @@ def generate_flight_number(
 
 	route_doc = frappe.get_cached_doc("Flight Route", route)
 	series_base = ensure_route_series_base(route_doc)
+	prefix = cstr(iata_code).strip().upper()
+	departure_date = getdate(departure_date)
 
-	filters = {"route": route}
-	if exclude_name:
-		filters["name"] = ["!=", exclude_name]
+	offset = 0
+	while True:
+		flight_num = series_base + offset * 2
+		if flight_num > 9999:
+			frappe.throw(_("Flight number exceeds the valid range (max 9999) for this route."))
 
-	existing_count = frappe.db.count("Flight Schedule", filters)
-	flight_num = series_base + existing_count * 2
+		candidate = f"{prefix}{flight_num}"
+		filters = {"flight_number": candidate, "departure_date": departure_date}
+		if exclude_name:
+			filters["name"] = ["!=", exclude_name]
 
-	if flight_num > 9999:
-		frappe.throw(_("Flight number exceeds the valid range (max 9999) for this route."))
+		if not frappe.db.exists("Flight Schedule", filters):
+			return candidate
 
-	return f"{cstr(iata_code).strip().upper()}{flight_num}"
+		offset += 1
 
 
 def assert_unique_flight_number(flight_number: str, departure_date, exclude_name: str | None = None) -> None:
@@ -88,9 +99,10 @@ def assert_unique_flight_number(flight_number: str, departure_date, exclude_name
 
 	if frappe.db.exists("Flight Schedule", filters):
 		frappe.throw(
-			_("Flight number {0} already exists on {1}.").format(
-				flight_number, frappe.format(departure_date, {"fieldtype": "Date"})
-			)
+			_(
+				"Flight {0} is already scheduled on {1}. Pick another date or use a different "
+				"flight number for a second departure the same day."
+			).format(flight_number, frappe.format(departure_date, {"fieldtype": "Date"}))
 		)
 
 

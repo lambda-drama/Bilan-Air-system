@@ -317,9 +317,6 @@ export default function PortalFareRulesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedId(rule.name)}>
-                              View details
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(rule)}>Edit</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => toggleActive(rule)}>
                               {rule.is_active ? "Deactivate" : "Activate"}
