@@ -146,6 +146,31 @@ export async function listBookingAgents(opts?: { limit?: number; offset?: number
   });
 }
 
+export async function listTicketTerms(opts?: { limit?: number; offset?: number; search?: string }) {
+  return apiRequest<PaginatedResponse<Record<string, unknown>>>(master("list_ticket_terms"), {
+    method: "POST",
+    body: JSON.stringify({
+      limit: opts?.limit ?? 100,
+      offset: opts?.offset ?? 0,
+      search: opts?.search ?? null,
+    }),
+  });
+}
+
+export async function saveTicketTerms(data: Record<string, unknown>) {
+  return apiRequest<Record<string, unknown>>(master("save_ticket_terms"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export async function deleteTicketTerms(name: string) {
+  return apiRequest<{ success: boolean; name: string }>(master("delete_ticket_terms"), {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function createBookingAgent(params: {
   email: string;
   first_name: string;

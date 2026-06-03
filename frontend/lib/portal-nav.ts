@@ -53,6 +53,7 @@ export const portalNavItems: PortalNavItem[] = [
       { href: "/portal/master/airlines", label: "Airlines", icon: Plane },
       { href: "/portal/master/routes", label: "Routes", icon: MapPin },
       { href: "/portal/master/airplanes", label: "Airplanes", icon: Plane },
+      { href: "/portal/master/ticket-terms", label: "Ticket terms", icon: FileText },
     ],
   },
   {

@@ -418,3 +418,50 @@ def create_booking_agent(email, first_name, last_name=None, phone=None, password
 		"mobile_no": user.mobile_no,
 		"roles": [r.role for r in user.roles],
 	}
+
+
+@frappe.whitelist()
+def list_ticket_terms(limit=50, offset=0, search=None):
+	or_filters = None
+	if search:
+		q = f"%{search.strip()}%"
+		or_filters = {
+			"title": ["like", q],
+			"name": ["like", q],
+		}
+	return _paginated(
+		"Ticket Terms",
+		["name", "title", "default", "terms_conditions", "modified"],
+		or_filters=or_filters,
+		limit=limit,
+		offset=offset,
+		order_by="default desc, title asc",
+	)
+
+
+@frappe.whitelist()
+def save_ticket_terms(data):
+	require_portal_staff()
+	data = _parse_data(data)
+	name = data.get("name")
+	payload = {k: v for k, v in data.items() if k != "name"}
+	if name:
+		doc = frappe.get_doc("Ticket Terms", name)
+		doc.update(payload)
+		doc.save(ignore_permissions=True)
+	else:
+		doc = frappe.get_doc({"doctype": "Ticket Terms", **payload})
+		doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def delete_ticket_terms(name):
+	require_portal_staff()
+	if not name or not frappe.db.exists("Ticket Terms", name):
+		frappe.throw(_("Ticket terms not found"))
+	doc = frappe.get_doc("Ticket Terms", name)
+	doc.delete(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": name}
