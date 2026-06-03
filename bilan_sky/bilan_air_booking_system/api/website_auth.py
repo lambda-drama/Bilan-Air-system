@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import cint, getdate
 from frappe.utils.password import update_password
 
+from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_portal_access
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import (
 	WEBSITE_CUSTOMER_ROLE,
 	create_or_get_user,
@@ -137,6 +138,43 @@ def _enrich_booking_rows(bookings: list[dict]) -> list[dict]:
 			}
 		)
 	return rows
+
+
+@frappe.whitelist()
+def get_session_user_profile():
+	"""Current user profile and roles for the website / agent portal (no Has Role API access needed)."""
+	user_name = _require_logged_in_user()
+	user = frappe.db.get_value(
+		"User",
+		user_name,
+		[
+			"name",
+			"full_name",
+			"email",
+			"user_image",
+			"first_name",
+			"last_name",
+			"phone",
+			"mobile_no",
+		],
+		as_dict=True,
+	)
+	if not user:
+		frappe.throw(_("User not found."), frappe.PermissionError)
+
+	roles = list(frappe.get_roles(user_name))
+	return {
+		"name": user.name,
+		"full_name": user.full_name or user.name,
+		"email": user.email or "",
+		"user_image": user.user_image,
+		"first_name": user.first_name or "",
+		"last_name": user.last_name or "",
+		"phone": user.phone or "",
+		"mobile_no": user.mobile_no or "",
+		"roles": roles,
+		"has_portal_access": user_has_portal_access(user_name),
+	}
 
 
 @frappe.whitelist(allow_guest=True)
