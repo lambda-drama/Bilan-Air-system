@@ -300,13 +300,20 @@ export default function PortalFlightsPage() {
       if (form.base_fare_override) {
         payload.base_fare_override = parseFloat(form.base_fare_override);
       }
-      const created = await saveSchedule(payload);
+      const created = await saveSchedule(payload, { submit: true });
       const seats = Number(created.seats_created ?? 0);
+      const published = created.submitted !== false;
       if (seats > 0) {
-        toast.success(`Flight schedule created with ${seats} seats`);
+        toast.success(
+          published
+            ? `Flight schedule published with ${seats} seats`
+            : `Schedule saved (draft) with ${seats} seats`,
+        );
       } else {
         toast.warning(
-          "Schedule saved but no seats were created. Check the airplane seat configuration.",
+          published
+            ? "Schedule published but no seats were created. Check the airplane seat configuration."
+            : "Schedule saved but no seats were created. Check the airplane seat configuration.",
         );
       }
       setAddOpen(false);
