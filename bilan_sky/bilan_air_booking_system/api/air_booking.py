@@ -6,7 +6,7 @@ from frappe.utils import add_to_date, get_datetime, now, strip_html
 from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
     prepare_seat_for_new_booking,
 )
-from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata
+from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label, get_airport_iata
 
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
@@ -282,6 +282,8 @@ def _serialize_booking_details(booking):
 			"destination": route.destination_airport,
 			"origin_code": origin_iata,
 			"destination_code": dest_iata,
+			"origin_label": airport_display_label(route.origin_airport),
+			"destination_label": airport_display_label(route.destination_airport),
 			"departure_date": str(flight.departure_date),
 			"departure_time": flight.departure_time,
 			"arrival_date": str(flight.arrival_date),
@@ -313,6 +315,8 @@ def _boarding_passes_for_booking(booking):
 			"flight_number": flight.flight_number,
 			"origin_code": origin_iata,
 			"destination_code": dest_iata,
+			"origin_label": airport_display_label(route.origin_airport),
+			"destination_label": airport_display_label(route.destination_airport),
 			"departure_date": str(flight.departure_date),
 			"departure_time": flight.departure_time,
 			"boarding_time": str(boarding_time)[11:16] if boarding_time else flight.departure_time,

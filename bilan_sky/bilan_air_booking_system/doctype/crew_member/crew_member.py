@@ -16,6 +16,8 @@ class CrewMember(Document):
 			frappe.throw(_("Email is required to create a login user for this crew member."))
 
 	def after_insert(self):
+		if frappe.flags.get("skip_crew_user_creation"):
+			return
 		if not self.user:
 			self._create_and_link_user()
 

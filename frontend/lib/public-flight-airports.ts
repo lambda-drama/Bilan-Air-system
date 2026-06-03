@@ -1,3 +1,4 @@
+import { formatAirportDisplay } from "@/lib/format-airport";
 import type { AvailableRoute } from "@/services/search";
 
 export interface AirportOption {
@@ -50,7 +51,7 @@ export function destinationsForOrigin(
 export function airportsToSelectOptions(airports: AirportOption[]) {
   return airports.map((airport) => ({
     value: airport.code,
-    label: `${airport.city} (${airport.code})`,
+    label: formatAirportDisplay({ city: airport.city, iata: airport.code }),
     description: airport.code,
   }));
 }

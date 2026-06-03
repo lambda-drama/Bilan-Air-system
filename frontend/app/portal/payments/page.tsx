@@ -139,16 +139,10 @@ export default function PortalPaymentsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setSelectedId(b.name)}>
-                            View details
-                          </DropdownMenuItem>
                           {b.payment_status === "Pending" && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
-                                Confirm payment
-                              </DropdownMenuItem>
-                            </>
+                            <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
+                              Confirm payment
+                            </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>

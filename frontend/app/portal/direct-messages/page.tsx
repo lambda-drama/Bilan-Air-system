@@ -72,17 +72,13 @@ export default function DirectMessagesPage() {
     [statusFilter],
   );
   const { search, setSearch, rows, loading, error, refresh } =
-    useLiveListQuery<DirectMessageRow>(fetchMessages);
+    useLiveListQuery<DirectMessageRow>(fetchMessages, { reloadKey: statusFilter });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DirectMessageRow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    refresh();
-  }, [statusFilter, refresh]);
 
   useEffect(() => {
     if (!selectedId) {

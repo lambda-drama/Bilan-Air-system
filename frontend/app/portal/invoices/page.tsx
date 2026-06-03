@@ -143,9 +143,6 @@ export default function PortalInvoicesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedId(inv.name)}>
-                              View details
-                            </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href="/portal/bookings">View bookings</Link>
                             </DropdownMenuItem>

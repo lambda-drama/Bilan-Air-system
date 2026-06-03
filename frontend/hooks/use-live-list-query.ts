@@ -5,8 +5,19 @@ import { useDebouncedValue } from "./use-debounced-value";
 
 type ListFetcher<T> = (search: string) => Promise<T[]>;
 
+type UseLiveListQueryOptions = {
+  debounceMs?: number;
+  /** When this value changes, the list refetches (e.g. status filter). */
+  reloadKey?: string | number;
+};
+
 /** Live search: debounced API fetch; clearing the field reloads the full list immediately. */
-export function useLiveListQuery<T>(fetcher: ListFetcher<T>, debounceMs = 300) {
+export function useLiveListQuery<T>(
+  fetcher: ListFetcher<T>,
+  options: UseLiveListQueryOptions = {},
+) {
+  const debounceMs = options.debounceMs ?? 300;
+  const reloadKey = options.reloadKey ?? "";
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +26,7 @@ export function useLiveListQuery<T>(fetcher: ListFetcher<T>, debounceMs = 300) {
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  const refresh = useCallback(async (query: string) => {
+  const runFetch = useCallback(async (query: string) => {
     setLoading(true);
     setError("");
     try {
@@ -30,8 +41,12 @@ export function useLiveListQuery<T>(fetcher: ListFetcher<T>, debounceMs = 300) {
   }, []);
 
   useEffect(() => {
-    refresh(debouncedSearch);
-  }, [debouncedSearch, refresh]);
+    runFetch(debouncedSearch);
+  }, [debouncedSearch, reloadKey, runFetch]);
+
+  const refresh = useCallback(() => {
+    return runFetch(debouncedSearch);
+  }, [debouncedSearch, runFetch]);
 
   return {
     search,
@@ -40,6 +55,6 @@ export function useLiveListQuery<T>(fetcher: ListFetcher<T>, debounceMs = 300) {
     setRows,
     loading,
     error,
-    refresh: () => refresh(debouncedSearch),
+    refresh,
   };
 }

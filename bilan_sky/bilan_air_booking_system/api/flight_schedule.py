@@ -3,7 +3,11 @@
 import frappe
 from frappe.utils import nowdate
 
-from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata, resolve_airport_name
+from bilan_sky.bilan_air_booking_system.utils.airports import (
+    airport_display_label,
+    get_airport_iata,
+    resolve_airport_name,
+)
 
 @frappe.whitelist(allow_guest=True)
 def search_available_flights(origin, destination, date, passengers=1):
@@ -55,6 +59,7 @@ def search_available_flights(origin, destination, date, passengers=1):
                 "arrival_date",
                 "arrival_time",
                 "airplane",
+                "base_fares_override",
                 "base_fare_override",
             ],
             ignore_permissions=True,
@@ -67,29 +72,11 @@ def search_available_flights(origin, destination, date, passengers=1):
             })
             
             if available >= int(passengers):
-                base_fare = schedule.base_fare_override or route.base_fare
-                
-                from frappe.utils import date_diff
-                days_before = date_diff(schedule.departure_date, nowdate())
-                
-                fare_rule = frappe.get_all(
-                    "Fare Rule",
-                    filters={
-                        "route": route.name,
-                        "days_before_departure": [">=", days_before],
-                        "is_active": 1,
-                    },
-                    order_by="days_before_departure asc",
-                    limit=1,
-                    ignore_permissions=True,
+                from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+                    economy_price_for_passenger,
                 )
-                
-                price_multiplier = 1.0
-                if fare_rule:
-                    rule = frappe.get_doc("Fare Rule", fare_rule[0].name)
-                    price_multiplier = 1 + (rule.price_increase_percentage / 100)
-                
-                economy_price = base_fare * price_multiplier
+
+                economy_price = economy_price_for_passenger(schedule, route, "Adult")
                 
                 flights.append({
                     "schedule_id": schedule.name,
@@ -144,8 +131,8 @@ def fetch_flight_details(schedule_id):
     
     return {
         "flight_number": schedule.flight_number,
-        "origin": route.origin_airport,
-        "destination": route.destination_airport,
+        "origin": airport_display_label(route.origin_airport),
+        "destination": airport_display_label(route.destination_airport),
         "departure_date": schedule.departure_date,
         "departure_time": schedule.departure_time,
         "arrival_date": schedule.arrival_date,
@@ -179,6 +166,8 @@ def _schedule_status_row(schedule, route_cache=None):
         "destination": route.destination_airport,
         "origin_code": origin_iata,
         "destination_code": dest_iata,
+        "origin_label": airport_display_label(route.origin_airport),
+        "destination_label": airport_display_label(route.destination_airport),
         "departure_date": str(row.departure_date),
         "departure_time": row.departure_time,
         "arrival_date": str(row.arrival_date),

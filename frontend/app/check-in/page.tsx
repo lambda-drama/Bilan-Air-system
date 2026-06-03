@@ -23,6 +23,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { useAuth } from "@/contexts/auth-context";
 import { useLocale } from "@/contexts/locale-context";
 import { formatClock, getCheckInPageContent } from "@/lib/content/check-in-page";
+import { formatFlightRouteLabel } from "@/lib/format-airport";
 import {
   lookupBookingForCheckin,
   selfCheckInAll,
@@ -258,8 +259,13 @@ function CheckInContent() {
                     <div>
                       <p className="text-gold font-semibold">{booking.flight.flight_number}</p>
                       <p className="text-navy/60 text-sm">
-                        {booking.flight.origin_code || booking.flight.origin} →{" "}
-                        {booking.flight.destination_code || booking.flight.destination}
+                        {formatFlightRouteLabel({
+                          origin_code: booking.flight.origin_code || booking.flight.origin,
+                          destination_code:
+                            booking.flight.destination_code || booking.flight.destination,
+                          origin_label: booking.flight.origin_label,
+                          destination_label: booking.flight.destination_label,
+                        })}
                       </p>
                       <p className="text-navy/60 text-sm">
                         {booking.flight.departure_date} ·{" "}

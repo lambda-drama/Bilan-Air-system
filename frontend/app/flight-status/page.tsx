@@ -25,6 +25,7 @@ import {
   listFlightStatus,
   type FlightStatusRow,
 } from "@/services/flightStatus";
+import { endpointLabel, formatFlightRouteLabel } from "@/lib/format-airport";
 import { cn } from "@/lib/utils";
 
 type SearchTab = "flight" | "route" | "booking";
@@ -383,7 +384,7 @@ export default function FlightStatusPage() {
                           >
                             <td className="px-4 py-4 font-semibold">{flight.flight_number}</td>
                             <td className="px-4 py-4">
-                              {flight.origin_code} → {flight.destination_code}
+                              {formatFlightRouteLabel(flight)}
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center gap-1.5">
@@ -453,7 +454,7 @@ export default function FlightStatusPage() {
                 <Plane className="w-5 h-5 text-gold" />
                 <span className="font-bold">{selected.flight_number}</span>
                 <span className="text-cream/60 text-sm">
-                  {selected.origin_code} → {selected.destination_code}
+                  {formatFlightRouteLabel(selected)}
                 </span>
               </div>
               <button
@@ -473,14 +474,18 @@ export default function FlightStatusPage() {
                     {copy.detail.departure}
                   </h4>
                   <p className="font-bold text-lg">{formatClock(selected.departure_time)}</p>
-                  <p className="text-sm text-navy/60">{selected.origin_code}</p>
+                  <p className="text-sm text-navy/60">
+                    {endpointLabel(selected.origin_code, selected.origin_label)}
+                  </p>
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-navy/50 mb-2">
                     {copy.detail.arrival}
                   </h4>
                   <p className="font-bold text-lg">{formatClock(selected.arrival_time)}</p>
-                  <p className="text-sm text-navy/60">{selected.destination_code}</p>
+                  <p className="text-sm text-navy/60">
+                    {endpointLabel(selected.destination_code, selected.destination_label)}
+                  </p>
                 </div>
               </div>
 
@@ -515,9 +520,9 @@ export default function FlightStatusPage() {
                   />
                 </div>
                 <div className="flex justify-between mt-2 text-xs text-navy/50">
-                  <span>{selected.origin_code}</span>
+                  <span>{endpointLabel(selected.origin_code, selected.origin_label)}</span>
                   <span className="text-lg">✈</span>
-                  <span>{selected.destination_code}</span>
+                  <span>{endpointLabel(selected.destination_code, selected.destination_label)}</span>
                 </div>
               </div>
             </div>

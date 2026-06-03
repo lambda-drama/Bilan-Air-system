@@ -318,7 +318,21 @@ function update_passenger_fare(frm, row) {
                         args: { doctype: 'Flight Route', name: flight.route },
                         callback: function(route_res) {
                             var route = route_res.message;
-                            var base_fare = flight.base_fare_override || route.base_fare;
+                            var ptype = (row.passenger_type || 'Adult').toLowerCase();
+                            var fares = route.base_fares || {};
+                            if (typeof fares === 'string') {
+                                try { fares = JSON.parse(fares); } catch (e) { fares = {}; }
+                            }
+                            var override = flight.base_fares_override;
+                            if (typeof override === 'string' && override) {
+                                try { override = JSON.parse(override); } catch (e) { override = null; }
+                            }
+                            if (!override && flight.base_fare_override) {
+                                override = { adult: flight.base_fare_override };
+                            }
+                            var base_fare = (override && override[ptype] != null)
+                                ? override[ptype]
+                                : (fares[ptype] != null ? fares[ptype] : route.base_fare);
                             
                             frappe.call({
                                 method: 'frappe.client.get',

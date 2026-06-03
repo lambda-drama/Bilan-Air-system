@@ -20,6 +20,7 @@ import {
   ROUTES,
   getAboutPageContent,
 } from "@/lib/content/about-page";
+import { formatAirportDisplay } from "@/lib/format-airport";
 import { fetchAllRoutes } from "@/services/search";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +65,7 @@ function RouteMapVisual() {
               textAnchor="middle"
               className="fill-cream text-[3px] font-semibold"
             >
-              {city.code}
+              {formatAirportDisplay({ city: city.name, iata: city.code })}
             </text>
           </g>
         ))}
@@ -75,7 +76,7 @@ function RouteMapVisual() {
             key={city.code}
             className="rounded-full border border-cream/15 bg-navy/60 px-2 py-1 text-[10px] text-cream/80"
           >
-            {city.code} {city.name}
+            {formatAirportDisplay({ city: city.name, iata: city.code })}
           </span>
         ))}
       </div>
@@ -176,11 +177,12 @@ export default function AboutPage() {
                 className="flex shrink-0 items-center gap-3 rounded-full border border-gold/30 bg-navy-light/40 px-6 py-3"
               >
                 <Plane className="h-4 w-4 text-gold shrink-0" />
-                <span className="text-cream font-semibold">{route.from}</span>
+                <span className="text-cream font-semibold">
+                  {formatAirportDisplay({ city: route.fromCity, iata: route.from })}
+                </span>
                 <ArrowRight className={cn("h-4 w-4 text-gold/70", isRtl && "rotate-180")} />
-                <span className="text-cream font-semibold">{route.to}</span>
-                <span className="text-cream/50 text-sm hidden sm:inline">
-                  {route.fromCity} → {route.toCity}
+                <span className="text-cream font-semibold">
+                  {formatAirportDisplay({ city: route.toCity, iata: route.to })}
                 </span>
               </div>
             ))}
@@ -229,7 +231,8 @@ export default function AboutPage() {
                     key={`${route.from}-${route.to}`}
                     className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-cream"
                   >
-                    {route.from} → {route.to}
+                    {formatAirportDisplay({ city: route.fromCity, iata: route.from })} →{" "}
+                    {formatAirportDisplay({ city: route.toCity, iata: route.to })}
                   </span>
                 ))}
               </div>

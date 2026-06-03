@@ -237,28 +237,13 @@ class SeatInventory(Document):
         seat_class = frappe.get_doc("Seat Class", self.seat_class)
         class_multiplier = seat_class.price_multiplier
         
-        # Get base fare (use override if exists)
-        base_fare = flight.base_fare_override or route.base_fare
-        
-        # Apply fare rule based on days before departure
-        days_before = date_diff(flight.departure_date, getdate(booking_date))
-        
-        fare_rule = frappe.get_all("Fare Rule",
-            filters={
-                "route": flight.route,
-                "days_before_departure": [">=", days_before],
-                "is_active": 1,
-            },
-            order_by="days_before_departure asc",
-            limit=1
+        from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+            base_fare_for_passenger,
+            fare_rule_multiplier,
         )
-        
-        fare_multiplier = 1.0
-        if fare_rule:
-            rule = frappe.get_doc("Fare Rule", fare_rule[0].name)
-            fare_multiplier = 1 + (rule.price_increase_percentage / 100)
-        
-        # Calculate final price
+
+        base_fare = base_fare_for_passenger(flight, route, "Adult")
+        fare_multiplier = fare_rule_multiplier(flight.route, flight.departure_date)
         price = base_fare * class_multiplier * fare_multiplier
         
         return round(price, 2)

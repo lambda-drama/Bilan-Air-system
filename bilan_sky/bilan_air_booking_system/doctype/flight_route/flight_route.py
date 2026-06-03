@@ -15,6 +15,14 @@ class FlightRoute(Document):
 		self._set_route_name()
 		if not self.flight_series_base:
 			self.flight_series_base = get_next_flight_series_base()
+		self._sync_base_fares()
+
+	def _sync_base_fares(self):
+		from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_base_fares
+
+		fares = normalize_base_fares(self.base_fares, legacy_adult=self.base_fare)
+		self.base_fares = fares
+		self.base_fare = fares["adult"]
 
 	def autoname(self):
 		self._set_route_name()

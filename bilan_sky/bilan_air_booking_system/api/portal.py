@@ -4,6 +4,10 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, cint, now
 
+from bilan_sky.bilan_air_booking_system.utils.airports import (
+	enrich_route_airport_labels,
+	format_route_label,
+)
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
 
@@ -36,7 +40,7 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 			"name": ["like", f"%{search}%"],
 		}
 
-	return _paginated(
+	result = _paginated(
 		"Flight Schedule",
 		[
 			"name",
@@ -54,6 +58,53 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 		limit=limit,
 		offset=offset,
 	)
+	route_names = {row["route"] for row in result["data"] if row.get("route")}
+	route_labels = {}
+	if route_names:
+		for route_row in frappe.get_all(
+			"Flight Route",
+			filters={"name": ["in", list(route_names)]},
+			fields=["name", "origin_airport", "destination_airport"],
+		):
+			route_labels[route_row.name] = format_route_label(
+				route_row.origin_airport, route_row.destination_airport
+			)
+	for row in result["data"]:
+		row["route_label"] = route_labels.get(row.get("route")) or row.get("route")
+	return result
+
+
+@frappe.whitelist()
+def get_flight_schedule(schedule_name):
+	"""Full schedule fields for portal amend/edit dialogs."""
+	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+		normalize_base_fares,
+		resolve_base_fares,
+	)
+
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	route = frappe.get_doc("Flight Route", doc.route, ignore_permissions=True)
+	route_fares = normalize_base_fares(route.base_fares, legacy_adult=route.base_fare)
+	effective_fares = resolve_base_fares(doc, route)
+	return {
+		"name": doc.name,
+		"flight_number": doc.flight_number,
+		"route": doc.route,
+		"airplane": doc.airplane,
+		"departure_date": str(doc.departure_date) if doc.departure_date else None,
+		"departure_time": doc.departure_time,
+		"arrival_date": str(doc.arrival_date) if doc.arrival_date else None,
+		"arrival_time": doc.arrival_time,
+		"status": doc.status,
+		"captain": doc.captain,
+		"first_officer": doc.first_officer or "",
+		"route_base_fares": route_fares,
+		"base_fares": effective_fares,
+		"base_fares_override": doc.base_fares_override,
+		"base_fare_override": doc.base_fare_override,
+		"docstatus": doc.docstatus,
+	}
 
 
 @frappe.whitelist()
@@ -65,12 +116,30 @@ def save_flight_schedule(data, submit=1):
 
 		data = json.loads(data)
 
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Schedule", name)
-		doc.update({k: v for k, v in data.items() if k != "name"})
+		updates = {k: v for k, v in data.items() if k != "name"}
+		if "base_fares_override" in updates:
+			apply_schedule_fare_override(doc, updates.pop("base_fares_override"))
+		elif "base_fare_override" in updates:
+			raw = updates.pop("base_fare_override")
+			apply_schedule_fare_override(
+				doc,
+				{"adult": raw} if raw not in (None, "") else None,
+			)
+		doc.update(updates)
 	else:
-		doc = frappe.get_doc({"doctype": "Flight Schedule", **data})
+		create_data = {k: v for k, v in data.items() if k != "name"}
+		override = create_data.pop("base_fares_override", None)
+		legacy_override = create_data.pop("base_fare_override", None)
+		doc = frappe.get_doc({"doctype": "Flight Schedule", **create_data})
+		if override is not None:
+			apply_schedule_fare_override(doc, override)
+		elif legacy_override not in (None, ""):
+			apply_schedule_fare_override(doc, {"adult": legacy_override})
 
 	doc.save()
 	seats_created = doc.generate_seat_inventory()
@@ -82,6 +151,125 @@ def save_flight_schedule(data, submit=1):
 
 	frappe.db.commit()
 	result = doc.as_dict()
+	result["seats_created"] = seats_created
+	result["submitted"] = submitted
+	return result
+
+
+def _schedule_active_booking_count(schedule_name):
+	return frappe.db.count(
+		"Air Booking",
+		{
+			"flight_schedule": schedule_name,
+			"booking_status": ["not in", ["Cancelled", "Refunded"]],
+			"docstatus": ["<", 2],
+		},
+	)
+
+
+@frappe.whitelist()
+def cancel_flight_schedule(schedule_name, cancel_reason=None):
+	"""Cancel a flight schedule (Frappe cancel + status Cancelled)."""
+	require_portal_staff()
+	reason = (cancel_reason or "").strip()
+	if not reason:
+		frappe.throw(_("A cancellation reason is required."))
+
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	doc.check_permission("cancel")
+
+	if doc.status == "Cancelled" and doc.docstatus == 2:
+		frappe.throw(_("This flight schedule is already cancelled."))
+
+	if doc.status in ("Departed", "Arrived"):
+		frappe.throw(_("Cannot cancel a flight that has already departed or arrived."))
+
+	active = _schedule_active_booking_count(schedule_name)
+	if active:
+		frappe.throw(
+			_(
+				"Cannot cancel: {0} active booking(s) are linked to this schedule. Cancel those bookings first."
+			).format(active)
+		)
+
+	if doc.docstatus == 1:
+		doc.cancel()
+		frappe.db.set_value(
+			"Flight Schedule",
+			schedule_name,
+			"status",
+			"Cancelled",
+			update_modified=True,
+		)
+	elif doc.docstatus == 0:
+		doc.status = "Cancelled"
+		doc.save()
+	else:
+		frappe.throw(_("This flight schedule cannot be cancelled."))
+
+	frappe.db.commit()
+	return {
+		"name": schedule_name,
+		"status": "Cancelled",
+		"docstatus": frappe.db.get_value("Flight Schedule", schedule_name, "docstatus"),
+		"cancel_reason": reason,
+	}
+
+
+@frappe.whitelist()
+def amend_flight_schedule(schedule_name, data, submit=1):
+	"""Create a new submitted schedule amended from a cancelled one."""
+	require_portal_staff()
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+
+	cancelled = frappe.get_doc("Flight Schedule", schedule_name)
+	cancelled.check_permission("read")
+
+	if cancelled.status != "Cancelled":
+		frappe.throw(_("Only cancelled flight schedules can be amended."))
+	if cancelled.docstatus == 1:
+		frappe.throw(_("Cancel the flight schedule before amending it."))
+
+	amended = frappe.copy_doc(cancelled)
+	amended.docstatus = 0
+	amended.amended_from = cancelled.name
+	amended.status = "Scheduled"
+	amended.name = None
+	amended.flight_number = None
+
+	allowed = {
+		"route",
+		"airplane",
+		"departure_date",
+		"departure_time",
+		"arrival_date",
+		"arrival_time",
+		"captain",
+		"first_officer",
+		"base_fare_override",
+		"base_fares_override",
+	}
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+
+	for key, value in data.items():
+		if key == "base_fares_override":
+			apply_schedule_fare_override(amended, value)
+		elif key in allowed and value not in (None, ""):
+			amended.set(key, value)
+
+	amended.insert()
+	seats_created = amended.generate_seat_inventory()
+
+	submitted = False
+	if cint(submit) and amended.docstatus == 0:
+		amended.submit()
+		submitted = True
+
+	frappe.db.commit()
+	result = amended.as_dict()
 	result["seats_created"] = seats_created
 	result["submitted"] = submitted
 	return result
@@ -249,11 +437,11 @@ def save_flight_route(data):
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Route", name)
-		doc.update(data)
+		doc.update({k: v for k, v in data.items() if k != "name"})
+		doc.save(ignore_permissions=True)
 	else:
-		doc = frappe.get_doc({"doctype": "Flight Route", **data})
-
-	doc.save()
+		doc = frappe.get_doc({"doctype": "Flight Route", **{k: v for k, v in data.items() if k != "name"}})
+		doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -308,6 +496,7 @@ def list_fare_rules(limit=50, offset=0, route=None, search=None, active_only=Non
 		row["route_name"] = meta.get("route_name") or row.get("route")
 		row["origin_airport"] = meta.get("origin_airport")
 		row["destination_airport"] = meta.get("destination_airport")
+		enrich_route_airport_labels(row)
 
 	return result
 

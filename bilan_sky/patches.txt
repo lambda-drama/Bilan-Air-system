@@ -8,3 +8,5 @@ bilan_sky.patches.v1_0.fix_air_booking_baggage_link_parent_columns
 bilan_sky.patches.v1_0.migrate_seat_status_reserved_to_hold
 bilan_sky.patches.v1_0.backfill_air_booking_passenger_name
 bilan_sky.patches.v1_0.backfill_schedule_seat_inventory
+bilan_sky.patches.v1_0.migrate_base_fares_json
+bilan_sky.patches.v1_0.rename_flight_schedule_ids

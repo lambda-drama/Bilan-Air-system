@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { listPassengers, registerPassenger, type PassengerRecord } from "@/services/passenger";
 import { ListSearch } from "@/components/portal/list-search";
@@ -18,7 +17,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
-import { ListRowActions } from "@/components/portal/list-row-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,12 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 
 const PASSENGER_TYPE_OPTIONS = [
@@ -149,13 +141,12 @@ export default function PortalPassengersPage() {
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   {search.trim() ? "No passengers match your search." : "No passengers yet."}
                 </TableCell>
               </TableRow>
@@ -174,22 +165,6 @@ export default function PortalPassengersPage() {
                 <TableCell>{p.phone_number}</TableCell>
                 <TableCell>{p.email}</TableCell>
                 <TableCell>{p.passenger_type}</TableCell>
-                <TableCell className="text-right">
-                  <ListRowActions doctype="Passenger" docName={p.name}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSelectedId(p.name)}>
-                          View details
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </ListRowActions>
-                </TableCell>
               </TableRow>
             )))}
           </TableBody>

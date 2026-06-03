@@ -14,6 +14,7 @@ export interface FlightScheduleRow {
   name: string;
   flight_number: string;
   route: string;
+  route_label?: string;
   airplane: string;
   departure_date: string;
   departure_time: string;
@@ -33,6 +34,30 @@ export async function fetchFlightDetails(schedule_id: string) {
   return apiRequest(methodUrl("flight_schedule", "fetch_flight_details"), {
     method: "POST",
     body: JSON.stringify({ schedule_id }),
+  });
+}
+
+export async function getFlightSchedule(schedule_name: string) {
+  return apiRequest<{
+    name: string;
+    flight_number: string;
+    route: string;
+    airplane: string;
+    departure_date: string;
+    departure_time: string;
+    arrival_date: string;
+    arrival_time: string;
+    status: string;
+    captain: string;
+    first_officer: string;
+    base_fare_override?: number | null;
+    base_fares?: { adult: number; child: number; infant: number };
+    route_base_fares?: { adult: number; child: number; infant: number };
+    base_fares_override?: Partial<{ adult: number; child: number; infant: number }> | null;
+    docstatus: number;
+  }>(methodUrl("portal", "get_flight_schedule"), {
+    method: "POST",
+    body: JSON.stringify({ schedule_name }),
   });
 }
 
@@ -80,6 +105,33 @@ export async function ensureScheduleSeats(scheduleName: string) {
   }>(methodUrl("portal", "ensure_schedule_seats"), {
     method: "POST",
     body: JSON.stringify({ schedule_name: scheduleName }),
+  });
+}
+
+export async function cancelFlightSchedule(schedule_name: string, cancel_reason: string) {
+  return apiRequest<{ name: string; status: string; docstatus: number }>(
+    methodUrl("portal", "cancel_flight_schedule"),
+    {
+      method: "POST",
+      body: JSON.stringify({ schedule_name, cancel_reason: cancel_reason.trim() }),
+    },
+  );
+}
+
+export async function amendFlightSchedule(
+  schedule_name: string,
+  data: Record<string, unknown>,
+  opts?: { submit?: boolean },
+) {
+  return apiRequest<
+    Record<string, unknown> & { seats_created?: number; submitted?: boolean; name?: string }
+  >(methodUrl("portal", "amend_flight_schedule"), {
+    method: "POST",
+    body: JSON.stringify({
+      schedule_name,
+      data,
+      submit: opts?.submit !== false ? 1 : 0,
+    }),
   });
 }
 

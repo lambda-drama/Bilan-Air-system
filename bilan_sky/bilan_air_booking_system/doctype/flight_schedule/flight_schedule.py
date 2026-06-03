@@ -9,20 +9,24 @@ from frappe.utils import add_to_date, cint, cstr, get_datetime
 from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 	assert_unique_flight_number,
 	generate_flight_number,
+	schedule_document_name,
 )
 
 
 class FlightSchedule(Document):
     def autoname(self):
         self._ensure_flight_number()
-        self.name = self.flight_number
+        if self.flight_number and self.departure_date:
+            self.name = schedule_document_name(self.flight_number, self.departure_date)
 
     def validate(self):
         self._ensure_flight_number()
-        if self.name != self.flight_number:
-            self.flight_number = self.name
         if self.flight_number and self.departure_date:
             assert_unique_flight_number(self.flight_number, self.departure_date, self.name)
+            expected_name = schedule_document_name(self.flight_number, self.departure_date)
+            if not self.is_new() and self.name != expected_name:
+                frappe.rename_doc(self.doctype, self.name, expected_name, force=True)
+                self.name = expected_name
 
     def after_insert(self):
         self._ensure_seat_inventory()
