@@ -57,9 +57,9 @@ export async function getLoggedUser(): Promise<string | null> {
   }
 }
 
-export async function getCurrentUserProfile(): Promise<FrappeUser> {
-  const username = await getLoggedUser();
-  if (!username) throw new Error("Not logged in");
+export async function getCurrentUserProfile(username?: string): Promise<FrappeUser> {
+  const resolved = username ?? (await getLoggedUser());
+  if (!resolved) throw new Error("Not logged in");
 
   await ensureCSRF();
   const profile = await apiRequest<{
@@ -78,7 +78,7 @@ export async function getCurrentUserProfile(): Promise<FrappeUser> {
   });
 
   return {
-    name: profile.name,
+    name: profile.name || resolved,
     full_name: profile.full_name || profile.name,
     email: profile.email || "",
     user_image: profile.user_image,

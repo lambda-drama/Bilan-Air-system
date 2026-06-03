@@ -5,11 +5,16 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
 import * as authService from "@/services/auth";
 import type { FrappeUser } from "@/services/auth";
+import {
+  readCachedPortalUser,
+  writeCachedPortalUser,
+} from "@/lib/portal-auth-cache";
 
 interface AuthContextValue {
   user: FrappeUser | null;
@@ -29,18 +34,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const checkSession = useCallback(async () => {
-    setIsLoading(true);
+    const cached = readCachedPortalUser();
+    if (cached) {
+      setUser(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const logged = await authService.getLoggedUser();
       if (!logged) {
         setUser(null);
+        writeCachedPortalUser(null);
         return;
       }
-      const profile = await authService.getCurrentUserProfile();
+      const profile = await authService.getCurrentUserProfile(logged);
       setUser(profile);
+      writeCachedPortalUser(profile);
     } catch {
       setUser(null);
+      writeCachedPortalUser(null);
     } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const cached = readCachedPortalUser();
+    if (cached) {
+      setUser(cached);
       setIsLoading(false);
     }
   }, []);
@@ -52,19 +75,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const profile = await authService.login(email, password);
     setUser(profile);
+    writeCachedPortalUser(profile);
+    setIsLoading(false);
   };
 
   const logout = async () => {
     await authService.logout();
     setUser(null);
+    writeCachedPortalUser(null);
   };
 
   const refreshUser = useCallback(async () => {
     try {
-      const profile = await authService.getCurrentUserProfile();
+      const logged = await authService.getLoggedUser();
+      if (!logged) {
+        setUser(null);
+        writeCachedPortalUser(null);
+        return;
+      }
+      const profile = await authService.getCurrentUserProfile(logged);
       setUser(profile);
+      writeCachedPortalUser(profile);
     } catch {
       setUser(null);
+      writeCachedPortalUser(null);
     }
   }, []);
 

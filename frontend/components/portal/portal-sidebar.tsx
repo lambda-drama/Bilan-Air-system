@@ -11,6 +11,12 @@ import {
   portalNavItems,
   type PortalNavGroup,
 } from "@/lib/portal-nav";
+import { signalPortalNavStart } from "@/lib/portal-navigation";
+
+function onPortalNavClick(onNavigate?: () => void) {
+  signalPortalNavStart();
+  onNavigate?.();
+}
 
 export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -66,7 +72,8 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={onNavigate}
+                  prefetch={false}
+                  onClick={() => onPortalNavClick(onNavigate)}
                   className={linkClass(active)}
                 >
                   <item.icon className="h-4 w-4 shrink-0 opacity-80" />
@@ -83,7 +90,12 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-navy-light px-4">
-        <Link href="/portal" className="flex items-center gap-2" onClick={onNavigate}>
+        <Link
+          href="/portal"
+          prefetch={false}
+          className="flex items-center gap-2"
+          onClick={() => onPortalNavClick(onNavigate)}
+        >
           <Plane className="h-8 w-8 text-gold" />
           <span className="font-serif text-xl font-bold text-cream">Bilan Air</span>
         </Link>
@@ -95,7 +107,8 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Link
               key={item.href}
               href={item.href}
-              onClick={onNavigate}
+              prefetch={false}
+              onClick={() => onPortalNavClick(onNavigate)}
               className={linkClass(isNavItemActive(pathname, item.href))}
             >
               <item.icon className="h-5 w-5" />
@@ -110,7 +123,8 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="shrink-0 border-t border-navy-light p-4">
         <Link
           href="/"
-          onClick={onNavigate}
+          prefetch={false}
+          onClick={() => onPortalNavClick(onNavigate)}
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-cream/70 transition-colors hover:bg-navy-light hover:text-cream"
         >
           <LogOut className="h-5 w-5" />

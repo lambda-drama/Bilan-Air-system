@@ -1,20 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { PORTAL_NAV_START_EVENT } from "@/lib/portal-navigation";
 import { cn } from "@/lib/utils";
+
+const ACTIVE_MS = 700;
 
 export function NavigationProgress() {
   const pathname = usePathname();
   const [active, setActive] = useState(false);
 
-  useEffect(() => {
+  const pulse = useCallback(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
     setActive(true);
-    const timer = window.setTimeout(() => setActive(false), 500);
+    const timer = window.setTimeout(() => setActive(false), ACTIVE_MS);
     return () => window.clearTimeout(timer);
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    let clearTimer: (() => void) | undefined;
+    const run = () => {
+      clearTimer?.();
+      clearTimer = pulse();
+    };
+    run();
+    return () => clearTimer?.();
+  }, [pathname, pulse]);
+
+  useEffect(() => {
+    const onNavStart = () => {
+      pulse();
+    };
+    window.addEventListener(PORTAL_NAV_START_EVENT, onNavStart);
+    return () => window.removeEventListener(PORTAL_NAV_START_EVENT, onNavStart);
+  }, [pulse]);
 
   if (!active) return null;
 
