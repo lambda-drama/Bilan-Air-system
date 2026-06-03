@@ -8,27 +8,12 @@ import { formatRoleLabel } from "@/lib/user-display"
 import { hasPortalAccess } from "@/lib/portal-access"
 import { AuthProvider, useAuth } from "@/contexts/auth-context"
 import {
-  Plane,
-  LayoutDashboard,
-  CalendarDays,
-  Users,
-  Ticket,
-  Settings,
-  LogOut,
   Bell,
   ChevronDown,
   Menu,
   X,
-  MapPin,
-  FileText,
-  CreditCard,
-  BarChart3,
-  ClipboardCheck,
-  Luggage,
-  MessageSquare,
-  Armchair,
-  Percent,
 } from "lucide-react"
+import { PortalSidebar } from "@/components/portal/portal-sidebar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -37,24 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-const sidebarLinks = [
-  { href: "/portal", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/portal/flights", label: "Flights", icon: Plane },
-  { href: "/portal/schedules", label: "Schedules", icon: CalendarDays },
-  { href: "/portal/seat-inventory", label: "Seat inventory", icon: Armchair },
-  { href: "/portal/bookings", label: "Bookings", icon: Ticket },
-  { href: "/portal/check-in", label: "Check-in", icon: ClipboardCheck },
-  { href: "/portal/baggage", label: "Baggage", icon: Luggage },
-  { href: "/portal/passengers", label: "Passengers", icon: Users },
-  { href: "/portal/direct-messages", label: "Direct Message", icon: MessageSquare },
-  { href: "/portal/routes", label: "Routes", icon: MapPin },
-  { href: "/portal/fare-rules", label: "Fare rules", icon: Percent },
-  { href: "/portal/invoices", label: "Invoices", icon: FileText },
-  { href: "/portal/payments", label: "Payments", icon: CreditCard },
-  { href: "/portal/reports", label: "Reports", icon: BarChart3 },
-  { href: "/portal/settings", label: "Settings", icon: Settings },
-]
 
 const AUTH_ROUTES = ["/portal/login", "/portal/forgot-password"]
 
@@ -124,52 +91,16 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="flex h-16 items-center justify-between border-b border-navy-light px-4">
-            <Link href="/portal" className="flex items-center gap-2">
-              <Plane className="h-8 w-8 text-gold" />
-              <span className="font-serif text-xl font-bold text-cream">Bilan Air</span>
-            </Link>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
-            {sidebarLinks.map((link) => {
-              const isActive = pathname === link.href
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-gold text-navy"
-                      : "text-cream/70 hover:bg-navy-light hover:text-cream"
-                  }`}
-                >
-                  <link.icon className="h-5 w-5" />
-                  {link.label}
-                </Link>
-              )
-            })}
-          </nav>
-
-          {/* Logout */}
-          <div className="border-t border-navy-light p-4">
-            <Link
-              href="/"
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-cream/70 transition-colors hover:bg-navy-light hover:text-cream"
-            >
-              <LogOut className="h-5 w-5" />
-              Back to Website
-            </Link>
-          </div>
+        <div className="relative flex h-full flex-col">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="absolute right-3 top-4 z-10 lg:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5 text-cream" />
+          </button>
+          <PortalSidebar onNavigate={() => setSidebarOpen(false)} />
         </div>
       </aside>
 

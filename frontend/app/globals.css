@@ -201,6 +201,10 @@
     @apply flex h-9 w-full items-center [&_[data-slot=select-trigger]]:h-9 [&_[data-slot=select-trigger]]:w-full [&_input]:h-9;
   }
 
+  .bilan-form-control:has(textarea) {
+    @apply h-auto min-h-0 items-stretch [&_textarea]:min-h-[6rem] [&_textarea]:h-auto;
+  }
+
   /* White cards on cream pages — keep navy text/labels readable in dark mode */
   .bilan-light-card {
     @apply bg-white text-navy border-navy/10;

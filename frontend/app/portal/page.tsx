@@ -20,9 +20,13 @@ import { getDashboardStats } from "@/services/portal"
 import { listBookings } from "@/services/portal"
 import type { AirBookingRow } from "@/services/portal"
 import { useCurrency } from "@/contexts/currency-context"
+import { useAuth } from "@/contexts/auth-context"
+import { getDisplayFirstName } from "@/lib/user-display"
 
 export default function PortalDashboard() {
+  const { user } = useAuth()
   const { formatMoney } = useCurrency()
+  const firstName = getDisplayFirstName(user)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [stats, setStats] = useState({
     total_bookings: 0,
@@ -55,7 +59,7 @@ export default function PortalDashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Welcome back, Admin
+            Welcome back, {firstName}
           </h1>
           <p className="text-muted-foreground">
             Here&apos;s what&apos;s happening with your airline today.
@@ -126,10 +130,10 @@ export default function PortalDashboard() {
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <BookingStartLink className="w-full">Office booking</BookingStartLink>
-            <Link href="/portal/schedules">
+            <Link href="/portal/flights">
               <Button variant="outline" className="w-full">
                 <Plane className="mr-2 h-4 w-4" />
-                Schedules
+                Flight schedule
               </Button>
             </Link>
             <Link href="/portal/passengers">

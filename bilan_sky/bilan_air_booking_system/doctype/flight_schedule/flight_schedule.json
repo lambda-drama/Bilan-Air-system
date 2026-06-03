@@ -188,6 +188,7 @@
    "role": "System Manager",
    "share": 1,
    "submit": 1,
+   "cancel": 1,
    "write": 1
   },
   {
@@ -200,6 +201,7 @@
    "role": "Booking Agent",
    "share": 1,
    "submit": 1,
+   "cancel": 1,
    "write": 1
   }
  ],

@@ -57,6 +57,28 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 
 
 @frappe.whitelist()
+def get_flight_schedule(schedule_name):
+	"""Full schedule fields for portal amend/edit dialogs."""
+	require_portal_staff()
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	return {
+		"name": doc.name,
+		"flight_number": doc.flight_number,
+		"route": doc.route,
+		"airplane": doc.airplane,
+		"departure_date": str(doc.departure_date) if doc.departure_date else None,
+		"departure_time": doc.departure_time,
+		"arrival_date": str(doc.arrival_date) if doc.arrival_date else None,
+		"arrival_time": doc.arrival_time,
+		"status": doc.status,
+		"captain": doc.captain,
+		"first_officer": doc.first_officer or "",
+		"base_fare_override": doc.base_fare_override,
+		"docstatus": doc.docstatus,
+	}
+
+
+@frappe.whitelist()
 def save_flight_schedule(data, submit=1):
 	"""Create or update a flight schedule. Submits by default so it is bookable on the public site."""
 	require_portal_staff()
@@ -82,6 +104,120 @@ def save_flight_schedule(data, submit=1):
 
 	frappe.db.commit()
 	result = doc.as_dict()
+	result["seats_created"] = seats_created
+	result["submitted"] = submitted
+	return result
+
+
+def _schedule_active_booking_count(schedule_name):
+	return frappe.db.count(
+		"Air Booking",
+		{
+			"flight_schedule": schedule_name,
+			"booking_status": ["not in", ["Cancelled", "Refunded"]],
+			"docstatus": ["<", 2],
+		},
+	)
+
+
+@frappe.whitelist()
+def cancel_flight_schedule(schedule_name, cancel_reason=None):
+	"""Cancel a flight schedule (Frappe cancel + status Cancelled)."""
+	require_portal_staff()
+	reason = (cancel_reason or "").strip()
+	if not reason:
+		frappe.throw(_("A cancellation reason is required."))
+
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	doc.check_permission("cancel")
+
+	if doc.status == "Cancelled" and doc.docstatus == 2:
+		frappe.throw(_("This flight schedule is already cancelled."))
+
+	if doc.status in ("Departed", "Arrived"):
+		frappe.throw(_("Cannot cancel a flight that has already departed or arrived."))
+
+	active = _schedule_active_booking_count(schedule_name)
+	if active:
+		frappe.throw(
+			_(
+				"Cannot cancel: {0} active booking(s) are linked to this schedule. Cancel those bookings first."
+			).format(active)
+		)
+
+	if doc.docstatus == 1:
+		doc.cancel()
+		frappe.db.set_value(
+			"Flight Schedule",
+			schedule_name,
+			"status",
+			"Cancelled",
+			update_modified=True,
+		)
+	elif doc.docstatus == 0:
+		doc.status = "Cancelled"
+		doc.save()
+	else:
+		frappe.throw(_("This flight schedule cannot be cancelled."))
+
+	frappe.db.commit()
+	return {
+		"name": schedule_name,
+		"status": "Cancelled",
+		"docstatus": frappe.db.get_value("Flight Schedule", schedule_name, "docstatus"),
+		"cancel_reason": reason,
+	}
+
+
+@frappe.whitelist()
+def amend_flight_schedule(schedule_name, data, submit=1):
+	"""Create a new submitted schedule amended from a cancelled one."""
+	require_portal_staff()
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+
+	cancelled = frappe.get_doc("Flight Schedule", schedule_name)
+	cancelled.check_permission("read")
+
+	if cancelled.status != "Cancelled":
+		frappe.throw(_("Only cancelled flight schedules can be amended."))
+	if cancelled.docstatus == 1:
+		frappe.throw(_("Cancel the flight schedule before amending it."))
+
+	amended = frappe.copy_doc(cancelled)
+	amended.docstatus = 0
+	amended.amended_from = cancelled.name
+	amended.status = "Scheduled"
+	amended.name = None
+	amended.flight_number = None
+
+	allowed = {
+		"route",
+		"airplane",
+		"departure_date",
+		"departure_time",
+		"arrival_date",
+		"arrival_time",
+		"captain",
+		"first_officer",
+		"base_fare_override",
+	}
+	for key, value in data.items():
+		if key in allowed and value not in (None, ""):
+			amended.set(key, value)
+
+	amended.insert()
+	seats_created = amended.generate_seat_inventory()
+
+	submitted = False
+	if cint(submit) and amended.docstatus == 0:
+		amended.submit()
+		submitted = True
+
+	frappe.db.commit()
+	result = amended.as_dict()
 	result["seats_created"] = seats_created
 	result["submitted"] = submitted
 	return result
@@ -249,11 +385,11 @@ def save_flight_route(data):
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Route", name)
-		doc.update(data)
+		doc.update({k: v for k, v in data.items() if k != "name"})
+		doc.save(ignore_permissions=True)
 	else:
-		doc = frappe.get_doc({"doctype": "Flight Route", **data})
-
-	doc.save()
+		doc = frappe.get_doc({"doctype": "Flight Route", **{k: v for k, v in data.items() if k != "name"}})
+		doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return doc.as_dict()
 

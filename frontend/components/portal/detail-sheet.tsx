@@ -94,10 +94,12 @@ export function DetailRow({
   label,
   value,
   className,
+  valueClassName,
 }: {
   label: string;
   value: React.ReactNode;
   className?: string;
+  valueClassName?: string;
 }) {
   return (
     <div
@@ -107,7 +109,9 @@ export function DetailRow({
       )}
     >
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium sm:text-right">{value ?? "—"}</span>
+      <span className={cn("text-sm font-medium sm:text-right", valueClassName)}>
+        {value ?? "—"}
+      </span>
     </div>
   );
 }

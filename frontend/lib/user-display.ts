@@ -15,6 +15,20 @@ export function resolveUserImageUrl(userImage?: string | null): string | undefin
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+/** First name for greetings — never a generic placeholder like "Admin". */
+export function getDisplayFirstName(
+  user: Pick<FrappeUser, "first_name" | "full_name" | "name" | "email"> | null | undefined,
+): string {
+  if (!user) return "there";
+  const first = (user.first_name || "").trim();
+  if (first) return first;
+  const fromFull = (user.full_name || "").trim().split(/\s+/)[0];
+  if (fromFull) return fromFull;
+  const local = (user.email || user.name || "").split("@")[0]?.trim();
+  if (local) return local;
+  return "there";
+}
+
 export function formatRoleLabel(roles: string[]): string {
   if (!roles.length) return "User";
   const primary = roles.find((r) => !["All", "Guest", "Desk User"].includes(r)) || roles[0];
