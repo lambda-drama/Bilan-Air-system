@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, now
+from frappe.utils import add_to_date, cint, now
 
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
@@ -57,8 +57,8 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 
 
 @frappe.whitelist()
-def save_flight_schedule(data):
-	"""Create or update a flight schedule."""
+def save_flight_schedule(data, submit=1):
+	"""Create or update a flight schedule. Submits by default so it is bookable on the public site."""
 	require_portal_staff()
 	if isinstance(data, str):
 		import json
@@ -68,15 +68,22 @@ def save_flight_schedule(data):
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Schedule", name)
-		doc.update(data)
+		doc.update({k: v for k, v in data.items() if k != "name"})
 	else:
 		doc = frappe.get_doc({"doctype": "Flight Schedule", **data})
 
 	doc.save()
 	seats_created = doc.generate_seat_inventory()
+
+	submitted = False
+	if cint(submit) and doc.docstatus == 0:
+		doc.submit()
+		submitted = True
+
 	frappe.db.commit()
 	result = doc.as_dict()
 	result["seats_created"] = seats_created
+	result["submitted"] = submitted
 	return result
 
 
