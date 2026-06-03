@@ -7,6 +7,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	get_airport_iata,
 	resolve_airport_name,
 )
+from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_portal_access
 
 
 def _public_get_all(doctype, *args, **kwargs):
@@ -17,6 +18,34 @@ def _public_get_all(doctype, *args, **kwargs):
 
 def _normalize_departure_date(date):
 	return getdate(date)
+
+
+def _bookable_schedule_filters(route_name, departure_date):
+	"""Public site: submitted schedules only. Portal staff: draft + submitted."""
+	filters = {
+		"route": route_name,
+		"departure_date": _normalize_departure_date(departure_date),
+		"status": ["in", ["Scheduled", "Delayed"]],
+	}
+	if user_has_portal_access():
+		filters["docstatus"] = ["in", [0, 1]]
+	else:
+		filters["docstatus"] = 1
+	return filters
+
+
+def _draft_schedules_on_date(route_name, departure_date):
+	if not user_has_portal_access():
+		return 0
+	return frappe.db.count(
+		"Flight Schedule",
+		{
+			"route": route_name,
+			"departure_date": _normalize_departure_date(departure_date),
+			"status": ["in", ["Scheduled", "Delayed"]],
+			"docstatus": 0,
+		},
+	)
 
 
 def _count_available_seats(schedule_name):
@@ -53,12 +82,7 @@ def _search_error_for_route(routes, date, passengers):
 		route_name = _row_val(route, "name")
 		schedules = _public_get_all(
 			"Flight Schedule",
-			filters={
-				"route": route_name,
-				"departure_date": departure_date,
-				"status": ["in", ["Scheduled", "Delayed"]],
-				"docstatus": 1,
-			},
+			filters=_bookable_schedule_filters(route_name, departure_date),
 			fields=["name"],
 		)
 		for sched in schedules:
@@ -102,12 +126,7 @@ def _search_error_for_route(routes, date, passengers):
 def _count_schedules_on_date(route_name, departure_date):
 	return frappe.db.count(
 		"Flight Schedule",
-		{
-			"route": route_name,
-			"departure_date": _normalize_departure_date(departure_date),
-			"status": ["in", ["Scheduled", "Delayed"]],
-			"docstatus": 1,
-		},
+		_bookable_schedule_filters(route_name, departure_date),
 	)
 
 
@@ -177,12 +196,7 @@ def _find_schedules_for_routes(routes, date, passengers):
 		departure_date = _normalize_departure_date(date)
 		schedules = _public_get_all(
 			"Flight Schedule",
-			filters={
-				"route": route_name,
-				"departure_date": departure_date,
-				"status": ["in", ["Scheduled", "Delayed"]],
-				"docstatus": 1,
-			},
+			filters=_bookable_schedule_filters(route_name, departure_date),
 			fields=[
 				"name",
 				"flight_number",
@@ -270,12 +284,7 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 				route_name = _row_val(route, "name")
 				schedules = _public_get_all(
 					"Flight Schedule",
-					filters={
-						"route": route_name,
-						"departure_date": departure_date,
-						"status": ["in", ["Scheduled", "Delayed"]],
-						"docstatus": 1,
-					},
+					filters=_bookable_schedule_filters(route_name, departure_date),
 					fields=["name"],
 				)
 				for sched in schedules:
@@ -289,7 +298,16 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 		if scheduled_count > 0:
 			error = _search_error_for_route(routes, date, passengers)
 		else:
-			error = "No flights found for this route on the selected date"
+			draft_count = sum(
+				_draft_schedules_on_date(_row_val(r, "name"), date) for r in routes
+			)
+			if draft_count > 0:
+				error = (
+					f"{draft_count} flight(s) exist on this date but are still draft. "
+					"Open each Flight Schedule in Desk and click Submit, or sign in as portal staff to book drafts."
+				)
+			else:
+				error = "No flights found for this route on the selected date"
 
 		return {
 			"error": error,
@@ -395,14 +413,18 @@ def get_booking_search_defaults():
 	origin_iata = get_airport_iata(route.origin_airport) or ""
 	destination_iata = get_airport_iata(route.destination_airport) or ""
 
+	upcoming_filters = {
+		"route": route.name,
+		"departure_date": [">=", nowdate()],
+		"status": ["in", ["Scheduled", "Delayed"]],
+	}
+	if user_has_portal_access():
+		upcoming_filters["docstatus"] = ["in", [0, 1]]
+	else:
+		upcoming_filters["docstatus"] = 1
 	upcoming = _public_get_all(
 		"Flight Schedule",
-		filters={
-			"route": route.name,
-			"departure_date": [">=", nowdate()],
-			"status": ["in", ["Scheduled", "Delayed"]],
-			"docstatus": 1,
-		},
+		filters=upcoming_filters,
 		fields=["departure_date"],
 		order_by="departure_date asc",
 		limit=1,
