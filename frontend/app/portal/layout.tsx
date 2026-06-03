@@ -6,7 +6,9 @@ import { usePathname, useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/portal/user-avatar"
 import { formatRoleLabel } from "@/lib/user-display"
 import { hasPortalAccess } from "@/lib/portal-access"
-import { AuthProvider, useAuth } from "@/contexts/auth-context"
+import { useAuth } from "@/contexts/auth-context"
+import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen"
+import { signalPortalNavStart } from "@/lib/portal-navigation"
 import {
   Bell,
   ChevronDown,
@@ -26,11 +28,7 @@ import {
 const AUTH_ROUTES = ["/portal/login", "/portal/forgot-password"]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AuthProvider>
-      <PortalLayoutInner>{children}</PortalLayoutInner>
-    </AuthProvider>
-  )
+  return <PortalLayoutInner>{children}</PortalLayoutInner>
 }
 
 function PortalLayoutInner({ children }: { children: React.ReactNode }) {
@@ -69,9 +67,15 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !isAuthenticated || !portalAccess) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground">Loading portal...</p>
-      </div>
+      <PortalLoadingScreen
+        message={
+          isLoading
+            ? "Signing you in"
+            : !portalAccess
+              ? "Checking access"
+              : "Loading portal"
+        }
+      />
     )
   }
 
@@ -147,10 +151,14 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
                 <DropdownMenuItem asChild>
-                  <Link href="/portal/profile">Profile</Link>
+                  <Link href="/portal/profile" prefetch={false} onClick={signalPortalNavStart}>
+                    Profile
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/portal/settings">Settings</Link>
+                  <Link href="/portal/settings" prefetch={false} onClick={signalPortalNavStart}>
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
