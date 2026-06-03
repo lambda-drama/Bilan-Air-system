@@ -3,7 +3,11 @@
 import frappe
 from frappe.utils import nowdate
 
-from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata, resolve_airport_name
+from bilan_sky.bilan_air_booking_system.utils.airports import (
+    airport_display_label,
+    get_airport_iata,
+    resolve_airport_name,
+)
 
 @frappe.whitelist(allow_guest=True)
 def search_available_flights(origin, destination, date, passengers=1):
@@ -144,8 +148,8 @@ def fetch_flight_details(schedule_id):
     
     return {
         "flight_number": schedule.flight_number,
-        "origin": route.origin_airport,
-        "destination": route.destination_airport,
+        "origin": airport_display_label(route.origin_airport),
+        "destination": airport_display_label(route.destination_airport),
         "departure_date": schedule.departure_date,
         "departure_time": schedule.departure_time,
         "arrival_date": schedule.arrival_date,
@@ -179,6 +183,8 @@ def _schedule_status_row(schedule, route_cache=None):
         "destination": route.destination_airport,
         "origin_code": origin_iata,
         "destination_code": dest_iata,
+        "origin_label": airport_display_label(route.origin_airport),
+        "destination_label": airport_display_label(route.destination_airport),
         "departure_date": str(row.departure_date),
         "departure_time": row.departure_time,
         "arrival_date": str(row.arrival_date),

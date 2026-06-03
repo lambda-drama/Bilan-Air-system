@@ -130,7 +130,14 @@ export default function PortalFlightsPage() {
       setForm(emptyScheduleForm);
     }
   };
-  const [routes, setRoutes] = useState<{ name: string; route_name?: string }[]>([]);
+  const [routes, setRoutes] = useState<
+    {
+      name: string;
+      route_name?: string;
+      origin_airport_label?: string;
+      destination_airport_label?: string;
+    }[]
+  >([]);
   const [airplanes, setAirplanes] = useState<{ name: string; registration_number: string }[]>([]);
   const [pilotRoles, setPilotRoles] = useState<{ name: string; role_name: string }[]>([]);
   const [captains, setCaptains] = useState<CrewOption[]>([]);
@@ -395,13 +402,25 @@ export default function PortalFlightsPage() {
 
   const selectedRow = rows.find((r) => r.name === selectedId);
 
+  const routeLabelByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of routes) {
+      const endpoints =
+        r.origin_airport_label && r.destination_airport_label
+          ? `${r.origin_airport_label} → ${r.destination_airport_label}`
+          : null;
+      map.set(r.name, endpoints || r.route_name || r.name);
+    }
+    return map;
+  }, [routes]);
+
   const routeOptions = useMemo(
     () =>
       routes.map((r) => ({
         value: r.name,
-        label: r.route_name || r.name,
+        label: routeLabelByName.get(r.name) || r.route_name || r.name,
       })),
-    [routes],
+    [routes, routeLabelByName],
   );
 
   const airplaneOptions = useMemo(
@@ -583,7 +602,7 @@ export default function PortalFlightsPage() {
                         <DocLink onClick={() => setSelectedId(s.name)}>{s.name}</DocLink>
                       </TableCell>
                       <TableCell className="font-medium">{s.flight_number}</TableCell>
-                      <TableCell>{s.route}</TableCell>
+                      <TableCell>{s.route_label || routeLabelByName.get(s.route) || s.route}</TableCell>
                       <TableCell>
                         {s.departure_date} {s.departure_time}
                       </TableCell>
@@ -1101,7 +1120,10 @@ export default function PortalFlightsPage() {
           <>
             <DetailSection title="Schedule">
               <DetailRow label="ID" value={selectedRow.name} />
-              <DetailRow label="Route" value={selectedRow.route} />
+              <DetailRow
+                label="Route"
+                value={selectedRow.route_label || routeLabelByName.get(selectedRow.route) || selectedRow.route}
+              />
               <DetailRow label="Airplane" value={selectedRow.airplane} />
               <DetailRow
                 label="Departure"

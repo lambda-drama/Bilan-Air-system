@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Badge } from "@/components/ui/badge";
+import { formatRouteDisplay } from "@/lib/format-airport";
 import { cn } from "@/lib/utils";
 
 const emptyForm = {
@@ -63,7 +64,14 @@ export default function PortalFareRulesPage() {
   );
 
   const [routes, setRoutes] = useState<
-    { name: string; route_name?: string; origin_airport?: string; destination_airport?: string }[]
+    {
+      name: string;
+      route_name?: string;
+      origin_airport?: string;
+      destination_airport?: string;
+      origin_airport_label?: string;
+      destination_airport_label?: string;
+    }[]
   >([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,12 +84,43 @@ export default function PortalFareRulesPage() {
     fetchAllRoutes().then(setRoutes).catch(() => setRoutes([]));
   }, []);
 
+  const routeEndpointLabel = useCallback(
+    (rule: FareRuleRow, end: "origin" | "destination") => {
+      const labelKey = end === "origin" ? "origin_airport_label" : "destination_airport_label";
+      if (rule[labelKey]) return String(rule[labelKey]);
+      const link = rule[end === "origin" ? "origin_airport" : "destination_airport"];
+      const route = routes.find((r) => r.name === rule.route);
+      if (route?.[labelKey]) return String(route[labelKey]);
+      return link || "";
+    },
+    [routes],
+  );
+
+  const ruleRouteLabel = useCallback(
+    (rule: FareRuleRow) => {
+      const origin = routeEndpointLabel(rule, "origin");
+      const destination = routeEndpointLabel(rule, "destination");
+      if (origin && destination) return `${origin} → ${destination}`;
+      return origin || destination || "";
+    },
+    [routeEndpointLabel],
+  );
+
   const routeOptions = useMemo(
     () =>
-      routes.map((r) => ({
-        value: r.name,
-        label: `${r.route_name || r.name} (${r.origin_airport} → ${r.destination_airport})`,
-      })),
+      routes.map((r) => {
+        const endpoints =
+          r.origin_airport_label && r.destination_airport_label
+            ? `${r.origin_airport_label} → ${r.destination_airport_label}`
+            : formatRouteDisplay(
+                { linkName: r.origin_airport },
+                { linkName: r.destination_airport },
+              );
+        return {
+          value: r.name,
+          label: `${r.route_name || r.name} (${endpoints})`,
+        };
+      }),
     [routes],
   );
 
@@ -250,10 +289,8 @@ export default function PortalFareRulesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{rule.route_name || rule.route}</div>
-                      {(rule.origin_airport || rule.destination_airport) && (
-                        <div className="text-xs text-muted-foreground">
-                          {rule.origin_airport} → {rule.destination_airport}
-                        </div>
+                      {ruleRouteLabel(rule) && (
+                        <div className="text-xs text-muted-foreground">{ruleRouteLabel(rule)}</div>
                       )}
                     </TableCell>
                     <TableCell>≤ {rule.days_before_departure} days out</TableCell>
@@ -427,8 +464,8 @@ export default function PortalFareRulesPage() {
             <DetailRow
               label="Airports"
               value={
-                selectedRow.origin_airport && selectedRow.destination_airport
-                  ? `${selectedRow.origin_airport} → ${selectedRow.destination_airport}`
+                ruleRouteLabel(selectedRow)
+                  ? ruleRouteLabel(selectedRow)
                   : "—"
               }
             />

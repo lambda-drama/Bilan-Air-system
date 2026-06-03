@@ -7,7 +7,8 @@ import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { Plane, Users, ArrowRight } from 'lucide-react';
 import type { FlightSchedule } from '@/lib/types';
-import { findFlights } from '@/services/search';
+import { buildIataLabelMapFromRoutes, labelForIata } from '@/lib/format-airport';
+import { findFlights, fetchAllRoutes } from '@/services/search';
 import { useCurrency } from '@/contexts/currency-context';
 import { parseFlightsSearchParams, buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import { initTripContext, upsertLegSelection } from '@/lib/trip-store';
@@ -23,6 +24,13 @@ function FlightSearchContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedClass, setSelectedClass] = useState<'Economy' | 'Business' | 'First Class'>('Economy');
+  const [iataLabels, setIataLabels] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    fetchAllRoutes()
+      .then((routes) => setIataLabels(buildIataLabelMapFromRoutes(routes)))
+      .catch(() => setIataLabels(new Map()));
+  }, []);
 
   const {
     tripType,
@@ -158,7 +166,9 @@ function FlightSearchContent() {
                 {isMultiLeg ? `${legTitle.toUpperCase()} · STEP ${leg + 1} OF ${totalLegs}` : 'SEARCH RESULTS'}
               </p>
               <h1 className="text-cream font-serif text-3xl">
-                {origin} <ArrowRight className="inline w-6 h-6 mx-2" /> {destination}
+                {labelForIata(origin, iataLabels)}{' '}
+                <ArrowRight className="inline w-6 h-6 mx-2" />{' '}
+                {labelForIata(destination, iataLabels)}
               </h1>
               <p className="text-cream/60 mt-2">
                 {date
@@ -253,7 +263,9 @@ function FlightSearchContent() {
                     <div className="flex items-center gap-8">
                       <div className="text-center">
                         <p className="text-navy text-2xl font-bold">{flight.departure_time}</p>
-                        <p className="text-navy/60 text-sm">{flight.origin_code}</p>
+                        <p className="text-navy/60 text-sm">
+                          {labelForIata(flight.origin_code, iataLabels)}
+                        </p>
                       </div>
 
                       <div className="flex-1 flex flex-col items-center">
@@ -267,7 +279,9 @@ function FlightSearchContent() {
 
                       <div className="text-center">
                         <p className="text-navy text-2xl font-bold">{flight.arrival_time}</p>
-                        <p className="text-navy/60 text-sm">{flight.destination_code}</p>
+                        <p className="text-navy/60 text-sm">
+                          {labelForIata(flight.destination_code, iataLabels)}
+                        </p>
                       </div>
                     </div>
                   </div>

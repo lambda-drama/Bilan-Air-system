@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFlightRouteLabel } from "@/lib/format-airport";
 import type { BoardingPass } from "@/services/checkIn";
 import { formatClock } from "@/lib/content/check-in-page";
 
@@ -33,7 +34,7 @@ export function BoardingPassCard({ pass }: { pass: BoardingPass }) {
           <div>
             <p className="text-navy/60 text-xs uppercase tracking-wider mb-1">Route</p>
             <p className="text-navy font-semibold">
-              {pass.origin_code} → {pass.destination_code}
+              {formatFlightRouteLabel(pass)}
             </p>
           </div>
           <div>

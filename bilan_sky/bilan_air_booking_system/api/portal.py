@@ -4,6 +4,10 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, cint, now
 
+from bilan_sky.bilan_air_booking_system.utils.airports import (
+	enrich_route_airport_labels,
+	format_route_label,
+)
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
 
@@ -36,7 +40,7 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 			"name": ["like", f"%{search}%"],
 		}
 
-	return _paginated(
+	result = _paginated(
 		"Flight Schedule",
 		[
 			"name",
@@ -54,6 +58,20 @@ def list_flight_schedules(limit=50, offset=0, status=None, search=None):
 		limit=limit,
 		offset=offset,
 	)
+	route_names = {row["route"] for row in result["data"] if row.get("route")}
+	route_labels = {}
+	if route_names:
+		for route_row in frappe.get_all(
+			"Flight Route",
+			filters={"name": ["in", list(route_names)]},
+			fields=["name", "origin_airport", "destination_airport"],
+		):
+			route_labels[route_row.name] = format_route_label(
+				route_row.origin_airport, route_row.destination_airport
+			)
+	for row in result["data"]:
+		row["route_label"] = route_labels.get(row.get("route")) or row.get("route")
+	return result
 
 
 @frappe.whitelist()
@@ -444,6 +462,7 @@ def list_fare_rules(limit=50, offset=0, route=None, search=None, active_only=Non
 		row["route_name"] = meta.get("route_name") or row.get("route")
 		row["origin_airport"] = meta.get("origin_airport")
 		row["destination_airport"] = meta.get("destination_airport")
+		enrich_route_airport_labels(row)
 
 	return result
 

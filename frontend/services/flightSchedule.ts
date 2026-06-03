@@ -14,6 +14,7 @@ export interface FlightScheduleRow {
   name: string;
   flight_number: string;
   route: string;
+  route_label?: string;
   airplane: string;
   departure_date: string;
   departure_time: string;

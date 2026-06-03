@@ -15,6 +15,8 @@ export interface CheckInBooking extends BookingDetails {
   flight: BookingDetails["flight"] & {
     origin_code?: string;
     destination_code?: string;
+    origin_label?: string;
+    destination_label?: string;
     arrival_date?: string;
     arrival_time?: string;
     status?: string;
@@ -29,6 +31,8 @@ export interface BoardingPass {
   flight_number: string;
   origin_code: string;
   destination_code: string;
+  origin_label?: string;
+  destination_label?: string;
   departure_date: string;
   departure_time: string;
   boarding_time: string;

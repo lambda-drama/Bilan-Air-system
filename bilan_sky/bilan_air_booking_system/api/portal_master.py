@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 
 from bilan_sky.bilan_air_booking_system.api.portal import _paginated
+from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import create_or_get_user
 
@@ -191,7 +192,7 @@ def list_flight_routes(limit=50, offset=0, search=None):
 			"destination_airport": ["like", q],
 			"name": ["like", q],
 		}
-	return _paginated(
+	result = _paginated(
 		"Flight Route",
 		[
 			"name",
@@ -210,6 +211,9 @@ def list_flight_routes(limit=50, offset=0, search=None):
 		offset=offset,
 		order_by="route_name asc",
 	)
+	for row in result["data"]:
+		enrich_route_airport_labels(row)
+	return result
 
 
 @frappe.whitelist()

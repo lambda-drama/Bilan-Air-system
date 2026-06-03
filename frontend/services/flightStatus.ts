@@ -8,6 +8,8 @@ export interface FlightStatusRow {
   destination: string;
   origin_code: string;
   destination_code: string;
+  origin_label?: string;
+  destination_label?: string;
   departure_date: string;
   departure_time: string;
   arrival_date: string;

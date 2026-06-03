@@ -5,6 +5,7 @@ import { MoreHorizontal } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions, type AirportSelectRow } from "@/lib/airport-select";
+import { buildAirportDisplayByLinkName } from "@/lib/format-airport";
 import { saveRoute } from "@/services/flightRoute";
 import { listAirlines, listCurrencies, listFlightRoutes } from "@/services/portalMaster";
 import {
@@ -76,6 +77,18 @@ export default function PortalRoutesPage() {
   }, []);
 
   const airportOptions = useMemo(() => buildAirportSelectOptions(airports), [airports]);
+
+  const airportLabelByName = useMemo(() => buildAirportDisplayByLinkName(airports), [airports]);
+
+  const routeAirportLabel = useCallback(
+    (row: Record<string, unknown>, end: "origin" | "destination") => {
+      const labelKey = end === "origin" ? "origin_airport_label" : "destination_airport_label";
+      if (row[labelKey]) return String(row[labelKey]);
+      const link = String(row[end === "origin" ? "origin_airport" : "destination_airport"] || "");
+      return airportLabelByName.get(link) || link || "—";
+    },
+    [airportLabelByName],
+  );
 
   const airlineOptions = useMemo(
     () =>
@@ -207,8 +220,8 @@ export default function PortalRoutesPage() {
                     onClick={() => setSelectedId(String(r.name))}
                   >
                     <TableCell className="font-medium">{String(r.route_name || r.name)}</TableCell>
-                    <TableCell>{String(r.origin_airport)}</TableCell>
-                    <TableCell>{String(r.destination_airport)}</TableCell>
+                    <TableCell>{routeAirportLabel(r, "origin")}</TableCell>
+                    <TableCell>{routeAirportLabel(r, "destination")}</TableCell>
                     <TableCell>{String(r.airline || "—")}</TableCell>
                     <TableCell>{String(r.distance_km ?? "—")}</TableCell>
                     <TableCell>{formatMoney(r.base_fare as number)}</TableCell>
@@ -342,8 +355,8 @@ export default function PortalRoutesPage() {
       >
         {selectedRoute && (
           <DetailSection title="Route">
-            <DetailRow label="Origin" value={String(selectedRoute.origin_airport)} />
-            <DetailRow label="Destination" value={String(selectedRoute.destination_airport)} />
+            <DetailRow label="Origin" value={routeAirportLabel(selectedRoute, "origin")} />
+            <DetailRow label="Destination" value={routeAirportLabel(selectedRoute, "destination")} />
             <DetailRow label="Airline" value={String(selectedRoute.airline || "—")} />
             <DetailRow label="Currency" value={String(selectedRoute.currency || "—")} />
             <DetailRow label="Distance (km)" value={String(selectedRoute.distance_km ?? "—")} />

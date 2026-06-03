@@ -6,6 +6,8 @@ export interface FareRuleRow {
   route_name?: string;
   origin_airport?: string;
   destination_airport?: string;
+  origin_airport_label?: string;
+  destination_airport_label?: string;
   days_before_departure: number;
   price_increase_percentage: number;
   is_active: number | boolean;

@@ -17,6 +17,7 @@ import {
   draftFromFlight,
   saveOfficeBookingDraft,
 } from "@/lib/office-booking-store";
+import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
 import {
   findFlights,
   fetchAllRoutes,
@@ -74,7 +75,7 @@ function OfficeBookingSearchContent() {
         setAirportOptions(
           [...codes.entries()].map(([value, city]) => ({
             value,
-            label: `${city} (${value})`,
+            label: formatAirportDisplay({ city, iata: value }),
           })),
         );
         setOrigin(defaults.origin_iata);
@@ -102,7 +103,10 @@ function OfficeBookingSearchContent() {
         value: r.name,
         label:
           r.route_name ||
-          `${r.origin_city || r.origin_code} (${r.origin_code}) → ${r.destination_city || r.destination_code} (${r.destination_code})`,
+          formatRouteDisplay(
+            { city: r.origin_city, iata: r.origin_code },
+            { city: r.destination_city, iata: r.destination_code },
+          ),
       })),
     [routeList],
   );
