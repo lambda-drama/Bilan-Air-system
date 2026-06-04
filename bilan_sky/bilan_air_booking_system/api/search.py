@@ -49,7 +49,15 @@ def _draft_schedules_on_date(route_name, departure_date):
 	)
 
 
-def _count_available_seats(schedule_name):
+def _count_available_seats(schedule_name, boarding_airport=None, deboarding_airport=None):
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
+		count_seats_available_for_journey,
+		schedule_is_multi_segment,
+	)
+
+	if schedule_is_multi_segment(schedule_name) and boarding_airport and deboarding_airport:
+		return count_seats_available_for_journey(schedule_name, boarding_airport, deboarding_airport)
+
 	return frappe.db.count(
 		"Seat Inventory",
 		{"flight_schedule": schedule_name, "status": "Available"},
@@ -161,11 +169,32 @@ def _prices_for_schedule(schedule, route, route_name):
 	return payload["prices"]
 
 
-def _schedule_to_flight_result(schedule, route, route_name, passengers):
+def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_airport=None, destination_airport=None):
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
+		get_schedule_segments,
+		schedule_is_multi_segment,
+	)
+
 	schedule_name = _row_val(schedule, "name")
-	available = _count_available_seats(schedule_name)
+	board = origin_airport
+	deboard = destination_airport
+	if schedule_is_multi_segment(schedule_name):
+		segments = get_schedule_segments(schedule_name)
+		if segments and not board:
+			board = segments[0]["origin_airport"]
+		if segments and not deboard:
+			deboard = segments[-1]["destination_airport"]
+
+	available = _count_available_seats(schedule_name, board, deboard)
 	if available < int(passengers):
 		return None
+
+	released = frappe.db.count(
+		"Seat Inventory",
+		{"flight_schedule": schedule_name, "status": ["!=", "Unreleased"]},
+	)
+	total_capacity = frappe.db.get_value("Flight Schedule", schedule_name, "total_aircraft_capacity") or 0
+	seats_released = frappe.db.get_value("Flight Schedule", schedule_name, "seats_released_count") or 0
 
 	return {
 		"flight_number": _row_val(schedule, "flight_number"),
@@ -173,18 +202,26 @@ def _schedule_to_flight_result(schedule, route, route_name, passengers):
 		"departure_time": _row_val(schedule, "departure_time"),
 		"arrival_time": _row_val(schedule, "arrival_time"),
 		"available_seats": available,
+		"seats_released": seats_released,
+		"total_aircraft_capacity": total_capacity,
+		"is_multi_segment": schedule_is_multi_segment(schedule_name),
+		"segments": get_schedule_segments(schedule_name) if schedule_is_multi_segment(schedule_name) else [],
 		"prices": _prices_for_schedule(schedule, route, route_name),
 		"base_fares": prices_for_schedule_search(schedule, route)["base_fares"],
 		"route": route_name,
+		"boarding_airport": board,
+		"deboarding_airport": deboard,
 	}
 
 
-def _find_schedules_for_routes(routes, date, passengers):
+def _find_schedules_for_routes(routes, date, passengers, origin_airport=None, destination_airport=None):
 	"""Schedules belong to a Flight Route; route defines origin/destination airports."""
 	results = []
 	for route in routes:
 		route_name = _row_val(route, "name")
 		departure_date = _normalize_departure_date(date)
+		board = origin_airport or _row_val(route, "origin_airport")
+		deboard = destination_airport or _row_val(route, "destination_airport")
 		schedules = _public_get_all(
 			"Flight Schedule",
 			filters=_bookable_schedule_filters(route_name, departure_date),
@@ -195,13 +232,16 @@ def _find_schedules_for_routes(routes, date, passengers):
 				"departure_time",
 				"arrival_date",
 				"arrival_time",
-				"base_fares_override",
-				"base_fare_override",
+				"base_fare_adult_override",
+				"base_fare_child_override",
+				"base_fare_infant_override",
 				"airplane",
 			],
 		)
 		for schedule in schedules:
-			item = _schedule_to_flight_result(schedule, route, route_name, passengers)
+			item = _schedule_to_flight_result(
+				schedule, route, route_name, passengers, board, deboard
+			)
 			if item:
 				results.append(item)
 	return results
@@ -224,13 +264,27 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 	origin_iata = origin
 	destination_iata = destination
 
+	origin_airport = None
+	destination_airport = None
+
 	if route:
 		if not frappe.db.exists("Flight Route", route):
 			return {"error": "Route not found", "flights": []}
 		route_doc = frappe.get_doc("Flight Route", route, ignore_permissions=True)
 		if not route_doc.is_active:
 			return {"error": "This route is not active", "flights": []}
-		routes = [{"name": route_doc.name, "base_fares": route_doc.base_fares, "base_fare": route_doc.base_fare}]
+		from bilan_sky.bilan_air_booking_system.utils.fare_pricing import route_fares_for_api
+
+		routes = [
+			{
+				"name": route_doc.name,
+				**route_fares_for_api(route_doc),
+				"origin_airport": route_doc.origin_airport,
+				"destination_airport": route_doc.destination_airport,
+			}
+		]
+		origin_airport = route_doc.origin_airport
+		destination_airport = route_doc.destination_airport
 		origin_iata = get_airport_iata(route_doc.origin_airport) or origin
 		destination_iata = get_airport_iata(route_doc.destination_airport) or destination
 	else:
@@ -248,13 +302,30 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 
 		routes = _public_get_all(
 			"Flight Route",
-			filters={
-				"origin_airport": origin_airport,
-				"destination_airport": destination_airport,
-				"is_active": 1,
-			},
-			fields=["name", "base_fares", "base_fare"],
+			filters={"is_active": 1},
+			fields=[
+				"name",
+				"base_fare_adult",
+				"base_fare_child",
+				"base_fare_infant",
+				"base_fare",
+				"origin_airport",
+				"destination_airport",
+				"is_multi_segment",
+			],
 		)
+		from bilan_sky.bilan_air_booking_system.utils.flight_segments import route_serves_journey
+
+		routes = [
+			r
+			for r in routes
+			if route_serves_journey(r.name, origin_airport, destination_airport)
+			or (
+				not r.is_multi_segment
+				and r.origin_airport == origin_airport
+				and r.destination_airport == destination_airport
+			)
+		]
 
 		if not routes:
 			return {
@@ -262,7 +333,9 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 				"flights": [],
 			}
 
-	results = _find_schedules_for_routes(routes, date, passengers)
+	results = _find_schedules_for_routes(
+		routes, date, passengers, origin_airport, destination_airport
+	)
 
 	if not results:
 		scheduled_count = sum(
@@ -279,7 +352,11 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 				)
 				for sched in schedules:
 					_prepare_schedule_for_search(_row_val(sched, "name"))
-			results = _find_schedules_for_routes(routes, date, passengers)
+			origin_airport = resolve_airport_name(origin) if origin else None
+			destination_airport = resolve_airport_name(destination) if destination else None
+			results = _find_schedules_for_routes(
+				routes, date, passengers, origin_airport, destination_airport
+			)
 
 	if not results:
 		scheduled_count = sum(
@@ -355,7 +432,16 @@ def fetch_all_available_routes():
 	routes = _public_get_all(
 		"Flight Route",
 		filters={"is_active": 1},
-		fields=["name", "route_name", "origin_airport", "destination_airport", "base_fares", "base_fare"],
+		fields=[
+			"name",
+			"route_name",
+			"origin_airport",
+			"destination_airport",
+			"base_fare_adult",
+			"base_fare_child",
+			"base_fare_infant",
+			"base_fare",
+		],
 	)
 
 	for route in routes:

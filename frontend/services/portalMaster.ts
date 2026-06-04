@@ -171,9 +171,44 @@ export async function deleteTicketTerms(name: string) {
   });
 }
 
+export type BookingCompanyRow = {
+  name: string;
+  company_agency: string;
+  is_agency: number;
+  label?: string;
+};
+
+export async function listBookingCompanies(opts?: { limit?: number; search?: string }) {
+  return apiRequest<PaginatedResponse<BookingCompanyRow>>(master("list_booking_companies"), {
+    method: "POST",
+    body: JSON.stringify({
+      limit: opts?.limit ?? 200,
+      offset: 0,
+      search: opts?.search ?? null,
+    }),
+  });
+}
+
+export async function createBookingCompany(params: {
+  company_agency: string;
+  is_agency?: boolean | number;
+}) {
+  return apiRequest<BookingCompanyRow>(master("create_booking_company"), {
+    method: "POST",
+    body: JSON.stringify({
+      company_agency: params.company_agency,
+      is_agency: params.is_agency ? 1 : 0,
+    }),
+  });
+}
+
 export async function getBookingAgentDefaults() {
   return apiRequest<{
-    confirmation_mode: string;
+    status: string;
+    user_type: string;
+    can_book_ticket: string;
+    can_confirm_ticket: string;
+    deposit_required: string;
     credit_limit: number;
     default_country?: string;
     cities?: string[];
@@ -185,15 +220,20 @@ export async function createBookingAgent(params: {
   first_name: string;
   last_name: string;
   username: string;
-  agent_name: string;
+  booking_company: string;
+  agent_name?: string;
   address_line1: string;
   city: string;
   phone: string;
   address_line2?: string;
   phone_2?: string;
   country?: string;
-  password?: string;
-  confirmation_mode?: "Credit Agent" | "Booking Only";
+  send_activation_email?: boolean | number;
+  status?: "Active" | "Inactive";
+  user_type?: string;
+  can_book_ticket?: "Yes" | "No";
+  can_confirm_ticket?: "Yes" | "No";
+  deposit_required?: "Yes" | "No";
   credit_limit?: number;
   linked_customer?: string;
   notes?: string;
@@ -202,6 +242,22 @@ export async function createBookingAgent(params: {
     method: "POST",
     body: JSON.stringify(params),
   });
+}
+
+export async function resendBookingAgentActivation(opts: {
+  booking_agent?: string;
+  user?: string;
+}) {
+  return apiRequest<{ success: boolean; user: string }>(
+    master("resend_booking_agent_activation"),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        booking_agent: opts.booking_agent ?? null,
+        user: opts.user ?? null,
+      }),
+    },
+  );
 }
 
 export async function saveBookingAgent(data: Record<string, unknown>) {

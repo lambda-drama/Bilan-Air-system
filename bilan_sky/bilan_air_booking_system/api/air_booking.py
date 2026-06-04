@@ -83,9 +83,30 @@ def create_booking(booking_data):
         if row.get("seat_number"):
             prepare_seat_for_new_booking(row["seat_number"])
     
+    schedule_name = booking_data.get("flight_schedule")
+    boarding = booking_data.get("boarding_airport")
+    deboarding = booking_data.get("deboarding_airport")
+
+    from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
+        get_schedule_segments,
+        schedule_is_multi_segment,
+    )
+
+    if schedule_is_multi_segment(schedule_name):
+        if not boarding or not deboarding:
+            frappe.throw("Select boarding and deboarding airports for this multi-stop flight.")
+    else:
+        route = frappe.db.get_value("Flight Schedule", schedule_name, "route")
+        segments = get_schedule_segments(schedule_name)
+        if len(segments) == 1:
+            boarding = boarding or segments[0]["origin_airport"]
+            deboarding = deboarding or segments[0]["destination_airport"]
+
     booking = frappe.get_doc({
         "doctype": "Air Booking",
-        "flight_schedule": booking_data.get("flight_schedule"),
+        "flight_schedule": schedule_name,
+        "boarding_airport": boarding,
+        "deboarding_airport": deboarding,
         "payer_name": booking_data.get("payer_name"),
         "payer_email": booking_data.get("payer_email"),
         "payer_phone": booking_data.get("payer_phone"),
@@ -95,19 +116,28 @@ def create_booking(booking_data):
         "booking_date": now()
     })
     
-    from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_booking_agent_for_user
+    from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
+        validate_agent_can_create_booking,
+    )
 
-    agent = get_booking_agent_for_user()
+    agent = validate_agent_can_create_booking()
     if agent:
         booking.booking_agent = agent.name
 
     booking.insert()
 
+    from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
+
     for passenger in booking.passengers:
-        seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-        result = seat.reserve(booking.name)
+        result = reserve_seat_for_booking(
+            passenger.seat_number,
+            booking.name,
+            flight_schedule=schedule_name,
+            boarding_airport=boarding,
+            deboarding_airport=deboarding,
+        )
         if not result.get("success"):
-            frappe.throw(result.get("message") or f"Could not reserve seat {seat.seat_number}")
+            frappe.throw(result.get("message") or "Could not reserve seat")
 
     booking.calculate_total_fare()
     booking.flags.ignore_validate = True

@@ -6,10 +6,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "section_break_contact",
+  "booking_company",
   "agent_name",
   "username",
   "user",
-  "status",
   "column_break_ba1",
   "first_name",
   "last_name",
@@ -18,26 +19,42 @@
   "phone_2",
   "section_break_address",
   "agent_address",
-  "city",
   "address_line1",
   "address_line2",
-  "section_break_credit",
-  "confirmation_mode",
+  "city",
+  "section_break_rights",
+  "status",
+  "user_type",
+  "can_book_ticket",
+  "can_confirm_ticket",
+  "deposit_required",
+  "column_break_rights",
   "credit_limit",
   "credit_used",
   "allow_credit",
-  "column_break_ba2",
+  "confirmation_mode",
+  "section_break_other",
   "linked_customer",
   "notes"
  ],
  "fields": [
   {
-   "fieldname": "agent_name",
-   "fieldtype": "Data",
+   "fieldname": "booking_company",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Company / Agency Name",
-   "reqd": 1,
+   "label": "Company / Agency",
+   "options": "Booking Company",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-generated from company and username (document ID).",
+   "fieldname": "agent_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Profile Name",
+   "no_copy": 1,
+   "read_only": 1,
    "unique": 1
   },
   {
@@ -50,22 +67,18 @@
    "reqd": 1
   },
   {
+   "fieldname": "section_break_contact",
+   "fieldtype": "Section Break",
+   "label": "Contact & Login"
+  },
+  {
    "fieldname": "user",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Portal User",
    "options": "User",
+   "read_only": 1,
    "unique": 1
-  },
-  {
-   "default": "Active",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Status",
-   "options": "Active\nInactive",
-   "reqd": 1
   },
   {
    "fieldname": "first_name",
@@ -130,13 +143,55 @@
    "label": "Address Line 2"
   },
   {
-   "default": "Credit Agent",
-   "description": "Credit Agent can confirm tickets on credit until the limit is reached. Booking Only can create reservations but must take payment to issue PNR.",
-   "fieldname": "confirmation_mode",
+   "fieldname": "section_break_rights",
+   "fieldtype": "Section Break",
+   "label": "User Rights"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Confirmation Mode",
-   "options": "Credit Agent\nBooking Only",
+   "in_standard_filter": 1,
+   "label": "Active",
+   "options": "Active\nInactive",
+   "reqd": 1
+  },
+  {
+   "default": "Agent",
+   "fieldname": "user_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "User Type",
+   "options": "Agent",
+   "reqd": 1
+  },
+  {
+   "default": "Yes",
+   "fieldname": "can_book_ticket",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Can Book Ticket",
+   "options": "Yes\nNo",
+   "reqd": 1
+  },
+  {
+   "default": "Yes",
+   "fieldname": "can_confirm_ticket",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Can Confirm Ticket",
+   "options": "Yes\nNo",
+   "reqd": 1
+  },
+  {
+   "default": "No",
+   "description": "When Yes, tickets must be paid before PNR is issued (no credit confirmation).",
+   "fieldname": "deposit_required",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Deposit Required",
+   "options": "Yes\nNo",
    "reqd": 1
   },
   {
@@ -145,7 +200,17 @@
    "fieldname": "credit_limit",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Credit Limit"
+   "label": "Credit Limit",
+   "reqd": 1
+  },
+  {
+   "default": "Credit Agent",
+   "description": "Derived from user rights (read-only).",
+   "fieldname": "confirmation_mode",
+   "fieldtype": "Select",
+   "label": "Confirmation Mode",
+   "options": "Credit Agent\nBooking Only",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -178,13 +243,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "section_break_credit",
-   "fieldtype": "Section Break",
-   "label": "Credit & Confirmation"
+   "fieldname": "column_break_rights",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "column_break_ba2",
-   "fieldtype": "Column Break"
+   "fieldname": "section_break_other",
+   "fieldtype": "Section Break",
+   "label": "Other"
   }
  ],
  "grid_page_length": 50,
@@ -219,7 +284,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "agent_name,username,email,user,city,address_line1",
+ "search_fields": "agent_name,booking_company,username,email,user,city,address_line1",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": []

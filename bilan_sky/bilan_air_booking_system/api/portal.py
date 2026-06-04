@@ -79,15 +79,16 @@ def get_flight_schedule(schedule_name):
 	"""Full schedule fields for portal amend/edit dialogs."""
 	require_portal_staff()
 	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
-		normalize_base_fares,
 		resolve_base_fares,
+		route_fares_for_api,
+		schedule_fare_override_for_api,
 	)
 
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
 	route = frappe.get_doc("Flight Route", doc.route, ignore_permissions=True)
-	route_fares = normalize_base_fares(route.base_fares, legacy_adult=route.base_fare)
+	route_fares = route_fares_for_api(route)["base_fares"]
 	effective_fares = resolve_base_fares(doc, route)
-	return {
+	result = {
 		"name": doc.name,
 		"flight_number": doc.flight_number,
 		"route": doc.route,
@@ -101,10 +102,10 @@ def get_flight_schedule(schedule_name):
 		"first_officer": doc.first_officer or "",
 		"route_base_fares": route_fares,
 		"base_fares": effective_fares,
-		"base_fares_override": doc.base_fares_override,
-		"base_fare_override": doc.base_fare_override,
 		"docstatus": doc.docstatus,
 	}
+	result.update(schedule_fare_override_for_api(doc))
+	return result
 
 
 @frappe.whitelist()
@@ -116,30 +117,22 @@ def save_flight_schedule(data, submit=1):
 
 		data = json.loads(data)
 
-	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+		normalize_schedule_override_payload,
+		pop_and_apply_schedule_overrides,
+	)
 
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Schedule", name)
 		updates = {k: v for k, v in data.items() if k != "name"}
-		if "base_fares_override" in updates:
-			apply_schedule_fare_override(doc, updates.pop("base_fares_override"))
-		elif "base_fare_override" in updates:
-			raw = updates.pop("base_fare_override")
-			apply_schedule_fare_override(
-				doc,
-				{"adult": raw} if raw not in (None, "") else None,
-			)
+		pop_and_apply_schedule_overrides(doc, updates)
+		normalize_schedule_override_payload(updates)
 		doc.update(updates)
 	else:
 		create_data = {k: v for k, v in data.items() if k != "name"}
-		override = create_data.pop("base_fares_override", None)
-		legacy_override = create_data.pop("base_fare_override", None)
+		normalize_schedule_override_payload(create_data)
 		doc = frappe.get_doc({"doctype": "Flight Schedule", **create_data})
-		if override is not None:
-			apply_schedule_fare_override(doc, override)
-		elif legacy_override not in (None, ""):
-			apply_schedule_fare_override(doc, {"adult": legacy_override})
 
 	doc.save()
 	seats_created = doc.generate_seat_inventory()
@@ -249,15 +242,19 @@ def amend_flight_schedule(schedule_name, data, submit=1):
 		"arrival_time",
 		"captain",
 		"first_officer",
-		"base_fare_override",
-		"base_fares_override",
+		"base_fare_adult_override",
+		"base_fare_child_override",
+		"base_fare_infant_override",
 	}
-	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+		normalize_schedule_override_payload,
+		pop_and_apply_schedule_overrides,
+	)
 
+	pop_and_apply_schedule_overrides(amended, data)
+	normalize_schedule_override_payload(data)
 	for key, value in data.items():
-		if key == "base_fares_override":
-			apply_schedule_fare_override(amended, value)
-		elif key in allowed and value not in (None, ""):
+		if key in allowed:
 			amended.set(key, value)
 
 	amended.insert()
@@ -432,6 +429,31 @@ def list_passengers(limit=50, offset=0, search=None):
 	)
 
 
+def _parse_route_payload(data: dict) -> tuple[dict, list | None]:
+	"""Split route fields and optional route_segments child rows."""
+	payload = dict(data)
+	segments = payload.pop("route_segments", None)
+	if segments is not None and not isinstance(segments, list):
+		import json
+
+		if isinstance(segments, str):
+			segments = json.loads(segments)
+	return payload, segments
+
+
+@frappe.whitelist()
+def get_flight_route(name):
+	"""Full route record including segments for portal edit."""
+	require_portal_staff()
+	if not name or not frappe.db.exists("Flight Route", name):
+		frappe.throw(_("Route not found"))
+	from bilan_sky.bilan_air_booking_system.utils.flight_route_portal import serialize_flight_route
+
+	doc = frappe.get_doc("Flight Route", name)
+	doc.check_permission("read")
+	return serialize_flight_route(doc)
+
+
 @frappe.whitelist()
 def save_flight_route(data):
 	require_portal_staff()
@@ -440,16 +462,35 @@ def save_flight_route(data):
 
 		data = json.loads(data)
 
-	name = data.get("name")
+	from bilan_sky.bilan_air_booking_system.utils.flight_route_portal import (
+		apply_route_segments_to_doc,
+		serialize_flight_route,
+	)
+
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_route_fare_payload
+
+	payload, segments = _parse_route_payload(data)
+	normalize_route_fare_payload(payload)
+	name = payload.get("name")
+	skip_keys = {"name", "route_segments", "segment_count", "segments_summary", "base_fares"}
+
 	if name:
 		doc = frappe.get_doc("Flight Route", name)
-		doc.update({k: v for k, v in data.items() if k != "name"})
+		for key, value in payload.items():
+			if key not in skip_keys:
+				doc.set(key, value)
+		if segments is not None:
+			apply_route_segments_to_doc(doc, segments)
 		doc.save(ignore_permissions=True)
 	else:
-		doc = frappe.get_doc({"doctype": "Flight Route", **{k: v for k, v in data.items() if k != "name"}})
+		create_payload = {k: v for k, v in payload.items() if k not in skip_keys}
+		doc = frappe.get_doc({"doctype": "Flight Route", **create_payload})
+		if segments is not None:
+			apply_route_segments_to_doc(doc, segments)
 		doc.insert(ignore_permissions=True)
+
 	frappe.db.commit()
-	return doc.as_dict()
+	return serialize_flight_route(doc)
 
 
 @frappe.whitelist()
@@ -551,16 +592,43 @@ def list_countries():
 
 
 @frappe.whitelist()
-def list_crew_members(crew_role=None, for_date=None):
-	"""Active crew; optionally filter by role and exclude members assigned on for_date."""
+def list_crew_members(crew_role=None, for_date=None, capacity=None):
+	"""Active crew; optionally filter by role, pilot capacity (captain/FO), and date availability."""
 	require_portal_staff()
-	if crew_role and for_date:
+	from bilan_sky.bilan_air_booking_system.utils.crew_filters import (
+		crew_member_filters_for_capacity,
+		pilot_crew_role_names,
+		role_names_for_capacity,
+	)
+
+	if for_date:
 		from bilan_sky.bilan_air_booking_system.api.crew import fetch_available_crew_members
 
-		return fetch_available_crew_members(crew_role, for_date)
+		if crew_role:
+			role_names = [crew_role]
+		elif capacity:
+			role_names = role_names_for_capacity(capacity)
+		else:
+			role_names = pilot_crew_role_names()
 
-	filters = {"status": "Active"}
+		allowed = set(pilot_crew_role_names())
+		role_names = [r for r in role_names if r in allowed]
+		seen: set[str] = set()
+		rows: list[dict] = []
+		for role in role_names:
+			for row in fetch_available_crew_members(role, for_date):
+				if row.name in seen:
+					continue
+				seen.add(row.name)
+				rows.append(row)
+		rows.sort(key=lambda r: (r.get("full_name") or r.get("name") or "").lower())
+		return rows
+
+	filters = crew_member_filters_for_capacity(capacity) if capacity else {"status": "Active"}
 	if crew_role:
+		allowed_pilot_roles = set(pilot_crew_role_names())
+		if allowed_pilot_roles and crew_role not in allowed_pilot_roles:
+			return []
 		filters["crew_role"] = crew_role
 
 	return frappe.get_all(
@@ -740,7 +808,7 @@ def get_schedule_seat_inventory(schedule_name):
 		order_by="seat_number asc",
 	)
 
-	stats = {"Available": 0, "Hold": 0, "Booked": 0, "Occupied": 0, "Reserved": 0}
+	stats = {"Available": 0, "Unreleased": 0, "Hold": 0, "Booked": 0, "Occupied": 0, "Reserved": 0}
 	by_class = {}
 	rows = []
 
@@ -754,6 +822,8 @@ def get_schedule_seat_inventory(schedule_name):
 		by_class.setdefault(class_name, []).append(row)
 		rows.append(row)
 
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import get_schedule_segments
+
 	return {
 		"schedule": {
 			"name": doc.name,
@@ -765,6 +835,10 @@ def get_schedule_seat_inventory(schedule_name):
 			"status": doc.status,
 			"origin": route.origin_airport,
 			"destination": route.destination_airport,
+			"total_aircraft_capacity": doc.total_aircraft_capacity or len(expected_numbers),
+			"seats_released_count": doc.seats_released_count or 0,
+			"initial_seats_released": doc.initial_seats_released or 0,
+			"segments": get_schedule_segments(doc.name),
 		},
 		"expected_seats": len(expected_numbers),
 		"total_seats": len(seats),
@@ -774,6 +848,18 @@ def get_schedule_seat_inventory(schedule_name):
 		"seats_by_class": by_class,
 		"seats": rows,
 	}
+
+
+@frappe.whitelist()
+def release_schedule_seats(schedule_name, count):
+	"""Release additional seats for sale on a flight schedule."""
+	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import release_additional_seats
+
+	schedule_name = _resolve_flight_schedule_name(schedule_name)
+	if not schedule_name:
+		frappe.throw(_("Flight schedule not found"))
+	return release_additional_seats(schedule_name, count)
 
 
 def _seat_number_sort_key(seat_number):
@@ -800,7 +886,15 @@ def portal_hold_seat(seat_name, booking_reference=None):
 		booking = frappe.get_doc("Air Booking", booking_reference)
 		if booking.flight_schedule != seat.flight_schedule:
 			frappe.throw(_("Booking {0} is not on this flight").format(booking_reference))
-		result = seat.reserve(booking_reference)
+		from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
+
+		result = reserve_seat_for_booking(
+			seat_name,
+			booking_reference,
+			flight_schedule=booking.flight_schedule,
+			boarding_airport=booking.boarding_airport,
+			deboarding_airport=booking.deboarding_airport,
+		)
 		if not result.get("success"):
 			frappe.throw(result.get("message"))
 	else:

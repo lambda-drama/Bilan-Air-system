@@ -2,6 +2,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from bilan_sky.bilan_air_booking_system.api.portal import _paginated
 from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
@@ -14,6 +15,7 @@ from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
 	create_booking_agent_profile,
 	default_credit_limit,
 	serialize_booking_agent,
+	sync_booking_agent_user_enabled,
 )
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import create_or_get_user
 
@@ -208,8 +210,11 @@ def list_flight_routes(limit=50, offset=0, search=None):
 			"route_name",
 			"origin_airport",
 			"destination_airport",
+			"is_multi_segment",
 			"distance_km",
-			"base_fares",
+			"base_fare_adult",
+			"base_fare_child",
+			"base_fare_infant",
 			"base_fare",
 			"currency",
 			"airline",
@@ -221,8 +226,17 @@ def list_flight_routes(limit=50, offset=0, search=None):
 		offset=offset,
 		order_by="route_name asc",
 	)
+	from bilan_sky.bilan_air_booking_system.utils.flight_route_portal import (
+		segments_summary,
+		serialize_route_segments,
+	)
+
 	for row in result["data"]:
 		enrich_route_airport_labels(row)
+		segments = serialize_route_segments(row["name"])
+		row["segment_count"] = len(segments)
+		row["segments_summary"] = segments_summary(segments)
+		row["is_multi_segment"] = cint(row.get("is_multi_segment"))
 	return result
 
 
@@ -354,9 +368,49 @@ def set_crew_member_status(name, status):
 	return get_crew_member(name)
 
 
+@frappe.whitelist()
+def list_booking_companies(limit=200, offset=0, search=None):
+	require_portal_staff()
+	or_filters = None
+	if search:
+		q = f"%{search.strip()}%"
+		or_filters = {
+			"company_agency": ["like", q],
+			"name": ["like", q],
+		}
+	result = _paginated(
+		"Booking Company",
+		["name", "company_agency", "is_agency"],
+		or_filters=or_filters,
+		limit=limit,
+		offset=offset,
+		order_by="company_agency asc",
+	)
+	for row in result["data"]:
+		row["is_agency"] = cint(row.get("is_agency"))
+		row["label"] = (
+			f"{row['company_agency']} (Agency)" if row["is_agency"] else row["company_agency"]
+		)
+	return result
+
+
+@frappe.whitelist()
+def create_booking_company(company_agency, is_agency=0):
+	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import (
+		create_booking_company as _create,
+		serialize_booking_company,
+	)
+
+	doc = _create(company_agency, is_agency=cint(is_agency))
+	frappe.db.commit()
+	return serialize_booking_company(doc)
+
+
 def _validate_booking_agent_contact_fields(
 	*,
-	agent_name,
+	booking_company=None,
+	agent_name=None,
 	username,
 	email,
 	first_name,
@@ -365,8 +419,8 @@ def _validate_booking_agent_contact_fields(
 	phone,
 	city,
 ):
-	if not (agent_name or "").strip():
-		frappe.throw(_("Company name is required."))
+	if not (booking_company or "").strip() and not (agent_name or "").strip():
+		frappe.throw(_("Company or agency is required."))
 	if not (username or "").strip():
 		frappe.throw(_("Username is required."))
 	if not (email or "").strip():
@@ -394,6 +448,7 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 			fields=[
 				"name",
 				"user",
+				"booking_company",
 				"agent_name",
 				"username",
 				"first_name",
@@ -404,11 +459,15 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 				"city",
 				"address_line1",
 				"address_line2",
+				"status",
+				"user_type",
+				"can_book_ticket",
+				"can_confirm_ticket",
+				"deposit_required",
 				"confirmation_mode",
 				"credit_limit",
 				"credit_used",
 				"allow_credit",
-				"status",
 			],
 		)
 	}
@@ -418,6 +477,7 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 		profile = profiles.get(user["name"])
 		if profile:
 			row["booking_agent"] = profile.name
+			row["booking_company"] = profile.booking_company
 			row["agent_name"] = profile.agent_name
 			row["username"] = profile.username
 			row["first_name"] = profile.first_name
@@ -431,6 +491,12 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 			row["full_name"] = " ".join(
 				p for p in (profile.first_name, profile.last_name) if p
 			).strip() or user.get("full_name")
+			row["agent_status"] = profile.status
+			row["status"] = profile.status
+			row["user_type"] = profile.user_type
+			row["can_book_ticket"] = profile.can_book_ticket
+			row["can_confirm_ticket"] = profile.can_confirm_ticket
+			row["deposit_required"] = profile.deposit_required
 			row["confirmation_mode"] = profile.confirmation_mode
 			row["credit_limit"] = profile.credit_limit
 			row["credit_used"] = profile.credit_used
@@ -438,7 +504,15 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 				0, float(profile.credit_limit or 0) - float(profile.credit_used or 0)
 			)
 			row["allow_credit"] = profile.allow_credit
-			row["agent_status"] = profile.status
+					from bilan_sky.bilan_air_booking_system.utils.booking_company import (
+				enrich_agent_company_fields,
+			)
+			from bilan_sky.bilan_air_booking_system.utils.user_activation import (
+				user_has_set_password,
+			)
+
+			enrich_agent_company_fields(row)
+			row["activation_pending"] = not user_has_set_password(user["name"])
 		else:
 			row["booking_agent"] = None
 			row["confirmation_mode"] = "Booking Only"
@@ -463,7 +537,11 @@ def get_booking_agent_defaults():
 		as_list=True,
 	)
 	return {
-		"confirmation_mode": "Credit Agent",
+		"status": "Active",
+		"user_type": "Agent",
+		"can_book_ticket": "Yes",
+		"can_confirm_ticket": "Yes",
+		"deposit_required": "No",
 		"credit_limit": default_credit_limit(),
 		"default_country": default_address_country(),
 		"cities": [row[0] for row in cities],
@@ -495,7 +573,14 @@ def list_booking_agents(limit=50, offset=0, search=None):
 			for row in frappe.get_all(
 				"Booking Agent",
 				filters={"user": ["in", [u["name"] for u in users]]},
-				fields=["user", "agent_name", "username", "city", "address_line1"],
+				fields=[
+					"user",
+					"booking_company",
+					"agent_name",
+					"username",
+					"city",
+					"address_line1",
+				],
 			)
 		}
 		users = [
@@ -535,16 +620,19 @@ def save_booking_agent(data):
 		frappe.throw(_("Booking agent not found"))
 
 	allowed = {
+		"booking_company",
 		"agent_name",
 		"username",
 		"first_name",
 		"last_name",
-		"confirmation_mode",
 		"credit_limit",
-		"allow_credit",
 		"linked_customer",
 		"notes",
 		"status",
+		"user_type",
+		"can_book_ticket",
+		"can_confirm_ticket",
+		"deposit_required",
 		"phone",
 		"phone_2",
 		"address_line1",
@@ -556,10 +644,14 @@ def save_booking_agent(data):
 		if key in data:
 			doc.set(key, data[key])
 
-	if any(k in data for k in ("address_line1", "address_line2", "city", "phone")):
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_label
+
+	company_name = company_agency_label(doc.booking_company) or doc.agent_name
+
+	if any(k in data for k in ("address_line1", "address_line2", "city", "phone", "booking_company")):
 		address_name = create_or_update_agent_address(
 			doc.user,
-			company_name=doc.agent_name,
+			company_name=company_name,
 			email=doc.email,
 			address_line1=doc.address_line1,
 			address_line2=doc.address_line2,
@@ -579,6 +671,7 @@ def save_booking_agent(data):
 		user.save(ignore_permissions=True)
 
 	doc.save(ignore_permissions=True)
+	sync_booking_agent_user_enabled(doc)
 	frappe.db.commit()
 	return get_booking_agent(doc.name)
 
@@ -589,9 +682,9 @@ def create_booking_agent(
 	first_name,
 	last_name=None,
 	phone=None,
-	password=None,
-	confirmation_mode=None,
+	send_activation_email=1,
 	credit_limit=None,
+	booking_company=None,
 	agent_name=None,
 	linked_customer=None,
 	notes=None,
@@ -601,19 +694,26 @@ def create_booking_agent(
 	city=None,
 	phone_2=None,
 	country=None,
+	status=None,
+	user_type=None,
+	can_book_ticket=None,
+	can_confirm_ticket=None,
+	deposit_required=None,
 ):
-	"""Create portal user, ERPNext Address, and Booking Agent profile."""
+	"""Create portal login user; contact, address, and rights live on Booking Agent."""
 	_require_user_create_permission()
 	email = (email or "").strip().lower()
 	first_name = (first_name or "").strip()
 	last_name = (last_name or "").strip()
 	phone = (phone or "").strip()
-	agent_name = (agent_name or "").strip()
+	booking_company = (booking_company or "").strip() or None
+	agent_name = (agent_name or "").strip() or None
 	username = (username or "").strip()
 	address_line1 = (address_line1 or "").strip()
 	city = (city or "").strip()
 
 	_validate_booking_agent_contact_fields(
+		booking_company=booking_company,
 		agent_name=agent_name,
 		username=username,
 		email=email,
@@ -624,20 +724,20 @@ def create_booking_agent(
 		city=city,
 	)
 
+	send_activation = cint(send_activation_email)
+	if not send_activation:
+		frappe.throw(_("Send activation email must be enabled so the agent can set their password."))
+
 	full_name = f"{first_name} {last_name}".strip()
 	user_name = create_or_get_user(
 		email,
 		full_name,
 		mobile_no=phone,
 		role=BOOKING_AGENT_ROLE,
-		send_welcome_email=0,
+		send_welcome_email=send_activation,
+		pending_activation=True,
 		default_first_name="Agent",
 	)
-
-	if password:
-		from frappe.utils.password import update_password
-
-		update_password(user=user_name, pwd=password)
 
 	user = frappe.get_doc("User", user_name)
 	user.first_name = first_name
@@ -648,9 +748,13 @@ def create_booking_agent(
 	if BOOKING_AGENT_ROLE not in [r.role for r in user.roles]:
 		user.add_roles(BOOKING_AGENT_ROLE)
 
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_label
+
+	address_company = company_agency_label(booking_company) if booking_company else agent_name
+
 	address_name = create_or_update_agent_address(
 		user_name,
-		company_name=agent_name,
+		company_name=address_company,
 		email=email,
 		address_line1=address_line1,
 		address_line2=address_line2,
@@ -661,11 +765,11 @@ def create_booking_agent(
 
 	profile = create_booking_agent_profile(
 		user=user_name,
+		booking_company=booking_company,
 		agent_name=agent_name,
 		email=email,
 		phone=phone,
-		confirmation_mode=confirmation_mode or "Credit Agent",
-		credit_limit=credit_limit,
+		credit_limit=credit_limit if credit_limit is not None else 0,
 		linked_customer=linked_customer,
 		notes=notes,
 		username=username,
@@ -676,7 +780,14 @@ def create_booking_agent(
 		address_line1=address_line1,
 		address_line2=(address_line2 or "").strip() or None,
 		city=city,
+		status=(status or "Active").strip(),
+		user_type=(user_type or "Agent").strip(),
+		can_book_ticket=(can_book_ticket or "Yes").strip(),
+		can_confirm_ticket=(can_confirm_ticket or "Yes").strip(),
+		deposit_required=(deposit_required or "No").strip(),
 	)
+
+	sync_booking_agent_user_enabled(profile)
 
 	frappe.db.commit()
 	row = {
@@ -689,6 +800,30 @@ def create_booking_agent(
 	}
 	row.update(serialize_booking_agent(profile))
 	return row
+
+
+@frappe.whitelist()
+def resend_booking_agent_activation(booking_agent=None, user=None):
+	"""Resend welcome / set-password email for a booking agent portal user."""
+	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.user_activation import (
+		send_user_activation_email,
+		user_has_set_password,
+	)
+
+	user_name = user
+	if booking_agent:
+		if not frappe.db.exists("Booking Agent", booking_agent):
+			frappe.throw(_("Booking agent not found"))
+		user_name = frappe.db.get_value("Booking Agent", booking_agent, "user")
+	if not user_name or not frappe.db.exists("User", user_name):
+		frappe.throw(_("Portal user not found for this booking agent."))
+	if user_has_set_password(user_name):
+		frappe.throw(_("This user has already activated their account. Use password reset instead."))
+
+	send_user_activation_email(user_name)
+	frappe.db.commit()
+	return {"success": True, "user": user_name}
 
 
 @frappe.whitelist()

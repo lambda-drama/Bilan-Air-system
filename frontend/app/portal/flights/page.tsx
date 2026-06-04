@@ -61,6 +61,7 @@ import { useRouter } from "next/navigation";
 import { useCurrency } from "@/contexts/currency-context";
 import {
   buildOverridePayload,
+  overrideFormFromSchedule,
   emptyPassengerFaresForm,
   faresToForm,
   formatFaresSummary,
@@ -91,6 +92,7 @@ const emptyScheduleForm = {
   status: "Scheduled",
   captain: "",
   first_officer: "",
+  initial_seats_released: "",
 };
 
 type CrewOption = { name: string; full_name: string; crew_role: string };
@@ -280,7 +282,7 @@ export default function PortalFlightsPage() {
     try {
       const doc = await getFlightSchedule(s.name);
       setEditRouteBaseFares(doc.route_base_fares ?? null);
-      setFareOverrideForm(overrideFormFromApi(doc.base_fares_override ?? undefined));
+      setFareOverrideForm(overrideFormFromSchedule(doc));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load pricing");
       setEditPricesTarget(null);
@@ -299,7 +301,7 @@ export default function PortalFlightsPage() {
     }
     try {
       await saveSchedule(
-        { name: editPricesTarget.name, base_fares_override: override },
+        { name: editPricesTarget.name, ...override },
         { submit: false },
       );
       toast.success(`Pricing updated for ${editPricesTarget.flight_number}`);
@@ -345,7 +347,7 @@ export default function PortalFlightsPage() {
         captain: doc.captain,
         first_officer: doc.first_officer || "",
       });
-      setFareOverrideForm(overrideFormFromApi(doc.base_fares_override ?? undefined));
+      setFareOverrideForm(overrideFormFromSchedule(doc));
       setEditRouteBaseFares(doc.route_base_fares ?? null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load schedule");
@@ -383,7 +385,7 @@ export default function PortalFlightsPage() {
       };
       if (amendForm.first_officer) payload.first_officer = amendForm.first_officer;
       const fareOverride = buildOverridePayload(fareOverrideForm);
-      if (fareOverride) payload.base_fares_override = fareOverride;
+      if (fareOverride) Object.assign(payload, fareOverride);
       const created = await amendFlightSchedule(amendTarget.name, payload, { submit: true });
       const newName = typeof created.name === "string" ? created.name : "";
       const seats = created.seats_created ?? 0;
@@ -456,23 +458,17 @@ export default function PortalFlightsPage() {
     )?.name;
 
     const loadCrew = async () => {
-      const captainList = captainRoleId
-        ? await listCrewMembers({ crew_role: captainRoleId, for_date: crewDepartureDate })
-        : await listCrewMembers({ for_date: crewDepartureDate });
+      const captainList = await listCrewMembers({
+        crew_role: captainRoleId,
+        capacity: "captain",
+        for_date: crewDepartureDate,
+      });
 
-      let foList: CrewOption[];
-      if (firstOfficerRoleId) {
-        foList = await listCrewMembers({
-          crew_role: firstOfficerRoleId,
-          for_date: crewDepartureDate,
-        });
-      } else {
-        const allOnDate = await listCrewMembers({ for_date: crewDepartureDate });
-        foList = allOnDate.filter((c) => {
-          if (captainRoleId && c.crew_role === captainRoleId) return false;
-          return !/captain/i.test(c.crew_role || "");
-        });
-      }
+      const foList = await listCrewMembers({
+        crew_role: firstOfficerRoleId,
+        capacity: "first_officer",
+        for_date: crewDepartureDate,
+      });
 
       setCaptains(captainList);
       setFirstOfficers(foList);
@@ -580,8 +576,11 @@ export default function PortalFlightsPage() {
         captain: form.captain,
       };
       if (form.first_officer) payload.first_officer = form.first_officer;
+      if (form.initial_seats_released.trim()) {
+        payload.initial_seats_released = parseInt(form.initial_seats_released, 10) || 0;
+      }
       const fareOverride = buildOverridePayload(fareOverrideForm);
-      if (fareOverride) payload.base_fares_override = fareOverride;
+      if (fareOverride) Object.assign(payload, fareOverride);
       const created = await saveSchedule(payload, { submit: true });
       const seats = Number(created.seats_created ?? 0);
       const published = created.submitted !== false;
@@ -876,6 +875,26 @@ export default function PortalFlightsPage() {
                   form.departure_date ? "Search first officer (optional)..." : "Set departure date first"
                 }
                 emptyMessage="No first officer found"
+              />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection title="Seat release" className="mt-4">
+          <FormGrid>
+            <FormField
+              label="Initial seats released"
+              fullWidth
+              hint="0 = release all aircraft seats. Enter 50 if only 50 of 100 should be bookable now; release the rest later from the flight detail."
+            >
+              <Input
+                type="number"
+                min={0}
+                value={form.initial_seats_released}
+                onChange={(e) =>
+                  setForm({ ...form, initial_seats_released: e.target.value })
+                }
+                placeholder="0 = all seats"
               />
             </FormField>
           </FormGrid>

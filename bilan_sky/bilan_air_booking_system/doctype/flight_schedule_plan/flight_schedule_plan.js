@@ -3,6 +3,10 @@
 
 frappe.ui.form.on('Flight Schedule Plan', {
 	refresh(frm) {
+		const query = 'bilan_sky.bilan_air_booking_system.utils.crew_filters.crew_member_link_query';
+		frm.set_query('captain', () => ({ query, filters: { capacity: 'captain' } }));
+		frm.set_query('first_officer', () => ({ query, filters: { capacity: 'first_officer' } }));
+
 		if (frm.is_new()) {
 			return;
 		}

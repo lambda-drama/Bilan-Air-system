@@ -12,6 +12,7 @@
 
 frappe.ui.form.on('Flight Schedule', {
     refresh: function(frm) {
+        setup_crew_queries(frm);
         check_booking_cutoff(frm);
         if (!frm.is_new()) {
             frm.add_custom_button(__('Reschedule Flight'), function() {
@@ -37,6 +38,12 @@ frappe.ui.form.on('Flight Schedule', {
         check_booking_cutoff(frm);
     }
 });
+
+function setup_crew_queries(frm) {
+    const query = 'bilan_sky.bilan_air_booking_system.utils.crew_filters.crew_member_link_query';
+    frm.set_query('captain', () => ({ query, filters: { capacity: 'captain' } }));
+    frm.set_query('first_officer', () => ({ query, filters: { capacity: 'first_officer' } }));
+}
 
 function open_reschedule_dialog(frm) {
     const dialog = new frappe.ui.Dialog({

@@ -2,6 +2,8 @@
 
 Air booking system
 
+**Operations guide:** [docs/operations-guide.md](docs/operations-guide.md) — portal workflows, seat release, multi-stop (three-city) seating, booking agents.
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:

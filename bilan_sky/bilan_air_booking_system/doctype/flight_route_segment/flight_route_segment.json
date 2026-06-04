@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "creation": "2026-06-04 20:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "segment_index",
+  "origin_airport",
+  "destination_airport"
+ ],
+ "fields": [
+  {
+   "fieldname": "segment_index",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Segment #",
+   "reqd": 1
+  },
+  {
+   "fieldname": "origin_airport",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "From",
+   "options": "Airport",
+   "reqd": 1
+  },
+  {
+   "fieldname": "destination_airport",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "To",
+   "options": "Airport",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "module": "Bilan Air Booking System",
+ "name": "Flight Route Segment",
+ "permissions": []
+}

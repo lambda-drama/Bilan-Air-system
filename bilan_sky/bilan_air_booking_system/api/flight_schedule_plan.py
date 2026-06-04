@@ -72,9 +72,10 @@ def save_flight_schedule_plan(data):
 	name = data.get("name")
 	seat_classes = data.pop("seat_classes", None)
 	cabin_crew = data.pop("cabin_crew", None)
-	base_fares = data.pop("base_fares_override", None)
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_schedule_override_payload
 
-	payload = {k: v for k, v in data.items() if k != "name"}
+	normalize_schedule_override_payload(data)
+	payload = {k: v for k, v in data.items() if k not in ("name", "base_fares_override", "base_fare_override")}
 
 	if name:
 		doc = frappe.get_doc("Flight Schedule Plan", name)
@@ -83,8 +84,6 @@ def save_flight_schedule_plan(data):
 			doc.set("seat_classes", seat_classes)
 		if cabin_crew is not None:
 			doc.set("cabin_crew", cabin_crew)
-		if base_fares is not None:
-			doc.base_fares_override = base_fares
 		doc.save(ignore_permissions=True)
 	else:
 		doc = frappe.get_doc({"doctype": "Flight Schedule Plan", **payload})
@@ -92,8 +91,6 @@ def save_flight_schedule_plan(data):
 			doc.set("seat_classes", seat_classes)
 		if cabin_crew is not None:
 			doc.set("cabin_crew", cabin_crew)
-		if base_fares is not None:
-			doc.base_fares_override = base_fares
 		doc.insert(ignore_permissions=True)
 
 	frappe.db.commit()

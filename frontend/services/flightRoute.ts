@@ -14,8 +14,26 @@ export async function findRoutes(origin: string, destination: string) {
   });
 }
 
+export type RouteSegmentRow = {
+  segment_index: number;
+  origin_airport: string;
+  destination_airport: string;
+  origin_airport_label?: string;
+  destination_airport_label?: string;
+};
+
+export async function getFlightRoute(name: string) {
+  return apiRequest<Record<string, unknown> & { route_segments?: RouteSegmentRow[] }>(
+    methodUrl("portal", "get_flight_route"),
+    {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    },
+  );
+}
+
 export async function saveRoute(data: Record<string, unknown>) {
-  return apiRequest(methodUrl("portal", "save_flight_route"), {
+  return apiRequest<Record<string, unknown>>(methodUrl("portal", "save_flight_route"), {
     method: "POST",
     body: JSON.stringify({ data }),
   });
