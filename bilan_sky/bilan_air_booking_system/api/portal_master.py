@@ -12,6 +12,7 @@ from bilan_sky.bilan_air_booking_system.utils.agent_address import (
 	default_address_country,
 )
 from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
+	booking_agent_activation_by_email,
 	create_booking_agent_profile,
 	default_credit_limit,
 	serialize_booking_agent,
@@ -438,6 +439,9 @@ def _validate_booking_agent_contact_fields(
 
 
 def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import enrich_agent_company_fields
+	from bilan_sky.bilan_air_booking_system.utils.user_activation import user_has_set_password
+
 	if not users:
 		return []
 	profiles = {
@@ -504,13 +508,6 @@ def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
 				0, float(profile.credit_limit or 0) - float(profile.credit_used or 0)
 			)
 			row["allow_credit"] = profile.allow_credit
-					from bilan_sky.bilan_air_booking_system.utils.booking_company import (
-				enrich_agent_company_fields,
-			)
-			from bilan_sky.bilan_air_booking_system.utils.user_activation import (
-				user_has_set_password,
-			)
-
 			enrich_agent_company_fields(row)
 			row["activation_pending"] = not user_has_set_password(user["name"])
 		else:
@@ -543,6 +540,7 @@ def get_booking_agent_defaults():
 		"can_confirm_ticket": "Yes",
 		"deposit_required": "No",
 		"credit_limit": default_credit_limit(),
+		"send_booking_agent_activation_email": 1 if booking_agent_activation_by_email() else 0,
 		"default_country": default_address_country(),
 		"cities": [row[0] for row in cities],
 	}
@@ -682,7 +680,7 @@ def create_booking_agent(
 	first_name,
 	last_name=None,
 	phone=None,
-	send_activation_email=1,
+	password=None,
 	credit_limit=None,
 	booking_company=None,
 	agent_name=None,
@@ -724,9 +722,15 @@ def create_booking_agent(
 		city=city,
 	)
 
-	send_activation = cint(send_activation_email)
-	if not send_activation:
-		frappe.throw(_("Send activation email must be enabled so the agent can set their password."))
+	use_activation_email = booking_agent_activation_by_email()
+	if use_activation_email:
+		send_activation = True
+		new_password = None
+	else:
+		send_activation = False
+		new_password = (password or "").strip()
+		if not new_password:
+			frappe.throw(_("Password is required when activation email is disabled in BA Settings."))
 
 	full_name = f"{first_name} {last_name}".strip()
 	user_name = create_or_get_user(
@@ -735,7 +739,8 @@ def create_booking_agent(
 		mobile_no=phone,
 		role=BOOKING_AGENT_ROLE,
 		send_welcome_email=send_activation,
-		pending_activation=True,
+		pending_activation=use_activation_email,
+		new_password=new_password,
 		default_first_name="Agent",
 	)
 
@@ -745,8 +750,6 @@ def create_booking_agent(
 	user.full_name = full_name
 	user.mobile_no = phone
 	user.save(ignore_permissions=True)
-	if BOOKING_AGENT_ROLE not in [r.role for r in user.roles]:
-		user.add_roles(BOOKING_AGENT_ROLE)
 
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_label
 
@@ -806,6 +809,12 @@ def create_booking_agent(
 def resend_booking_agent_activation(booking_agent=None, user=None):
 	"""Resend welcome / set-password email for a booking agent portal user."""
 	require_portal_staff()
+	if not booking_agent_activation_by_email():
+		frappe.throw(
+			_(
+				"Activation email is disabled in BA Settings. Set or reset the password from Desk instead."
+			)
+		)
 	from bilan_sky.bilan_air_booking_system.utils.user_activation import (
 		send_user_activation_email,
 		user_has_set_password,

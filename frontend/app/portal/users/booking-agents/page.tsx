@@ -59,7 +59,8 @@ const emptyForm = {
   phone: "",
   phone_2: "",
   city: "",
-  send_activation_email: true,
+  password: "",
+  password_confirm: "",
   status: "Active" as "Active" | "Inactive",
   user_type: "Agent",
   can_book_ticket: "Yes" as "Yes" | "No",
@@ -71,32 +72,93 @@ const emptyForm = {
 const STEPS = [
   { id: 1, label: "User information" },
   { id: 2, label: "User rights" },
+  { id: 3, label: "Summary" },
 ] as const;
 
-function StepIndicator({ step }: { step: number }) {
+function CreateAgentSummary({
+  form,
+  companyLabel,
+  activationByEmail,
+  creditEditable,
+}: {
+  form: typeof emptyForm;
+  companyLabel: string;
+  activationByEmail: boolean;
+  creditEditable: boolean;
+}) {
+  const fullName = [form.first_name, form.last_name].filter(Boolean).join(" ").trim();
+  const addressParts = [form.address_line1, form.address_line2, form.city].filter((p) => p.trim());
+  const creditDisplay = creditEditable ? form.credit_limit : "0";
+
   return (
-    <div className="mb-6 flex items-center gap-3 text-sm">
+    <div className="space-y-4">
+      <DetailSection title="User information">
+        <DetailRow label="Company / agency" value={companyLabel || "—"} />
+        <DetailRow label="Username" value={form.username} />
+        <DetailRow label="Email" value={form.email} />
+        <DetailRow label="Name" value={fullName || "—"} />
+        <DetailRow label="Address" value={addressParts.length ? addressParts.join(", ") : "—"} />
+        <DetailRow label="Phone 1" value={form.phone} />
+        {form.phone_2.trim() ? <DetailRow label="Phone 2" value={form.phone_2} /> : null}
+        <DetailRow
+          label="Portal login"
+          value={activationByEmail ? "Activation email" : "Password set by staff"}
+        />
+      </DetailSection>
+      <DetailSection title="User rights">
+        <DetailRow label="Active" value={form.status} />
+        <DetailRow label="User type" value={form.user_type} />
+        <DetailRow label="Can book ticket" value={form.can_book_ticket} />
+        <DetailRow label="Can confirm ticket" value={form.can_confirm_ticket} />
+        <DetailRow label="Deposit required" value={form.deposit_required} />
+        <DetailRow label="Credit limit" value={creditDisplay} />
+      </DetailSection>
+    </div>
+  );
+}
+
+function StepIndicator({
+  step,
+  onStepChange,
+}: {
+  step: number;
+  onStepChange: (target: number) => void;
+}) {
+  return (
+    <nav className="mb-6 flex items-center gap-3 text-sm" aria-label="Form steps">
       {STEPS.map((s, i) => (
         <div key={s.id} className="flex items-center gap-2">
-          {i > 0 && <span className="text-muted-foreground">›</span>}
-          <span
+          {i > 0 && <span className="text-muted-foreground" aria-hidden="true">›</span>}
+          <button
+            type="button"
+            onClick={() => onStepChange(s.id)}
+            aria-current={step === s.id ? "step" : undefined}
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
-              step === s.id
-                ? "bg-navy text-white"
-                : step > s.id
-                  ? "bg-gold/30 text-navy"
-                  : "bg-muted text-muted-foreground",
+              "flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-muted/60",
+              step === s.id ? "cursor-default" : "cursor-pointer",
             )}
           >
-            {s.id}
-          </span>
-          <span className={step === s.id ? "font-medium text-foreground" : "text-muted-foreground"}>
-            {s.label}
-          </span>
+            <span
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
+                step === s.id
+                  ? "bg-navy text-white"
+                  : step > s.id
+                    ? "bg-gold/30 text-navy"
+                    : "bg-muted text-muted-foreground",
+              )}
+            >
+              {s.id}
+            </span>
+            <span
+              className={step === s.id ? "font-medium text-foreground" : "text-muted-foreground"}
+            >
+              {s.label}
+            </span>
+          </button>
         </div>
       ))}
-    </div>
+    </nav>
   );
 }
 
@@ -109,7 +171,7 @@ function YesNoSelect({
 }) {
   return (
     <Select value={value} onValueChange={(v) => onValueChange(v as "Yes" | "No")}>
-      <SelectTrigger>
+      <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -137,6 +199,7 @@ export default function PortalBookingAgentsPage() {
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [companyForm, setCompanyForm] = useState(emptyCompanyForm);
   const [companySaving, setCompanySaving] = useState(false);
+  const [activationByEmail, setActivationByEmail] = useState(true);
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
@@ -159,6 +222,11 @@ export default function PortalBookingAgentsPage() {
     [companies],
   );
 
+  const selectedCompanyLabel = useMemo(() => {
+    const match = companies.find((c) => c.name === form.booking_company);
+    return match?.label || match?.company_agency || form.booking_company || "—";
+  }, [companies, form.booking_company]);
+
   const creditEditable =
     form.can_confirm_ticket === "Yes" && form.deposit_required === "No";
 
@@ -178,6 +246,7 @@ export default function PortalBookingAgentsPage() {
             defaults.credit_limit != null ? String(defaults.credit_limit) : prev.credit_limit,
         }));
         setCitySuggestions(defaults.cities ?? []);
+        setActivationByEmail(defaults.send_booking_agent_activation_email !== 0);
       })
       .catch(() => {});
   }, [open, loadCompanies]);
@@ -224,8 +293,11 @@ export default function PortalBookingAgentsPage() {
         { key: "phone", label: "Phone 1" },
         { key: "city", label: "City" },
       ]);
-      if (!form.send_activation_email) {
-        missing.push("Send activation email");
+      if (!activationByEmail) {
+        if (!form.password.trim()) missing.push("Password");
+        else if (form.password.length < 8) missing.push("Password (min 8 characters)");
+        if (!form.password_confirm.trim()) missing.push("Confirm password");
+        else if (form.password !== form.password_confirm) missing.push("Passwords must match");
       }
       return missing;
     }
@@ -236,20 +308,42 @@ export default function PortalBookingAgentsPage() {
     return missing;
   };
 
-  const goNext = () => {
-    const missing = validateStep(1);
-    if (missing.length) {
-      formAlerts.showValidation(missing);
+  const goToStep = (target: number) => {
+    if (target === step) return;
+    if (target < step) {
+      formAlerts.clearAlerts();
+      setStep(target);
       return;
     }
+    if (target >= 2) {
+      const missingStep1 = validateStep(1);
+      if (missingStep1.length) {
+        formAlerts.showValidation(missingStep1);
+        setStep(1);
+        return;
+      }
+    }
+    if (target >= 3) {
+      const missingStep2 = validateStep(2);
+      if (missingStep2.length) {
+        formAlerts.showValidation(missingStep2);
+        setStep(2);
+        return;
+      }
+    }
     formAlerts.clearAlerts();
-    setStep(2);
+    setStep(target);
   };
 
+  const goNext = () => goToStep(step + 1);
+
   const handleCreate = async () => {
-    const missing = [...validateStep(1), ...validateStep(2)];
+    const missingStep1 = validateStep(1);
+    const missingStep2 = validateStep(2);
+    const missing = [...missingStep1, ...missingStep2];
     if (missing.length) {
       formAlerts.showValidation(missing);
+      setStep(missingStep1.length ? 1 : 2);
       return;
     }
     formAlerts.clearAlerts();
@@ -265,7 +359,7 @@ export default function PortalBookingAgentsPage() {
         city: form.city.trim(),
         phone: form.phone.trim(),
         phone_2: form.phone_2.trim() || undefined,
-        send_activation_email: form.send_activation_email ? 1 : 0,
+        password: activationByEmail ? undefined : form.password,
         status: form.status,
         user_type: form.user_type,
         can_book_ticket: form.can_book_ticket,
@@ -287,6 +381,7 @@ export default function PortalBookingAgentsPage() {
     formAlerts.clearAlerts();
     setStep(1);
     setForm(emptyForm);
+    setActivationByEmail(true);
     setOpen(true);
   };
 
@@ -465,8 +560,10 @@ export default function PortalBookingAgentsPage() {
         title="New booking agent"
         description={
           step === 1
-            ? "Step 1 — contact and address (stored on Booking Agent + ERPNext Address)."
-            : "Step 2 — rights and credit (managed on Booking Agent only)."
+            ? "Contact and address for the booking agent profile."
+            : step === 2
+              ? "Rights and credit limit for bookings and confirmations."
+              : "Review details before creating the agent."
         }
         validationErrors={formAlerts.validationErrors}
         submitError={formAlerts.submitError}
@@ -475,11 +572,11 @@ export default function PortalBookingAgentsPage() {
           <>
             <Button
               variant="outline"
-              onClick={() => (step === 1 ? setOpen(false) : setStep(1))}
+              onClick={() => (step === 1 ? setOpen(false) : goToStep(step - 1))}
             >
-              {step === 1 ? "Cancel" : "Back"}
+              {step === 1 ? "Cancel" : step === 2 ? "User information" : "User rights"}
             </Button>
-            {step === 1 ? (
+            {step < 3 ? (
               <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={goNext}>
                 Next
               </Button>
@@ -491,8 +588,8 @@ export default function PortalBookingAgentsPage() {
           </>
         }
       >
-        <StepIndicator step={step} />
-        {step === 1 ? (
+        <StepIndicator step={step} onStepChange={goToStep} />
+        {step === 1 && (
           <FormGrid>
             <FormField
               label="Company / agency"
@@ -590,32 +687,39 @@ export default function PortalBookingAgentsPage() {
                 ))}
               </datalist>
             </FormField>
-            <FormField
-              label="Portal login"
-              fullWidth
-              hint="User receives an email to set their password. Login is enabled only after they complete activation."
-            >
-              <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
-                <Checkbox
-                  checked={form.send_activation_email}
-                  onCheckedChange={(checked) =>
-                    setForm({ ...form, send_activation_email: checked === true })
-                  }
-                />
-                <span className="text-sm leading-snug">
-                  Send activation email — agent sets their own password (recommended)
-                </span>
-              </label>
-            </FormField>
+            {!activationByEmail ? (
+              <>
+                <FormField label="Portal password" required>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Confirm password" required>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.password_confirm}
+                    onChange={(e) => setForm({ ...form, password_confirm: e.target.value })}
+                  />
+                </FormField>
+              </>
+            ) : null}
           </FormGrid>
-        ) : (
-          <FormGrid>
+        )}
+        {step === 2 && (
+          <FormGrid
+            cols={1}
+            className="[&_.bilan-form-control]:h-10 [&_.bilan-form-control_input]:h-10 [&_.bilan-form-control_[data-slot=select-trigger]]:h-10"
+          >
             <FormField label="Active" required>
               <Select
                 value={form.status}
                 onValueChange={(v) => setForm({ ...form, status: v as "Active" | "Inactive" })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -629,7 +733,7 @@ export default function PortalBookingAgentsPage() {
                 value={form.user_type}
                 onValueChange={(v) => setForm({ ...form, user_type: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -655,7 +759,7 @@ export default function PortalBookingAgentsPage() {
                 }
               />
             </FormField>
-            <FormField label="Deposit required?" required fullWidth>
+            <FormField label="Deposit required?" required>
               <YesNoSelect
                 value={form.deposit_required}
                 onValueChange={(v) =>
@@ -670,7 +774,6 @@ export default function PortalBookingAgentsPage() {
             <FormField
               label="Credit limit"
               required={creditEditable}
-              fullWidth
               hint={
                 creditEditable
                   ? "Used when confirming on credit (deposit not required)."
@@ -678,6 +781,7 @@ export default function PortalBookingAgentsPage() {
               }
             >
               <Input
+                className="w-full"
                 type="number"
                 min={0}
                 step="0.01"
@@ -687,6 +791,14 @@ export default function PortalBookingAgentsPage() {
               />
             </FormField>
           </FormGrid>
+        )}
+        {step === 3 && (
+          <CreateAgentSummary
+            form={form}
+            companyLabel={selectedCompanyLabel}
+            activationByEmail={activationByEmail}
+            creditEditable={creditEditable}
+          />
         )}
       </BilanFormDialog>
 

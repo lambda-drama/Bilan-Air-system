@@ -210,6 +210,7 @@ export async function getBookingAgentDefaults() {
     can_confirm_ticket: string;
     deposit_required: string;
     credit_limit: number;
+    send_booking_agent_activation_email?: number;
     default_country?: string;
     cities?: string[];
   }>(master("get_booking_agent_defaults"), { method: "POST", body: JSON.stringify({}) });
@@ -228,7 +229,7 @@ export async function createBookingAgent(params: {
   address_line2?: string;
   phone_2?: string;
   country?: string;
-  send_activation_email?: boolean | number;
+  password?: string;
   status?: "Active" | "Inactive";
   user_type?: string;
   can_book_ticket?: "Yes" | "No";

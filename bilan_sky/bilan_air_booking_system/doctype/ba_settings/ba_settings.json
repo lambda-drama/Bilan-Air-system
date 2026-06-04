@@ -8,6 +8,7 @@
   "reservation_naming_series",
   "pnr_naming_series",
   "default_agent_credit_limit",
+  "send_booking_agent_activation_email",
   "column_break_naming",
   "hold_duration",
   "booking_cutoff_hours",
@@ -53,6 +54,13 @@
    "fieldname": "default_agent_credit_limit",
    "fieldtype": "Currency",
    "label": "Default Agent Credit Limit"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, new booking agents receive a welcome email to set their own password. When disabled, staff must set the portal password when creating the agent in the portal.",
+   "fieldname": "send_booking_agent_activation_email",
+   "fieldtype": "Check",
+   "label": "Send Booking Agent Activation Email"
   },
   {
    "fieldname": "column_break_naming",
