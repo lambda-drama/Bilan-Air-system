@@ -91,18 +91,20 @@ export default function RecurringFlightPlansPage() {
   const formAlerts = useFormDialogAlerts();
 
   useEffect(() => {
-    Promise.all([fetchAllRoutes(), fetchAllAirplanes(), listCrewMembers({ limit: 200 })]).then(
-      ([r, a, c]) => {
-        setRoutes(r.map((x) => ({ name: x.name, label: x.route_name || x.name })));
-        setAirplanes(a.map((x) => ({ name: x.name, label: x.name })));
-        setCrew(
-          (c.data || []).map((m) => ({
-            name: String(m.name),
-            full_name: String(m.full_name || m.name),
-          })),
-        );
-      },
-    );
+    Promise.all([
+      fetchAllRoutes(),
+      fetchAllAirplanes(),
+      listCrewMembers({ capacity: "captain" }),
+    ]).then(([r, a, captains]) => {
+      setRoutes(r.map((x) => ({ name: x.name, label: x.route_name || x.name })));
+      setAirplanes(a.map((x) => ({ name: x.name, label: x.name })));
+      setCrew(
+        captains.map((m) => ({
+          name: String(m.name),
+          full_name: String(m.full_name || m.name),
+        })),
+      );
+    });
   }, []);
 
   const buildPayload = () => ({

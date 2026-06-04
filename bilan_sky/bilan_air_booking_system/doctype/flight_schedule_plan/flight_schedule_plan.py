@@ -13,6 +13,9 @@ from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 
 class FlightSchedulePlan(Document):
 	def validate(self):
+		from bilan_sky.bilan_air_booking_system.utils.crew_filters import validate_flight_crew_pilots
+		validate_flight_crew_pilots(self)
+
 		if getdate(self.end_date) < getdate(self.start_date):
 			frappe.throw(_("End Date cannot be before Start Date."))
 		if self.frequency == "Weekly":

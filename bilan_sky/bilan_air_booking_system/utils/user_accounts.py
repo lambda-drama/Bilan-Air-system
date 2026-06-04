@@ -25,9 +25,14 @@ def create_or_get_user(
 	enabled: bool = True,
 	role: str | None = None,
 	send_welcome_email: bool = True,
+	pending_activation: bool = False,
 	default_first_name: str = "User",
 ) -> str:
-	"""Create a Frappe User or return an existing one for the given email."""
+	"""Create a Frappe User or return an existing one for the given email.
+
+	When pending_activation is True the user is created disabled and must set a
+	password via the welcome email before portal login is enabled.
+	"""
 	email = cstr(email).strip().lower()
 	if not email:
 		return ""
@@ -45,11 +50,19 @@ def create_or_get_user(
 
 	if frappe.db.exists("User", email):
 		user_name = email
+		user_doc = frappe.get_doc("User", user_name)
 		if resolved_role:
-			frappe.get_doc("User", user_name).add_roles(resolved_role)
+			user_doc.add_roles(resolved_role)
+		if pending_activation and send_welcome_email:
+			from bilan_sky.bilan_air_booking_system.utils.user_activation import (
+				send_user_activation_email,
+			)
+
+			send_user_activation_email(user_name)
 		return user_name
 
 	first_name, last_name = split_full_name(full_name, default_first=default_first_name)
+	user_enabled = 0 if pending_activation else (1 if enabled else 0)
 	user = frappe.get_doc(
 		{
 			"doctype": "User",
@@ -58,10 +71,11 @@ def create_or_get_user(
 			"last_name": last_name,
 			"full_name": full_name,
 			"mobile_no": mobile_no,
-			"enabled": 1 if enabled else 0,
+			"enabled": user_enabled,
 			"send_welcome_email": 1 if send_welcome_email else 0,
 		}
 	)
+	user.flags.no_welcome_mail = not send_welcome_email
 	user.insert(ignore_permissions=True)
 
 	if resolved_role:

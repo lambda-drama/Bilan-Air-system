@@ -39,7 +39,9 @@
   "section_break_crew",
   "cabin_crew",
   "pricing_section",
-  "base_fares_override",
+  "base_fare_adult_override",
+  "base_fare_child_override",
+  "base_fare_infant_override",
   "seat_reserve_section",
   "seat_classes",
   "generation_section",
@@ -216,10 +218,23 @@
    "options": "Flight Crew Assignment"
   },
   {
-   "description": "Optional JSON override applied to each generated flight.",
-   "fieldname": "base_fares_override",
-   "fieldtype": "JSON",
-   "label": "Base Fares Override"
+   "description": "Optional. When set, generated flights use these instead of route fares. Leave empty to use route pricing.",
+   "fieldname": "base_fare_adult_override",
+   "fieldtype": "Currency",
+   "label": "Base Fare Override (Adult)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "base_fare_child_override",
+   "fieldtype": "Currency",
+   "label": "Base Fare Override (Child)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "base_fare_infant_override",
+   "fieldtype": "Currency",
+   "label": "Base Fare Override (Infant)",
+   "options": "currency"
   },
   {
    "fieldname": "seat_classes",
@@ -290,6 +305,13 @@
    "fieldname": "seat_reserve_section",
    "fieldtype": "Section Break",
    "label": "Seat Reserve"
+  },
+  {
+   "default": "0",
+   "description": "Seats bookable when schedules are generated (0 = release all seats on the airplane).",
+   "fieldname": "initial_seats_released",
+   "fieldtype": "Int",
+   "label": "Initial seats released"
   },
   {
    "fieldname": "generation_section",

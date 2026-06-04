@@ -21,6 +21,8 @@ class FlightSchedule(Document):
             self.name = schedule_document_name(self.flight_number, self.departure_date)
 
     def validate(self):
+        from bilan_sky.bilan_air_booking_system.utils.crew_filters import validate_flight_crew_pilots
+        validate_flight_crew_pilots(self)
         self._ensure_flight_number()
         if self.flight_number and self.departure_date:
             assert_unique_flight_number(self.flight_number, self.departure_date, self.name)
@@ -28,6 +30,16 @@ class FlightSchedule(Document):
             if not self.is_new() and self.name != expected_name:
                 frappe.rename_doc(self.doctype, self.name, expected_name, force=True)
                 self.name = expected_name
+        self._sync_segments_and_capacity()
+
+    def _sync_segments_and_capacity(self):
+        from bilan_sky.bilan_air_booking_system.utils.flight_segments import sync_schedule_segments_from_route
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import aircraft_capacity
+
+        if self.route and not self.segments:
+            sync_schedule_segments_from_route(self)
+        if self.airplane:
+            self.total_aircraft_capacity = aircraft_capacity(self.airplane)
 
     def after_insert(self):
         self._ensure_seat_inventory()
@@ -45,23 +57,10 @@ class FlightSchedule(Document):
         return self.generate_seat_inventory()
 
     def _expected_seat_count(self):
-        """How many seats should exist for this schedule based on airplane config."""
-        if not self.airplane:
-            return 0
+        """Physical seat count from airplane layout (all seats, including unreleased)."""
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import aircraft_capacity
 
-        airplane = frappe.get_doc("Airplane", self.airplane)
-        total = 0
-        for config in airplane.seat_config or []:
-            rows = cint(config.rows)
-            columns = [
-                c.strip()
-                for c in cstr(config.columns_per_row).split(",")
-                if c.strip()
-            ]
-            if rows <= 0 or not columns:
-                continue
-            total += rows * len(columns)
-        return total
+        return aircraft_capacity(self.airplane)
 
     def _ensure_flight_number(self):
         if self.flight_number and not self.is_new():
@@ -98,7 +97,14 @@ class FlightSchedule(Document):
                 )
             return 0
 
-        expected = self._expected_seat_count()
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+            apply_release_status_to_schedule,
+            effective_release_count,
+            iter_layout_seat_slots,
+        )
+
+        slots = iter_layout_seat_slots(airplane)
+        release_count = effective_release_count(self)
         existing_numbers = set(
             frappe.get_all(
                 "Seat Inventory",
@@ -106,43 +112,37 @@ class FlightSchedule(Document):
                 pluck="seat_number",
             )
         )
-        if expected > 0 and len(existing_numbers) >= expected:
-            return len(existing_numbers)
 
         seats_created = 0
-
-        for config in airplane.seat_config:
-            seat_class = config.seat_class
-            rows = cint(config.rows)
-            columns = [
-                c.strip()
-                for c in cstr(config.columns_per_row).split(",")
-                if c.strip()
-            ]
-            start_row = cint(config.start_row_number)
-            if start_row <= 0:
-                start_row = 1
-
-            if rows <= 0 or not columns:
+        for index, (seat_number, seat_class) in enumerate(slots):
+            status = "Available" if index < release_count else "Unreleased"
+            if seat_number in existing_numbers:
                 continue
+            seat = frappe.get_doc(
+                {
+                    "doctype": "Seat Inventory",
+                    "flight_schedule": self.name,
+                    "seat_number": seat_number,
+                    "seat_class": seat_class,
+                    "status": status,
+                }
+            )
+            seat.insert(ignore_permissions=True)
+            existing_numbers.add(seat_number)
+            seats_created += 1
 
-            for row in range(start_row, start_row + rows):
-                for col in columns:
-                    seat_number = f"{row}{col}"
-                    if seat_number in existing_numbers:
-                        continue
-                    seat = frappe.get_doc(
-                        {
-                            "doctype": "Seat Inventory",
-                            "flight_schedule": self.name,
-                            "seat_number": seat_number,
-                            "seat_class": seat_class,
-                            "status": "Available",
-                        }
-                    )
-                    seat.insert(ignore_permissions=True)
-                    existing_numbers.add(seat_number)
-                    seats_created += 1
+        self.seats_released_count = release_count
+        self.total_aircraft_capacity = len(slots)
+        frappe.db.set_value(
+            "Flight Schedule",
+            self.name,
+            {
+                "seats_released_count": release_count,
+                "total_aircraft_capacity": len(slots),
+            },
+            update_modified=False,
+        )
+        apply_release_status_to_schedule(self)
 
         if seats_created == 0 and not existing_numbers and raise_on_error:
             frappe.throw(
@@ -154,35 +154,20 @@ class FlightSchedule(Document):
         return len(existing_numbers)
     
     def expected_seat_numbers(self):
-        """Seat numbers that should exist for this schedule from the airplane layout."""
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import iter_layout_seat_slots
+
         if not self.airplane:
             return []
-
         airplane = frappe.get_doc("Airplane", self.airplane)
-        numbers = []
+        return [n for n, _ in iter_layout_seat_slots(airplane)]
 
-        for config in airplane.seat_config or []:
-            rows = cint(config.rows)
-            columns = [
-                c.strip()
-                for c in cstr(config.columns_per_row).split(",")
-                if c.strip()
-            ]
-            start_row = cint(config.start_row_number)
-            if start_row <= 0:
-                start_row = 1
+    def release_more_seats(self, count: int):
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import release_additional_seats
 
-            if rows <= 0 or not columns:
-                continue
-
-            for row in range(start_row, start_row + rows):
-                for col in columns:
-                    numbers.append(f"{row}{col}")
-
-        return numbers
+        return release_additional_seats(self.name, count)
     
     def available_seats(self, seat_class=None):
-        """Count available seats"""
+        """Count bookable seats (released and status Available)."""
         filters = {"flight_schedule": self.name, "status": "Available"}
         if seat_class:
             filters["seat_class"] = seat_class

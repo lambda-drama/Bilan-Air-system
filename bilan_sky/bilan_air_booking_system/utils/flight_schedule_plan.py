@@ -8,9 +8,9 @@ from datetime import date
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_months, cint, getdate
+from frappe.utils import add_days, add_months, cint, getdate  # cint used in payload
 
-from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
+from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_overrides
 from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 	assert_unique_flight_number,
 	schedule_document_name,
@@ -100,6 +100,7 @@ def _schedule_payload_from_plan(plan, departure_date: date) -> dict:
 		"arrival_date": arrival_date,
 		"arrival_time": plan.arrival_time,
 		"status": plan.status or "Scheduled",
+		"initial_seats_released": cint(getattr(plan, "initial_seats_released", 0) or 0),
 		"schedule_plan": plan.name,
 		"captain": plan.captain,
 		"first_officer": plan.first_officer or None,
@@ -116,8 +117,12 @@ def _schedule_payload_from_plan(plan, departure_date: date) -> dict:
 
 
 def _apply_fare_override(doc, plan):
-	if plan.base_fares_override:
-		apply_schedule_fare_override(doc, plan.base_fares_override)
+	apply_schedule_fare_overrides(
+		doc,
+		adult=getattr(plan, "base_fare_adult_override", None),
+		child=getattr(plan, "base_fare_child_override", None),
+		infant=getattr(plan, "base_fare_infant_override", None),
+	)
 
 
 def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) -> dict:

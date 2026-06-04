@@ -343,18 +343,33 @@ function update_passenger_fare(frm, row) {
                         callback: function(route_res) {
                             var route = route_res.message;
                             var ptype = (row.passenger_type || 'Adult').toLowerCase();
-                            var fares = route.base_fares || {};
-                            if (typeof fares === 'string') {
-                                try { fares = JSON.parse(fares); } catch (e) { fares = {}; }
+                            var fares = {
+                                adult: route.base_fare_adult || route.base_fare,
+                                child: route.base_fare_child,
+                                infant: route.base_fare_infant,
+                            };
+                            if (typeof route.base_fares === 'string' && route.base_fares) {
+                                try {
+                                    var parsed = JSON.parse(route.base_fares);
+                                    fares = Object.assign(fares, parsed);
+                                } catch (e) { /* ignore */ }
+                            } else if (route.base_fares && typeof route.base_fares === 'object') {
+                                fares = Object.assign(fares, route.base_fares);
                             }
-                            var override = flight.base_fares_override;
-                            if (typeof override === 'string' && override) {
-                                try { override = JSON.parse(override); } catch (e) { override = null; }
+                            var override = {
+                                adult: flight.base_fare_adult_override,
+                                child: flight.base_fare_child_override,
+                                infant: flight.base_fare_infant_override,
+                            };
+                            if (typeof flight.base_fares_override === 'string' && flight.base_fares_override) {
+                                try {
+                                    override = Object.assign(override, JSON.parse(flight.base_fares_override));
+                                } catch (e) { /* ignore */ }
                             }
-                            if (!override && flight.base_fare_override) {
-                                override = { adult: flight.base_fare_override };
+                            if (!override.adult && flight.base_fare_override) {
+                                override.adult = flight.base_fare_override;
                             }
-                            var base_fare = (override && override[ptype] != null)
+                            var base_fare = (override[ptype] != null && override[ptype] !== '')
                                 ? override[ptype]
                                 : (fares[ptype] != null ? fares[ptype] : route.base_fare);
                             

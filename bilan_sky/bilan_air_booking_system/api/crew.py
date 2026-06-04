@@ -13,20 +13,25 @@ def fetch_crew_roles():
 
 @frappe.whitelist()
 def fetch_available_crew_members(role, date):
-    """Get available crew members for a date"""
-    
-    assigned = frappe.get_all("Flight Schedule",
+    """Get available crew members for a date (role must be Pilot category)."""
+    from bilan_sky.bilan_air_booking_system.utils.crew_filters import crew_role_category
+
+    if crew_role_category(role) != "Pilot":
+        return []
+
+    assigned = frappe.get_all(
+        "Flight Schedule",
         filters={"departure_date": date},
-        fields=["captain", "first_officer"]
+        fields=["captain", "first_officer"],
     )
-    
+
     assigned_names = []
     for flight in assigned:
         if flight.captain:
             assigned_names.append(flight.captain)
         if flight.first_officer:
             assigned_names.append(flight.first_officer)
-    
+
     filters = {
         "crew_role": role,
         "status": "Active",

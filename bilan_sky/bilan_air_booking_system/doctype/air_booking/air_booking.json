@@ -12,6 +12,8 @@
   "confirmed_via",
   "column_break_evxb",
   "flight_schedule",
+  "boarding_airport",
+  "deboarding_airport",
   "booking_date",
   "payer_section",
   "payer_name",
@@ -90,6 +92,20 @@
    "label": "Flight Schedule",
    "options": "Flight Schedule",
    "reqd": 1
+  },
+  {
+   "description": "Where the passenger boards (required on multi-segment flights).",
+   "fieldname": "boarding_airport",
+   "fieldtype": "Link",
+   "label": "Boarding airport",
+   "options": "Airport"
+  },
+  {
+   "description": "Where the passenger leaves the aircraft (required on multi-segment flights).",
+   "fieldname": "deboarding_airport",
+   "fieldtype": "Link",
+   "label": "Deboarding airport",
+   "options": "Airport"
   },
   {
    "default": "Now",

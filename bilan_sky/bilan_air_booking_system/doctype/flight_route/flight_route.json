@@ -7,13 +7,17 @@
  "field_order": [
   "route_name",
   "flight_series_base",
+  "is_multi_segment",
+  "route_segments",
   "origin_airport",
   "destination_airport",
   "distance_km",
   "airline",
   "column_break_xkze",
   "currency",
-  "base_fares",
+  "base_fare_adult",
+  "base_fare_child",
+  "base_fare_infant",
   "base_fare",
   "duration",
   "is_active",
@@ -37,6 +41,20 @@
    "fieldtype": "Int",
    "label": "Flight Series Base",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Enable for multi-stop routes (e.g. Mogadishu → Nairobi → Mombasa).",
+   "fieldname": "is_multi_segment",
+   "fieldtype": "Check",
+   "label": "Multi-segment route"
+  },
+  {
+   "depends_on": "eval:doc.is_multi_segment",
+   "fieldname": "route_segments",
+   "fieldtype": "Table",
+   "label": "Route segments",
+   "options": "Flight Route Segment"
   },
   {
    "fieldname": "origin_airport",
@@ -65,16 +83,32 @@
    "reqd": 1
   },
   {
-   "description": "Economy base fares by passenger type. Adult is required; child and infant default from BA Settings if omitted.",
-   "fieldname": "base_fares",
-   "fieldtype": "JSON",
-   "label": "Base Fares (Adult / Child / Infant)"
+   "fieldname": "base_fare_adult",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Base Fare (Adult)",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "description": "Leave empty to use BA Settings child fare % of adult.",
+   "fieldname": "base_fare_child",
+   "fieldtype": "Currency",
+   "label": "Base Fare (Child)",
+   "options": "currency"
+  },
+  {
+   "description": "Leave empty to use BA Settings infant fare % of adult.",
+   "fieldname": "base_fare_infant",
+   "fieldtype": "Currency",
+   "label": "Base Fare (Infant)",
+   "options": "currency"
   },
   {
    "fieldname": "base_fare",
    "fieldtype": "Currency",
    "hidden": 1,
-   "label": "Base Fare (Adult, legacy)",
+   "label": "Base Fare (legacy)",
    "options": "currency",
    "read_only": 1
   },

@@ -59,8 +59,9 @@ def search_available_flights(origin, destination, date, passengers=1):
                 "arrival_date",
                 "arrival_time",
                 "airplane",
-                "base_fares_override",
-                "base_fare_override",
+                "base_fare_adult_override",
+                "base_fare_child_override",
+                "base_fare_infant_override",
             ],
             ignore_permissions=True,
         )

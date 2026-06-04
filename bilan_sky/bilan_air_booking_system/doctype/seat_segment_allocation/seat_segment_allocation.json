@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-06-04 20:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "flight_schedule",
+  "seat_inventory",
+  "air_booking",
+  "from_segment_index",
+  "to_segment_index",
+  "column_break_1",
+  "status",
+  "boarding_airport",
+  "deboarding_airport"
+ ],
+ "fields": [
+  {
+   "fieldname": "flight_schedule",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Flight Schedule",
+   "options": "Flight Schedule",
+   "reqd": 1
+  },
+  {
+   "fieldname": "seat_inventory",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Seat",
+   "options": "Seat Inventory",
+   "reqd": 1
+  },
+  {
+   "fieldname": "air_booking",
+   "fieldtype": "Link",
+   "label": "Booking",
+   "options": "Air Booking",
+   "reqd": 1
+  },
+  {
+   "description": "First segment index included (0-based).",
+   "fieldname": "from_segment_index",
+   "fieldtype": "Int",
+   "label": "From Segment Index",
+   "reqd": 1
+  },
+  {
+   "description": "Last segment index included (inclusive). E.g. 0-1 for two legs.",
+   "fieldname": "to_segment_index",
+   "fieldtype": "Int",
+   "label": "To Segment Index",
+   "reqd": 1
+  },
+  {
+   "default": "Hold",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Hold\nBooked\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "boarding_airport",
+   "fieldtype": "Link",
+   "label": "Boarding Airport",
+   "options": "Airport"
+  },
+  {
+   "fieldname": "deboarding_airport",
+   "fieldtype": "Link",
+   "label": "Deboarding Airport",
+   "options": "Airport"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "module": "Bilan Air Booking System",
+ "name": "Seat Segment Allocation",
+ "naming_rule": "Random",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Booking Agent",
+   "write": 1
+  }
+ ]
+}

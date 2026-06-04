@@ -177,13 +177,11 @@ home_page = "bilan_frontend"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"User": {
+		"on_update": "bilan_sky.bilan_air_booking_system.utils.user_activation.on_user_update",
+	},
+}
 
 # Scheduled Tasks
 # ---------------

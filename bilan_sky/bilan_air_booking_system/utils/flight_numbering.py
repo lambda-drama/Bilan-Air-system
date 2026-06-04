@@ -19,10 +19,60 @@ from frappe import _
 from frappe.utils import cint, cstr, getdate
 
 
-def format_route_name(origin_airport: str, destination_airport: str) -> str:
+def format_route_name(
+	origin_airport: str,
+	destination_airport: str,
+	*,
+	route_segments=None,
+	is_multi_segment: bool = False,
+) -> str:
+	"""Direct routes: ORIGIN-DEST. Multi-segment: full path ORIGIN-VIA-...-DEST (e.g. ADI-NBO-MBA)."""
+	if is_multi_segment and route_segments:
+		return format_multi_segment_route_name(route_segments)
 	origin = _get_airport_iata(origin_airport)
 	destination = _get_airport_iata(destination_airport)
 	return f"{origin}-{destination}"
+
+
+def format_multi_segment_route_name(segments) -> str:
+	"""Build a unique route id from chained segment IATA codes."""
+	if not segments:
+		frappe.throw(_("Add route segments for a multi-segment route."))
+
+	ordered = sorted(
+		segments,
+		key=lambda r: cint(
+			r.segment_index if hasattr(r, "segment_index") else r.get("segment_index", 0)
+		),
+	)
+	if len(ordered) < 2:
+		frappe.throw(
+			_(
+				"Multi-segment routes need at least two legs. "
+				"A single-leg path uses a direct route (ADI-NBO), not the same name as a multi-stop flight."
+			)
+		)
+
+	def _seg_val(seg, field: str):
+		if isinstance(seg, dict):
+			return seg.get(field)
+		return getattr(seg, field, None)
+
+	first = ordered[0]
+	codes = [_get_airport_iata(_seg_val(first, "origin_airport"))]
+	for row in ordered:
+		dest = _get_airport_iata(_seg_val(row, "destination_airport"))
+		if dest != codes[-1]:
+			codes.append(dest)
+
+	if len(codes) < 3:
+		frappe.throw(
+			_(
+				"Could not build a multi-segment route name. Ensure each leg connects "
+				"(e.g. ADI→NBO, then NBO→MBA becomes ADI-NBO-MBA)."
+			)
+		)
+	return "-".join(codes)
 
 
 def get_next_flight_series_base() -> int:

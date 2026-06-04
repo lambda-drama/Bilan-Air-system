@@ -23,9 +23,17 @@
   "first_officer_name",
   "section_break_lcjg",
   "cabin_crew",
+  "seat_release_section",
+  "total_aircraft_capacity",
+  "initial_seats_released",
+  "seats_released_count",
+  "column_break_seats",
+  "segments_section",
+  "segments",
   "pricing_section",
-  "base_fares_override",
-  "base_fare_override",
+  "base_fare_adult_override",
+  "base_fare_child_override",
+  "base_fare_infant_override",
   "cutoff_datetime",
   "amended_from"
  ],
@@ -130,24 +138,73 @@
    "options": "Flight Crew Assignment"
   },
   {
+   "fieldname": "seat_release_section",
+   "fieldtype": "Section Break",
+   "label": "Seat release"
+  },
+  {
+   "description": "Physical seats on the linked airplane layout.",
+   "fieldname": "total_aircraft_capacity",
+   "fieldtype": "Int",
+   "label": "Aircraft capacity",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "On first save, only this many seats are bookable (0 = release all seats). Remaining seats stay hidden until released later.",
+   "fieldname": "initial_seats_released",
+   "fieldtype": "Int",
+   "label": "Initial seats released"
+  },
+  {
+   "description": "Seats currently available for booking.",
+   "fieldname": "seats_released_count",
+   "fieldtype": "Int",
+   "label": "Seats released (current)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_seats",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "segments_section",
+   "fieldtype": "Section Break",
+   "label": "Flight segments (multi-stop)"
+  },
+  {
+   "description": "Copied from route; used for segment seat sales (e.g. MGQ→NBO→MBA).",
+   "fieldname": "segments",
+   "fieldtype": "Table",
+   "label": "Segments",
+   "options": "Flight Schedule Segment"
+  },
+  {
    "fieldname": "pricing_section",
    "fieldtype": "Section Break",
    "label": "Pricing"
   },
   {
    "allow_on_submit": 1,
-   "description": "Override route base fares for this flight. JSON: {\"adult\": 0, \"child\": 0, \"infant\": 0}. Omit a key to use the route fare for that type.",
-   "fieldname": "base_fares_override",
-   "fieldtype": "JSON",
-   "label": "Base Fares Override"
+   "description": "Leave empty to use the route fare for that passenger type.",
+   "fieldname": "base_fare_adult_override",
+   "fieldtype": "Currency",
+   "label": "Base Fare Override (Adult)",
+   "options": "currency"
   },
   {
    "allow_on_submit": 1,
-   "fieldname": "base_fare_override",
+   "fieldname": "base_fare_child_override",
    "fieldtype": "Currency",
-   "hidden": 1,
-   "label": "Base Fare Override (legacy)",
-   "read_only": 1
+   "label": "Base Fare Override (Child)",
+   "options": "currency"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "base_fare_infant_override",
+   "fieldtype": "Currency",
+   "label": "Base Fare Override (Infant)",
+   "options": "currency"
   },
   {
    "fieldname": "cutoff_datetime",

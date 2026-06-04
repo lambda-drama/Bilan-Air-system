@@ -26,7 +26,9 @@ def execute():
 			agent_name=full_name,
 			email=email,
 			phone=phone,
-			confirmation_mode="Credit Agent",
 			credit_limit=default_credit_limit(),
+			can_book_ticket="Yes",
+			can_confirm_ticket="Yes",
+			deposit_required="No" if default_credit_limit() > 0 else "Yes",
 		)
 	frappe.db.commit()

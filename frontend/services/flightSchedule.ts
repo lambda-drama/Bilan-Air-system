@@ -96,6 +96,19 @@ export async function saveSchedule(
   });
 }
 
+export async function releaseScheduleSeats(scheduleName: string, count: number) {
+  return apiRequest<{
+    released_now: number;
+    seats_released_count: number;
+    total_aircraft_capacity: number;
+    unreleased_remaining: number;
+    message?: string;
+  }>(methodUrl("portal", "release_schedule_seats"), {
+    method: "POST",
+    body: JSON.stringify({ schedule_name: scheduleName, count }),
+  });
+}
+
 export async function ensureScheduleSeats(scheduleName: string) {
   return apiRequest<{
     schedule: string;

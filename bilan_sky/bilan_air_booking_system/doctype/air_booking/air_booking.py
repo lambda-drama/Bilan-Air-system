@@ -45,18 +45,12 @@ class AirBooking(Document):
         self._release_all_seats()
 
     def _release_all_seats(self):
+        from bilan_sky.bilan_air_booking_system.utils.seat_booking import release_seat_for_booking
+
         for passenger in self.passengers or []:
             if not passenger.seat_number:
                 continue
-            if not frappe.db.exists("Seat Inventory", passenger.seat_number):
-                continue
-            seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-            if seat.booking_reference != self.name:
-                continue
-            seat.status = "Available"
-            seat.hold_expiry = None
-            seat.booking_reference = None
-            seat.save(ignore_permissions=True)
+            release_seat_for_booking(passenger.seat_number, self.name)
 
     def _save_status_updates(self):
         # Status transitions should not be blocked by seat validation rules.
@@ -253,15 +247,16 @@ class AirBooking(Document):
         if need_tickets:
             self.generate_ticket_numbers(show_message=False)
 
+        from bilan_sky.bilan_air_booking_system.utils.seat_booking import confirm_seat_for_booking
+
         for passenger in self.passengers:
             if not passenger.seat_number:
                 continue
+            confirm_seat_for_booking(passenger.seat_number, self.name)
             seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
-            if seat.status in ("Hold", "Reserved") and seat.booking_reference == self.name:
-                seat.status = "Booked"
-                seat.hold_expiry = None
+            if seat.booking_reference == self.name:
                 seat.price_at_booking = passenger.fare_paid
-                seat.save()
+                seat.save(ignore_permissions=True)
 
         self.reservation_status = CONFIRM
         if via_credit and credit_agent:
