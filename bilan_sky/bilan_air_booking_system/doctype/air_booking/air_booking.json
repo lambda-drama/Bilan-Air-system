@@ -1,12 +1,15 @@
 {
  "actions": [],
- "autoname": "BA-.#####",
+ "autoname": "RES-.#####",
  "creation": "2026-05-27 01:18:51.733798",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "reservation_ref",
   "pnr",
-  "booking_status",
+  "reservation_status",
+  "booking_agent",
+  "confirmed_via",
   "column_break_evxb",
   "flight_schedule",
   "booking_date",
@@ -34,7 +37,17 @@
  ],
  "fields": [
   {
-   "description": "Auto-generated booking ID (same as document name, e.g. BA-00001).",
+   "description": "Internal reservation ID created when the agent books (e.g. RES-00001). This is not the customer PNR.",
+   "fieldname": "reservation_ref",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reservation Ref",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "description": "Customer PNR (e.g. BA-00001). Generated only when the ticket is confirmed — after payment or approved agent credit. Ticket numbers use this PNR.",
    "fieldname": "pnr",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -45,15 +58,29 @@
   },
   {
    "allow_on_submit": 1,
-   "default": "Reserved",
-   "fieldname": "booking_status",
-   "fieldtype": "Select",
+   "default": "Booked",
+   "fieldname": "reservation_status",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Booking Status",
-   "options": "Reserved\nPaid\nChecked In\nBoarded\nArrived\nCancelled\nRefunded",
+   "label": "Reservation Status",
+   "options": "Reservation Status",
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "fieldname": "booking_agent",
+   "fieldtype": "Link",
+   "label": "Booking Agent",
+   "options": "Booking Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmed_via",
+   "fieldtype": "Select",
+   "label": "Confirmed Via",
+   "options": "\nPayment\nAgent Credit",
+   "read_only": 1
   },
   {
    "fieldname": "flight_schedule",

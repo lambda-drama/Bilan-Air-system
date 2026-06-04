@@ -7,6 +7,7 @@ export interface AirBookingRow {
   payer_name: string;
   payer_email?: string;
   payer_phone?: string;
+  reservation_status?: string;
   booking_status: string;
   payment_status: string;
   total_fare: number;
@@ -24,6 +25,7 @@ export interface CheckInBookingSuggestion {
   flight_number?: string;
   departure_date?: string;
   departure_time?: string;
+  reservation_status?: string;
   booking_status: string;
   payment_status: string;
 }

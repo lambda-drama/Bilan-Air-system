@@ -30,7 +30,9 @@ def preview_baggage_fee(weight_kg):
 def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenger_index=None):
     """Create baggage tracking record"""
     
-    booking = frappe.get_doc("Air Booking", pnr)
+    from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+
+    booking = frappe.get_doc("Air Booking", resolve_air_booking(pnr))
     settings = frappe.get_single("BA Settings")
 
     if passenger_index is not None:

@@ -1,0 +1,226 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:agent_name",
+ "creation": "2026-06-04 14:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "agent_name",
+  "username",
+  "user",
+  "status",
+  "column_break_ba1",
+  "first_name",
+  "last_name",
+  "email",
+  "phone",
+  "phone_2",
+  "section_break_address",
+  "agent_address",
+  "city",
+  "address_line1",
+  "address_line2",
+  "section_break_credit",
+  "confirmation_mode",
+  "credit_limit",
+  "credit_used",
+  "allow_credit",
+  "column_break_ba2",
+  "linked_customer",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "agent_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company / Agency Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Display username for the agent (portal login uses email).",
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Username",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Portal User",
+   "options": "User",
+   "unique": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nInactive",
+   "reqd": 1
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Phone 1",
+   "reqd": 1
+  },
+  {
+   "fieldname": "phone_2",
+   "fieldtype": "Data",
+   "label": "Phone 2"
+  },
+  {
+   "fieldname": "section_break_address",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "agent_address",
+   "fieldtype": "Link",
+   "label": "ERPNext Address",
+   "options": "Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "City",
+   "reqd": 1
+  },
+  {
+   "fieldname": "address_line1",
+   "fieldtype": "Small Text",
+   "label": "Address Line 1",
+   "reqd": 1
+  },
+  {
+   "fieldname": "address_line2",
+   "fieldtype": "Small Text",
+   "label": "Address Line 2"
+  },
+  {
+   "default": "Credit Agent",
+   "description": "Credit Agent can confirm tickets on credit until the limit is reached. Booking Only can create reservations but must take payment to issue PNR.",
+   "fieldname": "confirmation_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Confirmation Mode",
+   "options": "Credit Agent\nBooking Only",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Maximum outstanding amount this agent may confirm on credit.",
+   "fieldname": "credit_limit",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Credit Limit"
+  },
+  {
+   "default": "0",
+   "description": "Running total of fares confirmed on credit and not yet settled.",
+   "fieldname": "credit_used",
+   "fieldtype": "Currency",
+   "label": "Credit Used",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "description": "Unchecked automatically when credit limit is reached.",
+   "fieldname": "allow_credit",
+   "fieldtype": "Check",
+   "label": "Allow Credit Confirmation"
+  },
+  {
+   "fieldname": "linked_customer",
+   "fieldtype": "Link",
+   "label": "Agency Customer (ERPNext)",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_ba1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_credit",
+   "fieldtype": "Section Break",
+   "label": "Credit & Confirmation"
+  },
+  {
+   "fieldname": "column_break_ba2",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-04 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Booking Agent",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "agent_name,username,email,user,city,address_line1",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

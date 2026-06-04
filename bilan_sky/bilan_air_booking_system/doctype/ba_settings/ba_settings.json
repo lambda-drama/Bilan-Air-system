@@ -5,6 +5,10 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "reservation_naming_series",
+  "pnr_naming_series",
+  "default_agent_credit_limit",
+  "column_break_naming",
   "hold_duration",
   "booking_cutoff_hours",
   "max_baggage_kg",
@@ -29,6 +33,31 @@
   "api_key"
  ],
  "fields": [
+  {
+   "default": "RES-.#####",
+   "description": "Internal ID when an agent creates a reservation (not the customer PNR).",
+   "fieldname": "reservation_naming_series",
+   "fieldtype": "Data",
+   "label": "Reservation Reference Series"
+  },
+  {
+   "default": "BA-.#####",
+   "description": "Customer PNR issued on ticket confirmation (payment or agent credit).",
+   "fieldname": "pnr_naming_series",
+   "fieldtype": "Data",
+   "label": "PNR Naming Series"
+  },
+  {
+   "default": "0",
+   "description": "Default credit limit when creating a new Booking Agent (Credit Agent mode).",
+   "fieldname": "default_agent_credit_limit",
+   "fieldtype": "Currency",
+   "label": "Default Agent Credit Limit"
+  },
+  {
+   "fieldname": "column_break_naming",
+   "fieldtype": "Column Break"
+  },
   {
    "default": "15",
    "fieldname": "hold_duration",

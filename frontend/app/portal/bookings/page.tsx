@@ -74,6 +74,9 @@ export default function PortalBookingsPage() {
 
   const isUnpaid = (status: string) => status !== "Paid" && status !== "Refunded";
 
+  const reservationStatus = (row: AirBookingRow) =>
+    row.reservation_status || row.booking_status || "";
+
   const openDetails = (pnr: string, opts?: { cancel?: boolean }) => {
     setShowCancelForm(!!opts?.cancel);
     setSelectedId(pnr);
@@ -155,7 +158,7 @@ export default function PortalBookingsPage() {
                     </TableCell>
                     <TableCell>{b.flight_schedule}</TableCell>
                     <TableCell>{b.payer_name}</TableCell>
-                    <TableCell>{b.booking_status}</TableCell>
+                    <TableCell>{reservationStatus(b)}</TableCell>
                     <TableCell>{b.payment_status}</TableCell>
                     <TableCell>{formatMoney(b.total_fare)}</TableCell>
                     <TableCell className="text-right">
@@ -172,7 +175,7 @@ export default function PortalBookingsPage() {
                             >
                               Edit
                             </DropdownMenuItem>
-                            {b.booking_status !== "Cancelled" && (
+                            {reservationStatus(b) !== "Void" && (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => openDetails(b.name, { cancel: true })}
@@ -207,7 +210,7 @@ export default function PortalBookingsPage() {
         subtitle={selectedRow?.payer_name}
         badge={
           selectedRow
-            ? { label: selectedRow.booking_status, variant: "outline" }
+            ? { label: reservationStatus(selectedRow), variant: "outline" }
             : undefined
         }
         isLoading={detailLoading}

@@ -78,7 +78,9 @@ export interface Passenger {
 }
 
 // Booking Status
-export type BookingStatus = 'Reserved' | 'Paid' | 'Checked In' | 'Boarded' | 'Cancelled';
+export type ReservationStatus = 'Booked' | 'Confirm' | 'Void' | 'Flight Taken';
+/** @deprecated Use ReservationStatus; kept for older API responses */
+export type BookingStatus = ReservationStatus | 'Reserved' | 'Paid' | 'Checked In' | 'Boarded' | 'Cancelled';
 
 // Booking (PNR)
 export interface Booking {
@@ -94,7 +96,7 @@ export interface Booking {
   seat: string;
   seat_class: string;
   fare_amount: number;
-  status: BookingStatus;
+  status: BookingStatus | ReservationStatus;
   payment_status: 'Unpaid' | 'Paid' | 'Refunded';
   created_at: string;
 }

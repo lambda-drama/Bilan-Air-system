@@ -6,16 +6,28 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import add_days, flt, get_datetime, getdate, now, nowdate
 
+from bilan_sky.bilan_air_booking_system.utils.reservation_status import (
+	BOOKED,
+	CONFIRM,
+	FLIGHT_TAKEN,
+	VOID,
+)
+
 class AirBooking(Document):
     def autoname(self):
         from frappe.model.naming import make_autoname
 
-        self.name = make_autoname("BA-.#####")
-        self.pnr = self.name
+        if not self.name:
+            from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
+
+            series = (get_ba_setting("reservation_naming_series", None) or "RES-.#####").strip()
+            self.name = make_autoname(series)
 
     def validate(self):
         if self.name:
-            self.pnr = self.name
+            self.reservation_ref = self.name
+        if self.pnr and self.reservation_status not in (CONFIRM, FLIGHT_TAKEN):
+            frappe.throw("PNR can only be set on a confirmed reservation.")
 
     # =========================================================
     # BEFORE SAVE VALIDATIONS
@@ -55,7 +67,7 @@ class AirBooking(Document):
     def validate_booking_cutoff(self):
         """Prevent booking if within cutoff time"""
         
-        if self.booking_status == "Paid":
+        if self.reservation_status == CONFIRM:
             return  # Already paid, skip cutoff check
         
         # Get cutoff from settings
@@ -166,7 +178,11 @@ class AirBooking(Document):
         if not self.passengers:
             frappe.throw("Add at least one passenger before generating ticket numbers.")
 
-        pnr = self.pnr or self.name
+        if not (self.pnr or "").strip():
+            frappe.throw(
+                "Confirm the reservation (paid) to issue a PNR before generating ticket numbers."
+            )
+        pnr = self.pnr
         tickets = []
 
         for idx, passenger in enumerate(self.passengers, start=1):
@@ -180,39 +196,92 @@ class AirBooking(Document):
         return tickets
     
     # =========================================================
-    # AFTER SAVE ACTIONS
+    # PNR & CONFIRMATION
     # =========================================================
-    
-    def on_update(self):
-        """Run after save"""
-        if self.flags.get("skip_auto_confirm"):
+
+    def _pnr_naming_series(self):
+        from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
+
+        return (get_ba_setting("pnr_naming_series", None) or "BA-.#####").strip()
+
+    def assign_pnr(self):
+        """Issue the customer-facing PNR (e.g. BA-00001) once payment or agent credit confirms the ticket."""
+        if self.pnr:
+            return self.pnr
+
+        from frappe.model.naming import make_autoname
+
+        self.pnr = make_autoname(self._pnr_naming_series())
+        return self.pnr
+
+    def get_public_reference(self):
+        """PNR after confirmation; otherwise internal reservation reference."""
+        return self.pnr or self.name
+
+    def _validate_confirmation_eligibility(self, via_credit=False):
+        if via_credit:
+            self._validate_agent_credit_for_confirmation()
             return
-        if self.payment_status == "Paid" and self.booking_status == "Reserved":
-            self.confirm_booking()
-    
-    def confirm_booking(self):
-        """Confirm booking after payment"""
-        
-        # Generate ticket numbers if not exist
+        if self.payment_status != "Paid":
+            frappe.throw(
+                "Payment or approved agent credit is required before issuing a PNR and tickets."
+            )
+
+    def _validate_agent_credit_for_confirmation(self):
+        from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
+            validate_credit_confirmation_for_booking,
+        )
+
+        return validate_credit_confirmation_for_booking(self)
+
+    def confirm_booking(self, via_credit=False):
+        """Confirm ticket: issue PNR + ticket numbers after payment or approved agent credit."""
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot confirm a voided reservation.")
+        self._validate_confirmation_eligibility(via_credit=via_credit)
+        if self.reservation_status == CONFIRM and self.pnr:
+            return {"success": True, "pnr": self.pnr, "already_confirmed": True}
+
+        credit_agent = None
+        if via_credit:
+            credit_agent = self._validate_agent_credit_for_confirmation()
+            self.payment_status = "Paid"
+
+        self.assign_pnr()
+
         need_tickets = any([not p.ticket_number for p in self.passengers])
         if need_tickets:
             self.generate_ticket_numbers(show_message=False)
-        
-        # Confirm each seat
+
         for passenger in self.passengers:
+            if not passenger.seat_number:
+                continue
             seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
             if seat.status in ("Hold", "Reserved") and seat.booking_reference == self.name:
                 seat.status = "Booked"
                 seat.hold_expiry = None
                 seat.price_at_booking = passenger.fare_paid
                 seat.save()
-        
-        # Update booking status
-        self.booking_status = "Paid"
+
+        self.reservation_status = CONFIRM
+        if via_credit and credit_agent:
+            self.confirmed_via = "Agent Credit"
+            self.booking_agent = credit_agent.name
+        elif not via_credit:
+            self.confirmed_via = "Payment"
+
         self._save_status_updates()
+
+        if via_credit and credit_agent:
+            credit_agent.consume_credit(flt(self.total_fare))
+
         frappe.db.commit()
-        
-        frappe.msgprint(f"Booking {self.name} confirmed. PNR: {self.name}")
+
+        frappe.msgprint(
+            f"Reservation {self.name} confirmed. PNR: {self.pnr}",
+            indicator="green",
+        )
+        return {"success": True, "pnr": self.pnr, "reservation_ref": self.name}
     
     def cancel_booking(self, reason_for_cancel=None):
         """Cancel entire booking and release seats"""
@@ -223,7 +292,7 @@ class AirBooking(Document):
         self.reason_for_cancel = reason
         self._release_all_seats()
         
-        self.booking_status = "Cancelled"
+        self.reservation_status = VOID
         self._save_status_updates()
         frappe.db.commit()
         
@@ -237,8 +306,8 @@ class AirBooking(Document):
         """Check in a specific passenger"""
         if self.payment_status != "Paid":
             frappe.throw("Booking must be paid before check-in.")
-        if self.booking_status == "Cancelled":
-            frappe.throw("Cannot check in a cancelled booking.")
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot check in a voided reservation.")
 
         if passenger_index >= len(self.passengers):
             frappe.throw("Invalid passenger index")
@@ -282,11 +351,9 @@ class AirBooking(Document):
                 "baggage_tracking": baggage.name
             })
         
-        # Check if all passengers checked in
-        all_checked = all([p.check_in_status in ("Checked In", "Boarded") for p in self.passengers])
-        if all_checked:
-            self.booking_status = "Checked In"
-        
+        if self.reservation_status not in (CONFIRM, FLIGHT_TAKEN):
+            frappe.throw("Reservation must be confirmed (paid with PNR) before check-in.")
+
         self._save_status_updates()
         frappe.db.commit()
         
@@ -307,11 +374,9 @@ class AirBooking(Document):
         seat.status = "Occupied"
         seat.save()
         
-        # Check if all passengers boarded
-        all_boarded = all([p.check_in_status == "Boarded" for p in self.passengers])
-        if all_boarded:
-            self.booking_status = "Boarded"
-        
+        if self.reservation_status not in (CONFIRM, FLIGHT_TAKEN):
+            frappe.throw("Reservation must be confirmed before boarding.")
+
         self._save_status_updates()
         frappe.db.commit()
         
@@ -329,13 +394,29 @@ class AirBooking(Document):
                 self.board_passenger(idx)
         return {"success": True, "message": "All checked-in passengers boarded."}
 
-    def mark_arrived(self):
-        if self.booking_status != "Boarded":
-            frappe.throw("Booking can be marked Arrived only after boarding.")
-        self.booking_status = "Arrived"
+    def mark_flight_taken(self):
+        """Manually mark reservation as Flight Taken (e.g. when departure has commenced)."""
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot update a voided reservation.")
+        if self.reservation_status == BOOKED:
+            frappe.throw("Confirm the reservation and issue a PNR before marking flight taken.")
+        if self.reservation_status != CONFIRM:
+            return {
+                "success": True,
+                "message": f"Reservation {self.get_public_reference()} is already {self.reservation_status}.",
+            }
+
+        self.reservation_status = FLIGHT_TAKEN
         self._save_status_updates()
         frappe.db.commit()
-        return {"success": True, "message": f"Booking {self.name} marked as Arrived."}
+        return {
+            "success": True,
+            "message": f"Reservation {self.get_public_reference()} marked as Flight Taken.",
+        }
+
+    def mark_arrived(self):
+        """Backward-compatible alias for mark_flight_taken."""
+        return self.mark_flight_taken()
 
     # =========================================================
     # BILLING
@@ -475,8 +556,8 @@ class AirBooking(Document):
         """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
         from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
 
-        if self.booking_status == "Cancelled":
-            frappe.throw("Cannot record payment on a cancelled booking.")
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot record payment on a voided reservation.")
         if self.payment_status == "Refunded":
             frappe.throw("Cannot record payment on a refunded booking.")
         if payment_method:
@@ -523,13 +604,13 @@ class AirBooking(Document):
                 invoice_name,
                 mode_of_payment=self.payment_method,
                 paid_account=paid_account,
-                reference_no=self.name,
+                reference_no=self.get_public_reference(),
             )
             self.payment_entry = payment_entry_name
 
         self.payment_status = "Paid"
 
-        if self.booking_status == "Reserved":
+        if self.reservation_status == BOOKED:
             self.flags.skip_auto_confirm = True
             self.confirm_booking()
             self.flags.skip_auto_confirm = False
@@ -544,7 +625,10 @@ class AirBooking(Document):
             "success": True,
             "invoice": invoice_name,
             "payment_entry": payment_entry_name,
-            "booking_status": self.booking_status,
+            "pnr": self.pnr,
+            "reservation_ref": self.name,
+            "reservation_status": self.reservation_status,
+            "booking_status": self.reservation_status,
             "payment_status": self.payment_status,
         }
 

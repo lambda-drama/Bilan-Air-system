@@ -7,6 +7,11 @@ from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory im
     prepare_seat_for_new_booking,
 )
 from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label, get_airport_iata
+from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, resolve_air_booking
+
+
+def _load_booking(identifier, **kwargs):
+	return frappe.get_doc("Air Booking", resolve_air_booking(identifier), **kwargs)
 
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
@@ -85,11 +90,17 @@ def create_booking(booking_data):
         "payer_email": booking_data.get("payer_email"),
         "payer_phone": booking_data.get("payer_phone"),
         "passengers": passenger_links,
-        "booking_status": "Reserved",
+        "reservation_status": "Booked",
         "payment_status": "Pending",
         "booking_date": now()
     })
     
+    from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_booking_agent_for_user
+
+    agent = get_booking_agent_for_user()
+    if agent:
+        booking.booking_agent = agent.name
+
     booking.insert()
 
     for passenger in booking.passengers:
@@ -108,8 +119,10 @@ def create_booking(booking_data):
     hold_minutes = int(settings.hold_duration or 15)
 
     return {
-        "pnr": booking.name,
-        "status": booking.booking_status,
+        "reservation_ref": booking.name,
+        "pnr": booking.pnr,
+        "status": booking.reservation_status,
+        "reservation_status": booking.reservation_status,
         "payment_status": booking.payment_status,
         "total_fare": booking.total_fare,
         "hold_duration_minutes": hold_minutes,
@@ -119,28 +132,30 @@ def create_booking(booking_data):
 def process_payment(pnr, payment_method, transaction_id=None):
     """Confirm payment: invoice, payment entry, and booking confirmation."""
     
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     
     if booking.payment_status == "Paid" and booking.payment_entry:
         return {"error": "Booking already paid"}
 
     booking.payment_method = payment_method
     result = booking.confirm_payment_and_invoice()
-    result["pnr"] = booking.name
+    result["pnr"] = booking.pnr
+    result["reservation_ref"] = booking.name
     result["total"] = booking.total_fare
     return result
 
 @frappe.whitelist()
 def generate_tickets_for_booking(pnr):
 	"""Generate ticket numbers for all passengers on an Air Booking."""
-	booking = frappe.get_doc("Air Booking", pnr)
+	booking = _load_booking(pnr)
 	tickets = booking.generate_ticket_numbers(show_message=False)
 	booking.flags.ignore_validate = True
 	booking.save()
 	frappe.db.commit()
 
 	return {
-		"pnr": booking.name,
+		"pnr": booking.pnr,
+		"reservation_ref": booking.name,
 		"count": len(tickets),
 		"ticket_numbers": tickets,
 	}
@@ -256,8 +271,11 @@ def _serialize_booking_details(booking):
 	) if booking.passengers else False
 
 	return {
-		"pnr": booking.name,
-		"status": booking.booking_status,
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr,
+		"public_reference": booking.get_public_reference(),
+		"status": booking.reservation_status,
+		"reservation_status": booking.reservation_status,
 		"payment_status": booking.payment_status,
 		"total_fare": booking.total_fare,
 		"payer_name": booking.payer_name,
@@ -269,8 +287,9 @@ def _serialize_booking_details(booking):
 		"baggage_fees_total": booking._get_baggage_total_fee(),
 		"check_in_window": check_in_window,
 		"can_check_in": (
-			booking.payment_status == "Paid"
-			and booking.booking_status != "Cancelled"
+			booking.reservation_status == CONFIRM
+			and booking.payment_status == "Paid"
+			and bool(booking.pnr)
 			and check_in_window["open"]
 			and not all_checked_in
 		),
@@ -321,7 +340,7 @@ def _boarding_passes_for_booking(booking):
 			"departure_time": flight.departure_time,
 			"boarding_time": str(boarding_time)[11:16] if boarding_time else flight.departure_time,
 			"gate": "TBC",
-			"pnr": booking.name,
+			"pnr": booking.get_public_reference(),
 		})
 	return passes
 
@@ -330,27 +349,32 @@ def _boarding_passes_for_booking(booking):
 def fetch_booking_details(pnr):
     """Get booking by PNR"""
     
-    booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+    booking = _load_booking(pnr, ignore_permissions=True)
     return _serialize_booking_details(booking)
 
 @frappe.whitelist(allow_guest=True)
 def cancel_booking(pnr, reason_for_cancel=None):
     """Cancel a booking"""
     
-    booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+    booking = _load_booking(pnr, ignore_permissions=True)
     booking.cancel_booking(reason_for_cancel=reason_for_cancel)
     
-    return {"success": True, "pnr": booking.name, "status": "Cancelled"}
+    return {
+        "success": True,
+        "reservation_ref": booking.name,
+        "pnr": booking.pnr,
+        "status": booking.reservation_status,
+    }
 
 
 @frappe.whitelist(allow_guest=True)
 def lookup_booking_for_checkin(pnr, last_name=None):
 	"""Verify PNR + last name (or logged-in payer) and return check-in eligible booking."""
 	pnr = (pnr or "").strip()
-	if not pnr or not frappe.db.exists("Air Booking", pnr):
+	if not pnr:
 		frappe.throw("Booking not found. Please check your reference and last name.")
 
-	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	booking = _load_booking(pnr, ignore_permissions=True)
 	_verify_checkin_identity(booking, last_name)
 	return _serialize_booking_details(booking)
 
@@ -359,7 +383,7 @@ def lookup_booking_for_checkin(pnr, last_name=None):
 def self_check_in(pnr, last_name=None, passenger_index=0, baggage_weight=0):
 	"""Guest self check-in for one traveler on a booking."""
 	pnr = (pnr or "").strip()
-	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	booking = _load_booking(pnr, ignore_permissions=True)
 	_verify_checkin_identity(booking, last_name)
 
 	window = _check_in_window_status(booking.flight_schedule)
@@ -379,7 +403,7 @@ def self_check_in(pnr, last_name=None, passenger_index=0, baggage_weight=0):
 def self_check_in_all(pnr, last_name=None):
 	"""Guest self check-in for all travelers on a booking."""
 	pnr = (pnr or "").strip()
-	booking = frappe.get_doc("Air Booking", pnr, ignore_permissions=True)
+	booking = _load_booking(pnr, ignore_permissions=True)
 	_verify_checkin_identity(booking, last_name)
 
 	window = _check_in_window_status(booking.flight_schedule)
@@ -398,7 +422,7 @@ def self_check_in_all(pnr, last_name=None):
 def process_check_in(pnr, passenger_index, baggage_weight=0):
     """Check in a passenger; optional baggage_weight (kg) creates a baggage tag."""
     
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     result = booking.check_in_passenger(int(passenger_index), float(baggage_weight or 0))
     
     return result
@@ -407,7 +431,7 @@ def process_check_in(pnr, passenger_index, baggage_weight=0):
 def mark_boarded(pnr, passenger_index):
     """Mark passenger as boarded"""
     
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     result = booking.board_passenger(int(passenger_index))
     
     return result
@@ -415,25 +439,25 @@ def mark_boarded(pnr, passenger_index):
 
 @frappe.whitelist()
 def check_in_all_passengers(pnr):
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     return booking.check_in_all_passengers()
 
 
 @frappe.whitelist()
 def board_all_passengers(pnr):
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     return booking.board_all_passengers()
 
 
 @frappe.whitelist()
 def mark_booking_arrived(pnr):
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     return booking.mark_arrived()
 
 
 @frappe.whitelist()
 def create_sales_invoice_from_booking(pnr, submit=0):
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     return booking.create_sales_invoice(submit=frappe.utils.cint(submit))
 
 
@@ -500,10 +524,20 @@ def get_payment_confirmation_options():
 
 @frappe.whitelist()
 def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_account=None):
-    booking = frappe.get_doc("Air Booking", pnr)
+    booking = _load_booking(pnr)
     booking.check_permission("write")
     return booking.confirm_payment_and_invoice(
         payment_method=payment_method,
         paid_account=paid_account,
     )
+
+
+@frappe.whitelist()
+def confirm_booking_on_credit(pnr):
+	"""Issue PNR and tickets using the logged-in agent's credit limit."""
+	booking = _load_booking(pnr)
+	booking.check_permission("write")
+	result = booking.confirm_booking(via_credit=True)
+	frappe.db.commit()
+	return result
 

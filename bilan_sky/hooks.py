@@ -32,6 +32,10 @@ fixtures = [
 		"dt": "Workspace",
 		"filters": [["name", "in", ["Bilan"]]],
 	},
+	{
+		"dt": "Custom Field",
+		"filters": [["name", "in", ["Address-custom_user"]]],
+	},
 ]
 
 # Apps

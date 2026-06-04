@@ -1,7 +1,7 @@
 {
  "app": "bilan_sky",
  "charts": [],
- "content": "[{\"id\":\"bilan_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Bilan Air Booking</b></span>\",\"col\":12}},{\"id\":\"bilan_sc_0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Air Booking\",\"col\":3}},{\"id\":\"bilan_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Flight Schedule\",\"col\":3}},{\"id\":\"bilan_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Passenger\",\"col\":3}},{\"id\":\"bilan_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Baggage Tracking\",\"col\":3}},{\"id\":\"bilan_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Public Website\",\"col\":3}},{\"id\":\"bilan_sc_5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Agent Portal\",\"col\":3}},{\"id\":\"bilan_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"bilan_master_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":6}},{\"id\":\"bilan_tx_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Transactions\",\"col\":6}},{\"id\":\"bilan_frontend_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Frontend\",\"col\":6}}]",
+ "content": "[{\"id\":\"bilan_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Bilan Air Booking</b></span>\",\"col\":12}},{\"id\":\"bilan_sc_0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation List\",\"col\":3}},{\"id\":\"bilan_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Flight Schedule\",\"col\":3}},{\"id\":\"bilan_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Passenger\",\"col\":3}},{\"id\":\"bilan_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Baggage Tracking\",\"col\":3}},{\"id\":\"bilan_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Public Website\",\"col\":3}},{\"id\":\"bilan_sc_5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Agent Portal\",\"col\":3}},{\"id\":\"bilan_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"bilan_master_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":6}},{\"id\":\"bilan_tx_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Transactions\",\"col\":6}},{\"id\":\"bilan_frontend_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Frontend\",\"col\":6}}]",
  "creation": "2026-05-27 12:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -18,7 +18,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Masters",
-   "link_count": 11,
+   "link_count": 14,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -66,6 +66,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Reservation Status",
+   "link_count": 0,
+   "link_to": "Reservation Status",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Booking Agent",
+   "link_count": 0,
+   "link_to": "Booking Agent",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Fare Rule",
    "link_count": 0,
    "link_to": "Fare Rule",
@@ -79,6 +99,16 @@
    "label": "Flight Route",
    "link_count": 0,
    "link_to": "Flight Route",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Flight Schedule Plan",
+   "link_count": 0,
+   "link_to": "Flight Schedule Plan",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -145,7 +175,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Air Booking",
+   "label": "Reservation List",
    "link_count": 0,
    "link_to": "Air Booking",
    "link_type": "DocType",
@@ -248,7 +278,7 @@
   {
    "color": "Green",
    "doc_view": "List",
-   "label": "Air Booking",
+   "label": "Reservation List",
    "link_to": "Air Booking",
    "stats_filter": "[]",
    "type": "DocType"
