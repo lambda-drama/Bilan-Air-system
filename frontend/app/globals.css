@@ -198,7 +198,7 @@
   }
 
   .bilan-form-control {
-    @apply flex h-9 w-full items-center [&_[data-slot=select-trigger]]:h-9 [&_[data-slot=select-trigger]]:w-full [&_input]:h-9;
+    @apply flex h-9 w-full min-w-0 items-center [&_[data-slot=select-trigger]]:h-9 [&_[data-slot=select-trigger]]:!w-full [&_input]:h-9 [&_input]:w-full;
   }
 
   .bilan-form-control:has(textarea) {

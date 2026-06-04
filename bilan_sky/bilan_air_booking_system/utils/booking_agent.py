@@ -1,7 +1,7 @@
 """Booking agent profile helpers (credit limit, portal user mapping)."""
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
 from bilan_sky.bilan_air_booking_system.utils.booking_company import enrich_agent_company_fields
@@ -9,6 +9,11 @@ from bilan_sky.bilan_air_booking_system.utils.booking_company import enrich_agen
 
 def default_credit_limit() -> float:
 	return flt(get_ba_setting("default_agent_credit_limit", 0))
+
+
+def booking_agent_activation_by_email() -> bool:
+	"""True when new agents should receive a set-password email instead of staff setting a password."""
+	return bool(cint(get_ba_setting("send_booking_agent_activation_email", 1)))
 
 
 def resolve_agent_profile_name(

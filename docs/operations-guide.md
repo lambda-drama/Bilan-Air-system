@@ -8,7 +8,7 @@ This guide summarizes recent Bilan Air Booking System work and explains how to r
 
 | Area | What changed |
 |------|----------------|
-| **Booking agents** | Contact, address, and **user rights** live on **Booking Agent** (not on Frappe User). Portal users get activation email; login enables after password is set. |
+| **Booking agents** | Contact, address, and **user rights** live on **Booking Agent** (not on Frappe User). Portal password: activation email (BA Settings) or staff-set password when that option is off. |
 | **Company / agency** | New **Booking Company** DocType. Each agent links to one company or agency (`is_agency` on the company). Portal: select existing or **+** to create. |
 | **Partial seat release** | Not all aircraft seats are for sale at once. Some seats stay **Unreleased** until you release more. |
 | **Multi-stop routes** | Routes like **MGQ → NBO → MBA** on one flight. Seats can be sold per **journey** (segment range), not only for the full route. |
@@ -55,13 +55,13 @@ Most configuration and operations are intended to happen in the **portal**. Desk
 - **Profile name** — auto-generated (hidden on form): usually the company name, or `Company (username)` if several agents share one company.
 - **Username, email, names, address, phones, city** — on the agent profile.
 - **User rights** — Active, can book, can confirm, deposit required, credit limit.
-- **Portal User** — linked Frappe User; password via **activation email** (no admin-set password).
+- **Portal User** — linked Frappe User. **BA Settings → Send Booking Agent Activation Email**: when checked, the agent sets their password via welcome email; when unchecked, staff set password (and share username) in the portal create form.
 
 ### Portal workflow (new agent)
 
 1. **Users → Booking agents → New booking agent**
 2. Step 1: pick **Company / agency** (or **+** to create company/agency).
-3. Fill contact, address, enable **Send activation email**.
+3. Fill contact and address; set password in the form if activation email is disabled in BA Settings.
 4. Step 2: set rights and credit limit → **Create agent**.
 
 ### Desk workflow
@@ -226,7 +226,7 @@ Managed in portal **Flights** (edit prices) and **Recurring flights**. No JSON e
 | Flight Schedule Plan won’t save | Leave override fare fields blank if not needed; use Currency fields, not JSON. |
 | No seats to book | Seats **Unreleased** — increase **Initial seats released** or release more seats. |
 | Multi-stop seat “not available” | Boarding/deboarding airports must match a valid segment pair on the route; ranges must not overlap another booking on that seat. |
-| Agent can’t log in | Activation pending — resend activation from portal; profile must be **Active**. |
+| Agent can’t log in | If activation email is on: pending activation — resend from portal; profile must be **Active**. If off: confirm password was set at create and profile is **Active**. |
 
 ---
 

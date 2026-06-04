@@ -8,10 +8,16 @@ def get_ba_setting(fieldname: str, default=None):
 	meta = frappe.get_meta("BA Settings")
 	if not meta.has_field(fieldname):
 		return default
-	return frappe.db.get_single_value("BA Settings", fieldname) or default
+	value = frappe.db.get_single_value("BA Settings", fieldname)
+	if value is None or value == "":
+		return default
+	return value
 
 
 def get_ba_setting_from_doc(doc, fieldname: str, default=None):
 	if not frappe.get_meta("BA Settings").has_field(fieldname):
 		return default
-	return doc.get(fieldname) or default
+	value = doc.get(fieldname)
+	if value is None or value == "":
+		return default
+	return value
