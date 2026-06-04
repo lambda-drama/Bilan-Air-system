@@ -11,16 +11,20 @@ import { cn } from '@/lib/utils';
 
 function getStatusColor(status: string) {
   switch (status) {
+    case 'Confirm':
     case 'Paid':
       return 'bg-green-100 text-green-700';
     case 'Pending':
       return 'bg-amber-100 text-amber-800';
+    case 'Booked':
     case 'Reserved':
       return 'bg-yellow-100 text-yellow-700';
     case 'Checked In':
       return 'bg-blue-100 text-blue-700';
+    case 'Flight Taken':
     case 'Boarded':
       return 'bg-navy text-cream';
+    case 'Void':
     case 'Cancelled':
       return 'bg-red-100 text-red-700';
     default:
@@ -127,7 +131,7 @@ export function BookingDetailsView({
         ))}
       </div>
 
-      {booking.status === 'Cancelled' && booking.reason_for_cancel && (
+      {(booking.status === 'Void' || booking.status === 'Cancelled') && booking.reason_for_cancel && (
         <div className="px-6 py-4 border-b border-navy/10 bg-red-50/80">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-800 mb-1">
             Cancellation reason
@@ -199,6 +203,8 @@ export function BookingDetailsView({
         <div className="p-6 flex flex-wrap gap-3">
           {showCheckInLink &&
             booking.payment_status === 'Paid' &&
+            booking.status !== 'Void' &&
+            booking.status !== 'Void' &&
             booking.status !== 'Cancelled' &&
             !['Checked In', 'Boarded'].includes(booking.status) && (
               <Button asChild className="bg-navy hover:bg-navy-light text-cream">
@@ -207,7 +213,10 @@ export function BookingDetailsView({
                 </Link>
               </Button>
             )}
-          {booking.payment_status === 'Pending' && booking.status !== 'Cancelled' && onPay && (
+          {booking.payment_status === 'Pending' &&
+            booking.status !== 'Void' &&
+            booking.status !== 'Cancelled' &&
+            onPay && (
             <Button
               className="bg-gold hover:bg-gold-dark text-navy"
               onClick={onPay}
@@ -216,7 +225,7 @@ export function BookingDetailsView({
               {paying ? 'Processing…' : 'Complete payment'}
             </Button>
           )}
-          {booking.status !== 'Cancelled' && (
+          {booking.status !== 'Void' && booking.status !== 'Cancelled' && (
             <Button
               variant="outline"
               className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"

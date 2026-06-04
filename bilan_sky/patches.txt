@@ -1,6 +1,7 @@
 [pre_model_sync]
 # Patches added in this section will be executed before doctypes are migrated
 # Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
+bilan_sky.patches.v1_0.backup_air_booking_status
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
@@ -10,3 +11,7 @@ bilan_sky.patches.v1_0.backfill_air_booking_passenger_name
 bilan_sky.patches.v1_0.backfill_schedule_seat_inventory
 bilan_sky.patches.v1_0.migrate_base_fares_json
 bilan_sky.patches.v1_0.rename_flight_schedule_ids
+bilan_sky.patches.v1_0.migrate_reservation_status
+bilan_sky.patches.v1_0.sync_reservation_status_definitions
+bilan_sky.patches.v1_0.backfill_booking_agent_profiles
+bilan_sky.patches.v1_0.sync_booking_agent_address_fields

@@ -171,15 +171,42 @@ export async function deleteTicketTerms(name: string) {
   });
 }
 
+export async function getBookingAgentDefaults() {
+  return apiRequest<{
+    confirmation_mode: string;
+    credit_limit: number;
+    default_country?: string;
+    cities?: string[];
+  }>(master("get_booking_agent_defaults"), { method: "POST", body: JSON.stringify({}) });
+}
+
 export async function createBookingAgent(params: {
   email: string;
   first_name: string;
-  last_name?: string;
-  phone?: string;
+  last_name: string;
+  username: string;
+  agent_name: string;
+  address_line1: string;
+  city: string;
+  phone: string;
+  address_line2?: string;
+  phone_2?: string;
+  country?: string;
   password?: string;
+  confirmation_mode?: "Credit Agent" | "Booking Only";
+  credit_limit?: number;
+  linked_customer?: string;
+  notes?: string;
 }) {
   return apiRequest<Record<string, unknown>>(master("create_booking_agent"), {
     method: "POST",
     body: JSON.stringify(params),
+  });
+}
+
+export async function saveBookingAgent(data: Record<string, unknown>) {
+  return apiRequest<Record<string, unknown>>(master("save_booking_agent"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
   });
 }

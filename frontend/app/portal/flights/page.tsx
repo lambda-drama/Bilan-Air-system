@@ -56,6 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "@/contexts/currency-context";
 import {
@@ -613,14 +614,19 @@ export default function PortalFlightsPage() {
           <h1 className="text-2xl font-bold">Flight schedule</h1>
           <p className="text-muted-foreground">View, create, and manage departures</p>
         </div>
-        <PortalAddButton
-          onClick={() => {
-            formAlerts.clearAlerts();
-            setAddOpen(true);
-          }}
-        >
-          New schedule
-        </PortalAddButton>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/portal/flights/recurring">Recurring (daily / weekly / monthly)</Link>
+          </Button>
+          <PortalAddButton
+            onClick={() => {
+              formAlerts.clearAlerts();
+              setAddOpen(true);
+            }}
+          >
+            New schedule
+          </PortalAddButton>
+        </div>
       </div>
 
       <Card>

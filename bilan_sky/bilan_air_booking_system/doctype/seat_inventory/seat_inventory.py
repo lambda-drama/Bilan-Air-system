@@ -325,10 +325,10 @@ def prepare_seat_for_new_booking(seat_name, current_booking=None):
         seat.reload()
 
     if seat.status in ("Hold", "Reserved") and seat.booking_reference:
-        booking_status = frappe.db.get_value(
-            "Air Booking", seat.booking_reference, "booking_status"
+        reservation_status = frappe.db.get_value(
+            "Air Booking", seat.booking_reference, "reservation_status"
         )
-        if booking_status == "Cancelled":
+        if reservation_status == "Void":
             seat.status = "Available"
             seat.booking_reference = None
             seat.hold_expiry = None

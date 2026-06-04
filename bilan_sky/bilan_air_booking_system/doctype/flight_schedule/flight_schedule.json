@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "flight_number",
+  "schedule_plan",
   "route",
   "airplane",
   "departure_date",
@@ -38,6 +39,13 @@
    "label": "Flight Number",
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "fieldname": "schedule_plan",
+   "fieldtype": "Link",
+   "label": "Schedule Plan",
+   "options": "Flight Schedule Plan",
+   "read_only": 1
   },
   {
    "fieldname": "route",

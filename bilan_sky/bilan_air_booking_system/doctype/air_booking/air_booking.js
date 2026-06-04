@@ -19,15 +19,26 @@ frappe.ui.form.on('Air Booking', {
         validate_booking_cutoff(frm);
         update_seat_availability_message(frm);
         setup_remote_payment_method_options(frm);
+
+        if (!frm.is_new() && !frm.doc.pnr && frm.doc.reservation_status === 'Booked') {
+            frm.set_intro(
+                __('Reservation {0} is not confirmed yet. PNR (e.g. BA-00001) and ticket numbers are issued only after payment or approved agent credit.', [
+                    frm.doc.reservation_ref || frm.doc.name,
+                ]),
+                'blue'
+            );
+        } else {
+            frm.set_intro('');
+        }
         
         // Add custom buttons
-        if (frm.doc.booking_status === 'Reserved' && frm.doc.payment_status === 'Paid') {
+        if (frm.doc.reservation_status === 'Booked' && frm.doc.payment_status === 'Paid') {
             frm.add_custom_button('Confirm Booking', function() {
                 confirm_booking(frm);
             });
         }
         
-        if (frm.doc.booking_status === 'Paid') {
+        if (frm.doc.reservation_status === 'Confirm') {
             frm.add_custom_button('Check-in', function() {
                 frm.save().then(() => {
                     frappe.set_route('Form', 'Air Booking Check-in', frm.doc.name);
@@ -35,7 +46,7 @@ frappe.ui.form.on('Air Booking', {
             });
         }
 
-        if (!frm.is_new() && frm.doc.booking_status === 'Paid') {
+        if (!frm.is_new() && frm.doc.reservation_status === 'Confirm') {
             frm.add_custom_button(__('Check-in All Passengers'), function() {
                 trigger_booking_action(
                     frm,
@@ -45,7 +56,10 @@ frappe.ui.form.on('Air Booking', {
             }, __('Status Actions'));
         }
 
-        if (!frm.is_new() && frm.doc.booking_status === 'Checked In') {
+        const has_checked_in = (frm.doc.passengers || []).some(
+            (p) => p.check_in_status === 'Checked In'
+        );
+        if (!frm.is_new() && frm.doc.reservation_status === 'Confirm' && has_checked_in) {
             frm.add_custom_button(__('Board All Passengers'), function() {
                 trigger_booking_action(
                     frm,
@@ -55,12 +69,12 @@ frappe.ui.form.on('Air Booking', {
             }, __('Status Actions'));
         }
 
-        if (!frm.is_new() && frm.doc.booking_status === 'Boarded') {
-            frm.add_custom_button(__('Mark Arrived'), function() {
+        if (!frm.is_new() && frm.doc.reservation_status === 'Confirm') {
+            frm.add_custom_button(__('Mark Flight Taken'), function() {
                 trigger_booking_action(
                     frm,
                     'bilan_sky.bilan_air_booking_system.api.air_booking.mark_booking_arrived',
-                    __('Marking booking as arrived...')
+                    __('Marking reservation as flight taken...')
                 );
             }, __('Status Actions'));
         }
@@ -71,7 +85,17 @@ frappe.ui.form.on('Air Booking', {
             }, __('Actions'));
         }
 
-        if (!frm.is_new() && frm.doc.booking_status !== 'Cancelled' && frm.doc.payment_status !== 'Refunded') {
+        if (!frm.is_new() && frm.doc.reservation_status === 'Booked') {
+            frm.add_custom_button(__('Confirm on Credit (PNR)'), function() {
+                trigger_booking_action(
+                    frm,
+                    'bilan_sky.bilan_air_booking_system.api.air_booking.confirm_booking_on_credit',
+                    __('Confirming on agent credit and issuing PNR...')
+                );
+            }, __('Payment'));
+        }
+
+        if (!frm.is_new() && frm.doc.reservation_status !== 'Void' && frm.doc.payment_status !== 'Refunded') {
             if (frm.doc.payment_status === 'Pending' || !frm.doc.payment_entry) {
                 frm.add_custom_button(__('Confirm Payment (Invoice + Payment)'), function() {
                     confirm_payment_and_invoice(frm);

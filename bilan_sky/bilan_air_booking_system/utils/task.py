@@ -35,8 +35,8 @@ def release_expired_seats():
                 # Cancel the associated booking if still reserved
                 if seat.booking_reference:
                     booking = frappe.get_doc("Air Booking", seat.booking_reference)
-                    if booking.booking_status == "Reserved":
-                        booking.booking_status = "Cancelled"
+                    if booking.reservation_status == "Booked":
+                        booking.reservation_status = "Void"
                         booking.save()
                 
                 # Release the seat
@@ -77,7 +77,7 @@ def send_flight_reminders():
     for flight in flights:
         bookings = frappe.get_all(
             "Air Booking",
-            filters={"flight_schedule": flight.name, "booking_status": "Paid"},
+            filters={"flight_schedule": flight.name, "reservation_status": "Confirm"},
             fields=["name", "payer_name", "payer_email"]
         )
         
@@ -143,6 +143,11 @@ def update_flight_statuses():
         if current_time > departure:
             flight.status = "Departed"
             flight.save()
+            from bilan_sky.bilan_air_booking_system.utils.reservation_status import (
+                mark_flight_taken_for_schedule,
+            )
+
+            mark_flight_taken_for_schedule(flight.name)
             frappe.db.commit()
     
     # Flights that should have arrived

@@ -96,7 +96,10 @@ export default function PortalCheckInPage() {
     }
   };
 
-  const canCheckIn = booking?.payment_status === "Paid" && booking.status !== "Cancelled";
+  const canCheckIn =
+    booking?.payment_status === "Paid" &&
+    booking.status !== "Void" &&
+    booking.status !== "Cancelled";
   const allCheckedIn =
     booking?.passengers?.every((p) =>
       ["Checked In", "Boarded"].includes(p.check_in_status || ""),

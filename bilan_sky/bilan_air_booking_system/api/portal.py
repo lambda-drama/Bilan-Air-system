@@ -161,7 +161,7 @@ def _schedule_active_booking_count(schedule_name):
 		"Air Booking",
 		{
 			"flight_schedule": schedule_name,
-			"booking_status": ["not in", ["Cancelled", "Refunded"]],
+			"reservation_status": ["!=", "Void"],
 			"docstatus": ["<", 2],
 		},
 	)
@@ -299,14 +299,15 @@ def search_bookings_for_checkin(query=None, limit=15):
 	limit = int(limit or 15)
 	q = (query or "").strip()
 
-	filters = {"booking_status": ["!=", "Cancelled"]}
+	filters = {"reservation_status": ["!=", "Void"]}
 	fields = [
 		"name",
+		"pnr",
 		"flight_schedule",
 		"payer_name",
 		"payer_phone",
 		"payer_email",
-		"booking_status",
+		"reservation_status",
 		"payment_status",
 		"total_fare",
 		"booking_date",
@@ -318,6 +319,7 @@ def search_bookings_for_checkin(query=None, limit=15):
 			filters=filters,
 			or_filters=[
 				["name", "like", f"%{q}%"],
+				["pnr", "like", f"%{q}%"],
 				["payer_name", "like", f"%{q}%"],
 				["payer_phone", "like", f"%{q}%"],
 				["payer_email", "like", f"%{q}%"],
@@ -345,7 +347,9 @@ def search_bookings_for_checkin(query=None, limit=15):
 		)
 		results.append(
 			{
-				"pnr": row.name,
+				"pnr": row.pnr or None,
+				"reservation_ref": row.name,
+				"public_reference": row.pnr or row.name,
 				"payer_name": row.payer_name,
 				"payer_phone": row.payer_phone,
 				"payer_email": row.payer_email,
@@ -353,7 +357,8 @@ def search_bookings_for_checkin(query=None, limit=15):
 				"flight_number": (departure or {}).get("flight_number") or row.flight_schedule,
 				"departure_date": (departure or {}).get("departure_date"),
 				"departure_time": (departure or {}).get("departure_time"),
-				"booking_status": row.booking_status,
+				"reservation_status": row.reservation_status,
+				"booking_status": row.reservation_status,
 				"payment_status": row.payment_status,
 			}
 		)
@@ -365,7 +370,7 @@ def search_bookings_for_checkin(query=None, limit=15):
 def list_air_bookings(limit=50, offset=0, status=None, search=None):
 	filters = {}
 	if status:
-		filters["booking_status"] = status
+		filters["reservation_status"] = status
 
 	or_filters = None
 	if search:
@@ -383,7 +388,8 @@ def list_air_bookings(limit=50, offset=0, status=None, search=None):
 			"payer_name",
 			"payer_email",
 			"payer_phone",
-			"booking_status",
+			"pnr",
+			"reservation_status",
 			"payment_status",
 			"total_fare",
 			"booking_date",
@@ -610,6 +616,8 @@ def get_portal_user_profile():
 		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
 	require_portal_staff()
 
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import booking_agent_row_for_user
+
 	user = frappe.get_doc("User", frappe.session.user)
 	return {
 		"name": user.name,
@@ -621,6 +629,7 @@ def get_portal_user_profile():
 		"phone": user.phone or "",
 		"mobile_no": user.mobile_no or "",
 		"roles": [r.role for r in user.roles],
+		"booking_agent_profile": booking_agent_row_for_user(user.name),
 	}
 
 
@@ -931,7 +940,8 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 			link.parent AS booking_pnr,
 			ab.payer_name,
 			ab.payment_status,
-			ab.booking_status,
+			ab.reservation_status,
+			ab.reservation_status AS booking_status,
 			ab.payment_entry,
 			{si_select}
 		FROM `tabAir Booking Invoice Link` link
@@ -1029,7 +1039,7 @@ def get_booking_invoice_detail(invoice_name):
 				"payer_email",
 				"payer_phone",
 				"payment_status",
-				"booking_status",
+				"reservation_status",
 				"total_fare",
 				"payment_entry",
 				"flight_schedule",

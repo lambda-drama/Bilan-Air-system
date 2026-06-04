@@ -1,0 +1,334 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:plan_title",
+ "creation": "2026-06-04 19:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "plan_title",
+  "plan_type",
+  "plan_status",
+  "column_break_hdr",
+  "route",
+  "airplane",
+  "section_break_frequency",
+  "frequency",
+  "start_date",
+  "end_date",
+  "column_break_freq",
+  "monthly_day",
+  "section_break_weekly",
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "column_break_wd",
+  "thursday",
+  "friday",
+  "saturday",
+  "section_break_timing",
+  "departure_time",
+  "arrival_time",
+  "arrival_day_offset",
+  "column_break_timing",
+  "status",
+  "crew_section",
+  "captain",
+  "first_officer",
+  "section_break_crew",
+  "cabin_crew",
+  "pricing_section",
+  "base_fares_override",
+  "seat_reserve_section",
+  "seat_classes",
+  "generation_section",
+  "generated_count",
+  "last_generated_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "plan_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Plan Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Schedule",
+   "fieldname": "plan_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Schedule\nOn-going"
+  },
+  {
+   "default": "On-going",
+   "fieldname": "plan_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Plan Status",
+   "options": "On-going\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Route",
+   "options": "Flight Route",
+   "reqd": 1
+  },
+  {
+   "fieldname": "airplane",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Airplane",
+   "options": "Airplane",
+   "reqd": 1
+  },
+  {
+   "default": "Weekly",
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Frequency",
+   "options": "Daily\nWeekly\nMonthly",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.frequency=='Monthly'",
+   "description": "Day of each month to operate (e.g. 15). Clamped to last day in shorter months.",
+   "fieldname": "monthly_day",
+   "fieldtype": "Int",
+   "label": "Day of Month"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "sunday",
+   "fieldtype": "Check",
+   "label": "Sunday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "monday",
+   "fieldtype": "Check",
+   "label": "Monday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "tuesday",
+   "fieldtype": "Check",
+   "label": "Tuesday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "wednesday",
+   "fieldtype": "Check",
+   "label": "Wednesday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "thursday",
+   "fieldtype": "Check",
+   "label": "Thursday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "friday",
+   "fieldtype": "Check",
+   "label": "Friday"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "saturday",
+   "fieldtype": "Check",
+   "label": "Saturday"
+  },
+  {
+   "fieldname": "departure_time",
+   "fieldtype": "Time",
+   "label": "Departure Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "arrival_time",
+   "fieldtype": "Time",
+   "label": "Arrival Time",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Add days to departure date for arrival (e.g. 1 for overnight flights).",
+   "fieldname": "arrival_day_offset",
+   "fieldtype": "Int",
+   "label": "Arrival Day Offset"
+  },
+  {
+   "default": "Scheduled",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Flight Status",
+   "options": "Scheduled\nDelayed\nCancelled\nDeparted\nArrived",
+   "reqd": 1
+  },
+  {
+   "fieldname": "captain",
+   "fieldtype": "Link",
+   "label": "Captain",
+   "options": "Crew Member",
+   "reqd": 1
+  },
+  {
+   "fieldname": "first_officer",
+   "fieldtype": "Link",
+   "label": "First Officer",
+   "options": "Crew Member"
+  },
+  {
+   "fieldname": "cabin_crew",
+   "fieldtype": "Table",
+   "label": "Cabin Crew",
+   "options": "Flight Crew Assignment"
+  },
+  {
+   "description": "Optional JSON override applied to each generated flight.",
+   "fieldname": "base_fares_override",
+   "fieldtype": "JSON",
+   "label": "Base Fares Override"
+  },
+  {
+   "fieldname": "seat_classes",
+   "fieldtype": "Table",
+   "label": "Seat Capacity by Class",
+   "options": "Flight Schedule Plan Class"
+  },
+  {
+   "default": "0",
+   "fieldname": "generated_count",
+   "fieldtype": "Int",
+   "label": "Flights Generated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_generated_on",
+   "fieldtype": "Datetime",
+   "label": "Last Generated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hdr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_frequency",
+   "fieldtype": "Section Break",
+   "label": "Recurrence"
+  },
+  {
+   "fieldname": "column_break_freq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "section_break_weekly",
+   "fieldtype": "Section Break",
+   "label": "Weekly Days"
+  },
+  {
+   "fieldname": "column_break_wd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "column_break_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "crew_section",
+   "fieldtype": "Section Break",
+   "label": "Crew"
+  },
+  {
+   "fieldname": "section_break_crew",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "seat_reserve_section",
+   "fieldtype": "Section Break",
+   "label": "Seat Reserve"
+  },
+  {
+   "fieldname": "generation_section",
+   "fieldtype": "Section Break",
+   "label": "Generation"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-04 19:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Flight Schedule Plan",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

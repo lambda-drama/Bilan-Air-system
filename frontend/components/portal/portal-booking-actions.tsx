@@ -34,9 +34,10 @@ export function PortalBookingSheetFooter({
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState("");
 
-  const status = detail?.status ?? row?.booking_status ?? "";
+  const status =
+    detail?.status ?? row?.reservation_status ?? row?.booking_status ?? "";
   const paymentStatus = detail?.payment_status ?? row?.payment_status ?? "";
-  const isCancelled = status === "Cancelled";
+  const isCancelled = status === "Void" || status === "Cancelled";
   const isUnpaid = paymentStatus !== "Paid" && paymentStatus !== "Refunded";
 
   const handleConfirmCancel = async () => {

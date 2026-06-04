@@ -11,6 +11,7 @@ from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 	generate_flight_number,
 	schedule_document_name,
 )
+from bilan_sky.bilan_air_booking_system.utils.reservation_status import mark_flight_taken_for_schedule
 
 
 class FlightSchedule(Document):
@@ -33,6 +34,8 @@ class FlightSchedule(Document):
 
     def on_update(self):
         self._ensure_seat_inventory()
+        if self.has_value_changed("status") and self.status == "Departed":
+            mark_flight_taken_for_schedule(self.name)
 
     def _ensure_seat_inventory(self):
         expected = self._expected_seat_count()
