@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
@@ -18,6 +18,7 @@ import {
   listBookingAgents,
   listBookingCompanies,
   resendBookingAgentActivation,
+  saveBookingAgent,
   type BookingCompanyRow,
 } from "@/services/portalMaster";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   Table,
@@ -43,6 +50,22 @@ import {
 } from "@/components/ui/table";
 
 const YES_NO = ["Yes", "No"] as const;
+
+function isAgentInactive(row: Record<string, unknown>) {
+  return String(row.status || row.agent_status || "") === "Inactive";
+}
+
+function inactiveRowClass(inactive: boolean) {
+  return inactive
+    ? "text-destructive line-through decoration-destructive decoration-2"
+    : undefined;
+}
+
+function loginStatusLabel(row: Record<string, unknown>) {
+  if (row.activation_pending) return "Pending activation";
+  if (row.enabled) return "Active";
+  return "Disabled";
+}
 
 const emptyCompanyForm = {
   company_agency: "",
@@ -70,11 +93,18 @@ const emptyForm = {
   credit_limit: "0",
 };
 
-const STEPS = [
+const CREATE_STEPS = [
   { id: 1, label: "User information" },
   { id: 2, label: "User rights" },
   { id: 3, label: "Summary" },
 ] as const;
+
+const EDIT_STEPS = [
+  { id: 1, label: "User information" },
+  { id: 2, label: "User rights" },
+] as const;
+
+type FormStep = { id: number; label: string };
 
 function CreateAgentSummary({
   form,
@@ -120,12 +150,14 @@ function CreateAgentSummary({
 
 function StepIndicator({
   step,
+  steps,
   onStepChange,
 }: {
   step: number;
+  steps: readonly FormStep[];
   onStepChange: (target: number) => void;
 }) {
-  const stepButton = (s: (typeof STEPS)[number]) => (
+  const stepButton = (s: FormStep) => (
     <button
       type="button"
       onClick={() => onStepChange(s.id)}
@@ -161,16 +193,29 @@ function StepIndicator({
     </div>
   );
 
+  if (steps.length === 2) {
+    return (
+      <nav
+        className="mb-6 grid w-full grid-cols-[auto_1fr_auto] items-center text-sm"
+        aria-label="Form steps"
+      >
+        <div className="justify-self-start">{stepButton(steps[0])}</div>
+        {stepArrow()}
+        <div className="justify-self-end">{stepButton(steps[1])}</div>
+      </nav>
+    );
+  }
+
   return (
     <nav
       className="mb-6 grid w-full grid-cols-[auto_1fr_auto_1fr_auto] items-center text-sm"
       aria-label="Form steps"
     >
-      <div className="justify-self-start">{stepButton(STEPS[0])}</div>
+      <div className="justify-self-start">{stepButton(steps[0])}</div>
       {stepArrow()}
-      <div className="justify-self-center">{stepButton(STEPS[1])}</div>
+      <div className="justify-self-center">{stepButton(steps[1])}</div>
       {stepArrow()}
-      <div className="justify-self-end">{stepButton(STEPS[2])}</div>
+      <div className="justify-self-end">{stepButton(steps[2])}</div>
     </nav>
   );
 }
@@ -215,7 +260,11 @@ export default function PortalBookingAgentsPage() {
   const [activationByEmail, setActivationByEmail] = useState(true);
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
+  const isEditing = !!editingAgentId;
+  const formSteps = isEditing ? EDIT_STEPS : CREATE_STEPS;
+  const maxStep = formSteps.length;
 
   const loadCompanies = useCallback(async () => {
     try {
@@ -248,6 +297,8 @@ export default function PortalBookingAgentsPage() {
     loadCompanies();
     getBookingAgentDefaults()
       .then((defaults) => {
+        setCitySuggestions(defaults.cities ?? []);
+        if (editingAgentId) return;
         setForm((prev) => ({
           ...prev,
           status: (defaults.status as "Active" | "Inactive") || "Active",
@@ -258,11 +309,10 @@ export default function PortalBookingAgentsPage() {
           credit_limit:
             defaults.credit_limit != null ? String(defaults.credit_limit) : prev.credit_limit,
         }));
-        setCitySuggestions(defaults.cities ?? []);
         setActivationByEmail(defaults.send_booking_agent_activation_email !== 0);
       })
       .catch(() => {});
-  }, [open, loadCompanies]);
+  }, [open, loadCompanies, editingAgentId]);
 
   const handleCreateCompany = async () => {
     const name = companyForm.company_agency.trim();
@@ -298,15 +348,19 @@ export default function PortalBookingAgentsPage() {
     if (currentStep === 1) {
       const missing = getMissingRequired(form, [
         { key: "booking_company", label: "Company / agency" },
-        { key: "username", label: "Username" },
-        { key: "email", label: "Email" },
+        ...(isEditing
+          ? []
+          : [
+              { key: "username", label: "Username" },
+              { key: "email", label: "Email" },
+            ]),
         { key: "first_name", label: "First name" },
         { key: "last_name", label: "Last name" },
         { key: "address_line1", label: "Address 1" },
         { key: "phone", label: "Phone 1" },
         { key: "city", label: "City" },
       ]);
-      if (!activationByEmail) {
+      if (!isEditing && !activationByEmail) {
         if (!form.password.trim()) missing.push("Password");
         else if (form.password.length < 8) missing.push("Password (min 8 characters)");
         if (!form.password_confirm.trim()) missing.push("Confirm password");
@@ -336,7 +390,7 @@ export default function PortalBookingAgentsPage() {
         return;
       }
     }
-    if (target >= 3) {
+    if (target >= 3 && maxStep >= 3) {
       const missingStep2 = validateStep(2);
       if (missingStep2.length) {
         formAlerts.showValidation(missingStep2);
@@ -345,12 +399,29 @@ export default function PortalBookingAgentsPage() {
       }
     }
     formAlerts.clearAlerts();
-    setStep(target);
+    setStep(Math.min(target, maxStep));
   };
 
   const goNext = () => goToStep(step + 1);
 
-  const handleCreate = async () => {
+  const agentPayload = () => ({
+    booking_company: form.booking_company,
+    first_name: form.first_name.trim(),
+    last_name: form.last_name.trim(),
+    address_line1: form.address_line1.trim(),
+    address_line2: form.address_line2.trim() || undefined,
+    city: form.city.trim(),
+    phone: form.phone.trim(),
+    phone_2: form.phone_2.trim() || undefined,
+    status: form.status,
+    user_type: form.user_type,
+    can_book_ticket: form.can_book_ticket,
+    can_confirm_ticket: form.can_confirm_ticket,
+    deposit_required: form.deposit_required,
+    credit_limit: creditEditable ? parseFloat(form.credit_limit) || 0 : 0,
+  });
+
+  const handleSave = async () => {
     const missingStep1 = validateStep(1);
     const missingStep2 = validateStep(2);
     const missing = [...missingStep1, ...missingStep2];
@@ -361,41 +432,95 @@ export default function PortalBookingAgentsPage() {
     }
     formAlerts.clearAlerts();
     try {
-      await createBookingAgent({
-        booking_company: form.booking_company,
-        username: form.username.trim(),
-        email: form.email.trim(),
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        address_line1: form.address_line1.trim(),
-        address_line2: form.address_line2.trim() || undefined,
-        city: form.city.trim(),
-        phone: form.phone.trim(),
-        phone_2: form.phone_2.trim() || undefined,
-        password: activationByEmail ? undefined : form.password,
-        status: form.status,
-        user_type: form.user_type,
-        can_book_ticket: form.can_book_ticket,
-        can_confirm_ticket: form.can_confirm_ticket,
-        deposit_required: form.deposit_required,
-        credit_limit: creditEditable ? parseFloat(form.credit_limit) || 0 : 0,
-      });
-      toast.success("Booking agent created");
+      if (editingAgentId) {
+        await saveBookingAgent({
+          name: editingAgentId,
+          ...agentPayload(),
+        });
+        toast.success("Booking agent updated");
+      } else {
+        await createBookingAgent({
+          ...agentPayload(),
+          username: form.username.trim(),
+          email: form.email.trim(),
+          password: activationByEmail ? undefined : form.password,
+        });
+        toast.success("Booking agent created");
+      }
       setOpen(false);
       setStep(1);
+      setEditingAgentId(null);
       setForm(emptyForm);
       refresh();
     } catch (e) {
-      formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
+      formAlerts.setSubmitError(
+        e instanceof Error
+          ? e.message
+          : editingAgentId
+            ? "Failed to update agent"
+            : "Failed to create agent",
+      );
     }
   };
 
   const openCreate = () => {
     formAlerts.clearAlerts();
+    setEditingAgentId(null);
     setStep(1);
     setForm(emptyForm);
     setActivationByEmail(true);
     setOpen(true);
+  };
+
+  const openEdit = (row: Record<string, unknown>) => {
+    const agentId = String(row.booking_agent || "");
+    if (!agentId) {
+      toast.error("No booking agent profile linked to this user.");
+      return;
+    }
+    formAlerts.clearAlerts();
+    setEditingAgentId(agentId);
+    setStep(1);
+    setForm({
+      booking_company: String(row.booking_company || ""),
+      username: String(row.username || row.name || ""),
+      email: String(row.email || ""),
+      first_name: String(row.first_name || ""),
+      last_name: String(row.last_name || ""),
+      address_line1: String(row.address_line1 || ""),
+      address_line2: String(row.address_line2 || ""),
+      phone: String(row.phone || row.mobile_no || ""),
+      phone_2: String(row.phone_2 || ""),
+      city: String(row.city || ""),
+      password: "",
+      password_confirm: "",
+      status: (String(row.status || row.agent_status || "Active") as "Active" | "Inactive"),
+      user_type: String(row.user_type || "Agent"),
+      can_book_ticket: (String(row.can_book_ticket || "Yes") as "Yes" | "No"),
+      can_confirm_ticket: (String(row.can_confirm_ticket || "Yes") as "Yes" | "No"),
+      deposit_required: (String(row.deposit_required || "No") as "Yes" | "No"),
+      credit_limit: String(row.credit_limit ?? 0),
+    });
+    setOpen(true);
+  };
+
+  const toggleInactive = async (row: Record<string, unknown>) => {
+    const agentId = String(row.booking_agent || "");
+    if (!agentId) {
+      toast.error("No booking agent profile linked to this user.");
+      return;
+    }
+    const inactive = isAgentInactive(row);
+    try {
+      await saveBookingAgent({
+        name: agentId,
+        status: inactive ? "Active" : "Inactive",
+      });
+      toast.success(inactive ? "Booking agent reactivated" : "Booking agent inactivated");
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update status");
+    }
   };
 
   return (
@@ -433,7 +558,7 @@ export default function PortalBookingAgentsPage() {
                 <TableHead>Can confirm</TableHead>
                 <TableHead>Deposit</TableHead>
                 <TableHead>Credit limit</TableHead>
-                <TableHead>Login</TableHead>
+                <TableHead className="w-[52px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -444,33 +569,63 @@ export default function PortalBookingAgentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((u) => (
-                  <TableRow
-                    key={String(u.name)}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedUser(String(u.name))}
-                  >
-                    <TableCell className="font-medium">
-                      {String(
-                        u.company_display || u.company_agency || u.agent_name || u.full_name || u.name,
+                rows.map((u) => {
+                  const inactive = isAgentInactive(u);
+                  const strike = inactiveRowClass(inactive);
+                  return (
+                    <TableRow
+                      key={String(u.name)}
+                      className={cn(
+                        "cursor-pointer",
+                        inactive && "border-l-2 border-l-destructive bg-destructive/5",
                       )}
-                    </TableCell>
-                    <TableCell>{String(u.username || "—")}</TableCell>
-                    <TableCell>{String(u.city || "—")}</TableCell>
-                    <TableCell>{String(u.status || u.agent_status || "—")}</TableCell>
-                    <TableCell>{String(u.can_book_ticket || "—")}</TableCell>
-                    <TableCell>{String(u.can_confirm_ticket || "—")}</TableCell>
-                    <TableCell>{String(u.deposit_required || "—")}</TableCell>
-                    <TableCell>{String(u.credit_limit ?? 0)}</TableCell>
-                    <TableCell>
-                      {u.activation_pending
-                        ? "Pending activation"
-                        : u.enabled
-                          ? "Active"
-                          : "Disabled"}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      onClick={() => setSelectedUser(String(u.name))}
+                    >
+                      <TableCell className={cn("font-medium", strike)}>
+                        {String(
+                          u.company_display ||
+                            u.company_agency ||
+                            u.agent_name ||
+                            u.full_name ||
+                            u.name,
+                        )}
+                      </TableCell>
+                      <TableCell className={strike}>{String(u.username || "—")}</TableCell>
+                      <TableCell className={strike}>{String(u.city || "—")}</TableCell>
+                      <TableCell className={cn(inactive && "font-medium text-destructive")}>
+                        {String(u.status || u.agent_status || "—")}
+                      </TableCell>
+                      <TableCell className={strike}>{String(u.can_book_ticket || "—")}</TableCell>
+                      <TableCell className={strike}>{String(u.can_confirm_ticket || "—")}</TableCell>
+                      <TableCell className={strike}>{String(u.deposit_required || "—")}</TableCell>
+                      <TableCell className={strike}>{String(u.credit_limit ?? 0)}</TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label="Row actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {u.booking_agent ? (
+                              <>
+                                <DropdownMenuItem onClick={() => openEdit(u)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem
+                                  variant={inactive ? "default" : "destructive"}
+                                  onClick={() => toggleInactive(u)}
+                                >
+                                  {inactive ? "Reactivate" : "Inactivate"}
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem disabled>No agent profile</DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -528,19 +683,18 @@ export default function PortalBookingAgentsPage() {
               <DetailRow label="Deposit required" value={String(selected.deposit_required || "—")} />
               <DetailRow label="Credit limit" value={String(selected.credit_limit ?? 0)} />
               <DetailRow label="Credit available" value={String(selected.credit_available ?? 0)} />
-              <DetailRow
-                label="Portal login"
-                value={
-                  selected.activation_pending
-                    ? "Pending — must set password via email"
-                    : selected.enabled
-                      ? "Active"
-                      : "Disabled"
-                }
-              />
             </DetailSection>
-            {selected.activation_pending && selected.booking_agent ? (
-              <div className="pt-2">
+            <DetailSection title="Login status">
+              <DetailRow label="Portal login" value={loginStatusLabel(selected)} />
+              {selected.activation_pending ? (
+                <DetailRow
+                  label="Note"
+                  value="User must set their password via the activation email before they can log in."
+                />
+              ) : null}
+            </DetailSection>
+            <div className="flex flex-col gap-2 pt-2">
+              {selected.activation_pending && selected.booking_agent ? (
                 <Button
                   variant="outline"
                   className="w-full"
@@ -557,8 +711,8 @@ export default function PortalBookingAgentsPage() {
                 >
                   Resend activation link
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </>
         )}
       </DetailSheet>
@@ -567,13 +721,18 @@ export default function PortalBookingAgentsPage() {
         open={open}
         onOpenChange={(v) => {
           setOpen(v);
-          if (!v) setStep(1);
+          if (!v) {
+            setStep(1);
+            setEditingAgentId(null);
+          }
         }}
         className="sm:max-w-4xl"
-        title="New booking agent"
+        title={isEditing ? "Edit booking agent" : "New booking agent"}
         description={
           step === 1
-            ? "Contact and address for the booking agent profile."
+            ? isEditing
+              ? "Update contact and address. Username and email cannot be changed here."
+              : "Contact and address for the booking agent profile."
             : step === 2
               ? "Rights and credit limit for bookings and confirmations."
               : "Review details before creating the agent."
@@ -589,19 +748,19 @@ export default function PortalBookingAgentsPage() {
             >
               {step === 1 ? "Cancel" : step === 2 ? "User information" : "User rights"}
             </Button>
-            {step < 3 ? (
+            {step < maxStep ? (
               <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={goNext}>
                 Next
               </Button>
             ) : (
-              <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={handleCreate}>
-                Create agent
+              <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={handleSave}>
+                {isEditing ? "Save changes" : "Create agent"}
               </Button>
             )}
           </>
         }
       >
-        <StepIndicator step={step} onStepChange={goToStep} />
+        <StepIndicator step={step} steps={formSteps} onStepChange={goToStep} />
         {step === 1 && (
           <div className="space-y-4">
             <FormGrid cols={1}>
@@ -638,16 +797,18 @@ export default function PortalBookingAgentsPage() {
               </FormField>
             </FormGrid>
             <FormGrid>
-            <FormField label="Username" required>
+            <FormField label="Username" required={!isEditing}>
               <Input
                 value={form.username}
+                disabled={isEditing}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
               />
             </FormField>
-            <FormField label="Email" required>
+            <FormField label="Email" required={!isEditing}>
               <Input
                 type="email"
                 value={form.email}
+                disabled={isEditing}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
             </FormField>
@@ -675,7 +836,7 @@ export default function PortalBookingAgentsPage() {
                 onChange={(e) => setForm({ ...form, phone_2: e.target.value })}
               />
             </FormField>
-            {!activationByEmail ? (
+            {!isEditing && !activationByEmail ? (
               <>
                 <FormField label="Portal password" required>
                   <PasswordInput
