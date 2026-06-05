@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { BookingStartLink } from "@/components/portal/booking-start-link"
 import Link from "next/link"
+import { DashboardFlightSearch } from "@/components/portal/dashboard-flight-search"
 import { getDashboardStats } from "@/services/portal"
 import { listBookings } from "@/services/portal"
 import type { AirBookingRow } from "@/services/portal"
@@ -81,6 +82,8 @@ export default function PortalDashboard() {
           </Card>
         ))}
       </div>
+
+      <DashboardFlightSearch />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

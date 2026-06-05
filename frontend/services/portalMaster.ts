@@ -245,6 +245,13 @@ export async function createBookingAgent(params: {
   });
 }
 
+export async function getBookingAgent(name: string) {
+  return apiRequest<Record<string, unknown>>(master("get_booking_agent"), {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function resendBookingAgentActivation(opts: {
   booking_agent?: string;
   user?: string;
