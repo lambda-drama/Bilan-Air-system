@@ -12,6 +12,12 @@ from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 
 
 class FlightSchedulePlan(Document):
+	def before_insert(self):
+		if not (self.plan_title or "").strip():
+			from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import next_plan_title
+
+			self.plan_title = next_plan_title()
+
 	def validate(self):
 		from bilan_sky.bilan_air_booking_system.utils.crew_filters import validate_flight_crew_pilots
 		validate_flight_crew_pilots(self)

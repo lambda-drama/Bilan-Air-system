@@ -98,9 +98,9 @@ function CreateAgentSummary({
         <DetailRow label="Username" value={form.username} />
         <DetailRow label="Email" value={form.email} />
         <DetailRow label="Name" value={fullName || "—"} />
-        <DetailRow label="Address" value={addressParts.length ? addressParts.join(", ") : "—"} />
         <DetailRow label="Phone 1" value={form.phone} />
         {form.phone_2.trim() ? <DetailRow label="Phone 2" value={form.phone_2} /> : null}
+        <DetailRow label="Address" value={addressParts.length ? addressParts.join(", ") : "—"} />
         <DetailRow
           label="Portal login"
           value={activationByEmail ? "Activation email" : "Password set by staff"}
@@ -125,40 +125,52 @@ function StepIndicator({
   step: number;
   onStepChange: (target: number) => void;
 }) {
+  const stepButton = (s: (typeof STEPS)[number]) => (
+    <button
+      type="button"
+      onClick={() => onStepChange(s.id)}
+      aria-current={step === s.id ? "step" : undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-muted/60",
+        step === s.id ? "cursor-default" : "cursor-pointer",
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
+          step === s.id
+            ? "bg-navy text-white"
+            : step > s.id
+              ? "bg-gold/30 text-navy"
+              : "bg-muted text-muted-foreground",
+        )}
+      >
+        {s.id}
+      </span>
+      <span className={step === s.id ? "font-medium text-foreground" : "text-muted-foreground"}>
+        {s.label}
+      </span>
+    </button>
+  );
+
+  const stepArrow = () => (
+    <div className="flex w-full items-center gap-1 px-2" aria-hidden="true">
+      <div className="h-px flex-1 bg-muted-foreground/30" />
+      <span className="shrink-0 text-base text-muted-foreground">›</span>
+      <div className="h-px flex-1 bg-muted-foreground/30" />
+    </div>
+  );
+
   return (
-    <nav className="mb-6 flex items-center gap-3 text-sm" aria-label="Form steps">
-      {STEPS.map((s, i) => (
-        <div key={s.id} className="flex items-center gap-2">
-          {i > 0 && <span className="text-muted-foreground" aria-hidden="true">›</span>}
-          <button
-            type="button"
-            onClick={() => onStepChange(s.id)}
-            aria-current={step === s.id ? "step" : undefined}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-muted/60",
-              step === s.id ? "cursor-default" : "cursor-pointer",
-            )}
-          >
-            <span
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
-                step === s.id
-                  ? "bg-navy text-white"
-                  : step > s.id
-                    ? "bg-gold/30 text-navy"
-                    : "bg-muted text-muted-foreground",
-              )}
-            >
-              {s.id}
-            </span>
-            <span
-              className={step === s.id ? "font-medium text-foreground" : "text-muted-foreground"}
-            >
-              {s.label}
-            </span>
-          </button>
-        </div>
-      ))}
+    <nav
+      className="mb-6 grid w-full grid-cols-[auto_1fr_auto_1fr_auto] items-center text-sm"
+      aria-label="Form steps"
+    >
+      <div className="justify-self-start">{stepButton(STEPS[0])}</div>
+      {stepArrow()}
+      <div className="justify-self-center">{stepButton(STEPS[1])}</div>
+      {stepArrow()}
+      <div className="justify-self-end">{stepButton(STEPS[2])}</div>
     </nav>
   );
 }
@@ -557,7 +569,7 @@ export default function PortalBookingAgentsPage() {
           setOpen(v);
           if (!v) setStep(1);
         }}
-        className="sm:max-w-2xl"
+        className="sm:max-w-4xl"
         title="New booking agent"
         description={
           step === 1
@@ -591,39 +603,41 @@ export default function PortalBookingAgentsPage() {
       >
         <StepIndicator step={step} onStepChange={goToStep} />
         {step === 1 && (
-          <FormGrid>
-            <FormField
-              label="Company / agency"
-              required
-              fullWidth
-              hint="Select an existing company or use + to add a new one. Tick Agency only when creating a new agency."
-            >
-              <div className="flex gap-2">
-                <SearchableSelect
-                  className="min-w-0 flex-1"
-                  options={companyOptions}
-                  value={form.booking_company}
-                  onValueChange={(v) => setForm({ ...form, booking_company: v })}
-                  placeholder="Search company or agency..."
-                  emptyMessage="No companies found — use + to add one"
-                  clearable={false}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                  aria-label="Add company or agency"
-                  onClick={() => {
-                    setCompanyError(null);
-                    setCompanyForm(emptyCompanyForm);
-                    setCompanyDialogOpen(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </FormField>
+          <div className="space-y-4">
+            <FormGrid cols={1}>
+              <FormField
+                label="Company / agency"
+                required
+                hint="Select an existing company or use + to add a new one. Tick Agency only when creating a new agency."
+              >
+                <div className="flex w-full gap-2">
+                  <SearchableSelect
+                    className="min-w-0 w-full flex-1"
+                    options={companyOptions}
+                    value={form.booking_company}
+                    onValueChange={(v) => setForm({ ...form, booking_company: v })}
+                    placeholder="Search company or agency..."
+                    emptyMessage="No companies found — use + to add one"
+                    clearable={false}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Add company or agency"
+                    onClick={() => {
+                      setCompanyError(null);
+                      setCompanyForm(emptyCompanyForm);
+                      setCompanyDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </FormField>
+            </FormGrid>
+            <FormGrid>
             <FormField label="Username" required>
               <Input
                 value={form.username}
@@ -649,20 +663,6 @@ export default function PortalBookingAgentsPage() {
                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
               />
             </FormField>
-            <FormField label="Address 1" required fullWidth>
-              <Textarea
-                value={form.address_line1}
-                onChange={(e) => setForm({ ...form, address_line1: e.target.value })}
-                rows={2}
-              />
-            </FormField>
-            <FormField label="Address 2" fullWidth>
-              <Textarea
-                value={form.address_line2}
-                onChange={(e) => setForm({ ...form, address_line2: e.target.value })}
-                rows={2}
-              />
-            </FormField>
             <FormField label="Phone 1" required>
               <Input
                 value={form.phone}
@@ -674,19 +674,6 @@ export default function PortalBookingAgentsPage() {
                 value={form.phone_2}
                 onChange={(e) => setForm({ ...form, phone_2: e.target.value })}
               />
-            </FormField>
-            <FormField label="City" required fullWidth>
-              <Input
-                list="booking-agent-cities"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                placeholder="e.g. Nairobi"
-              />
-              <datalist id="booking-agent-cities">
-                {citySuggestions.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
             </FormField>
             {!activationByEmail ? (
               <>
@@ -706,7 +693,35 @@ export default function PortalBookingAgentsPage() {
                 </FormField>
               </>
             ) : null}
+            <FormField label="Address 1" required fullWidth>
+              <Textarea
+                value={form.address_line1}
+                onChange={(e) => setForm({ ...form, address_line1: e.target.value })}
+                rows={2}
+              />
+            </FormField>
+            <FormField label="Address 2" fullWidth>
+              <Textarea
+                value={form.address_line2}
+                onChange={(e) => setForm({ ...form, address_line2: e.target.value })}
+                rows={2}
+              />
+            </FormField>
+            <FormField label="City" required fullWidth>
+              <Input
+                list="booking-agent-cities"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                placeholder="e.g. Nairobi"
+              />
+              <datalist id="booking-agent-cities">
+                {citySuggestions.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </FormField>
           </FormGrid>
+          </div>
         )}
         {step === 2 && (
           <FormGrid

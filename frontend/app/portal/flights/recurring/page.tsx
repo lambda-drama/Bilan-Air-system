@@ -15,6 +15,7 @@ import { fetchAllAirplanes } from "@/services/airplane";
 import { listCrewMembers } from "@/services/lookups";
 import {
   generatePlanSchedules,
+  getFlightSchedulePlanDefaults,
   listFlightSchedulePlans,
   previewPlanOccurrences,
   saveFlightSchedulePlan,
@@ -174,6 +175,18 @@ export default function RecurringFlightPlansPage() {
     }
   };
 
+  const openCreateDialog = async () => {
+    formAlerts.clearAlerts();
+    setPreviewCount(null);
+    try {
+      const defaults = await getFlightSchedulePlanDefaults();
+      setForm({ ...emptyForm, plan_title: defaults.suggested_plan_title });
+    } catch {
+      setForm(emptyForm);
+    }
+    setOpen(true);
+  };
+
   const handleGenerate = async (planName: string) => {
     try {
       const gen = await generatePlanSchedules(planName);
@@ -200,14 +213,7 @@ export default function RecurringFlightPlansPage() {
             Daily, weekly, or monthly schedules — generates individual flights for each date
           </p>
         </div>
-        <PortalAddButton
-          onClick={() => {
-            formAlerts.clearAlerts();
-            setForm(emptyForm);
-            setPreviewCount(null);
-            setOpen(true);
-          }}
-        >
+        <PortalAddButton onClick={() => void openCreateDialog()}>
           New recurring plan
         </PortalAddButton>
       </div>
@@ -283,11 +289,16 @@ export default function RecurringFlightPlansPage() {
         }
       >
         <FormGrid>
-          <FormField label="Plan title" required fullWidth>
+          <FormField
+            label="Plan title"
+            required
+            fullWidth
+            hint="Auto-generated (RFP-000001). You can change it before saving."
+          >
             <Input
               value={form.plan_title}
               onChange={(e) => setForm({ ...form, plan_title: e.target.value })}
-              placeholder="e.g. NBO MGQ Mar 144"
+              placeholder="RFP-000001"
             />
           </FormField>
           <FormField label="Frequency" required>

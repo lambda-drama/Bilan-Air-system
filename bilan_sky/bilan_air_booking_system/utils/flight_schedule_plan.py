@@ -17,6 +17,14 @@ from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 )
 
 MAX_OCCURRENCES = 400
+PLAN_TITLE_SERIES = "RFP-.######"
+
+
+def next_plan_title() -> str:
+	"""Next recurring flight plan title (e.g. RFP-000001)."""
+	from frappe.model.naming import make_autoname
+
+	return make_autoname(PLAN_TITLE_SERIES)
 
 WEEKDAY_FIELDS = (
 	("sunday", 6),
