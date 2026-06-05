@@ -55,6 +55,7 @@ type SegmentForm = {
   segment_index: number;
   origin_airport: string;
   destination_airport: string;
+  duration_hours: string;
 };
 
 const emptyRouteForm = {
@@ -75,9 +76,19 @@ function reindexSegments(segments: SegmentForm[]): SegmentForm[] {
 
 function defaultMultiSegments(origin = "", destination = ""): SegmentForm[] {
   return reindexSegments([
-    { segment_index: 0, origin_airport: origin, destination_airport: "" },
-    { segment_index: 1, origin_airport: "", destination_airport: destination },
+    { segment_index: 0, origin_airport: origin, destination_airport: "", duration_hours: "" },
+    { segment_index: 1, origin_airport: "", destination_airport: destination, duration_hours: "" },
   ]);
+}
+
+function segmentDurationHours(durationSeconds?: number | null) {
+  const sec = Number(durationSeconds || 0);
+  return sec > 0 ? String(sec / 3600) : "";
+}
+
+function segmentDurationPayload(hours: string) {
+  const parsed = parseFloat(hours);
+  return parsed > 0 ? Math.round(parsed * 3600) : undefined;
 }
 
 function validateSegments(
@@ -190,6 +201,7 @@ export default function PortalRoutesPage() {
               segment_index: Number(s.segment_index),
               origin_airport: String(s.origin_airport || ""),
               destination_airport: String(s.destination_airport || ""),
+              duration_hours: segmentDurationHours(s.duration),
             })),
           )
         : [],
@@ -257,6 +269,7 @@ export default function PortalRoutesPage() {
           segment_index: prev.length,
           origin_airport: last?.destination_airport || "",
           destination_airport: "",
+          duration_hours: "",
         },
       ]);
     });
@@ -308,16 +321,29 @@ export default function PortalRoutesPage() {
     };
 
     if (form.is_multi_segment) {
-      payload.route_segments = indexedSegments;
+      payload.route_segments = indexedSegments.map((seg) => ({
+        segment_index: seg.segment_index,
+        origin_airport: seg.origin_airport,
+        destination_airport: seg.destination_airport,
+        duration: segmentDurationPayload(seg.duration_hours),
+      }));
       payload.origin_airport = indexedSegments[0]?.origin_airport;
       payload.destination_airport = indexedSegments[indexedSegments.length - 1]?.destination_airport;
+      const totalSegmentSeconds = indexedSegments.reduce(
+        (sum, seg) => sum + (segmentDurationPayload(seg.duration_hours) || 0),
+        0,
+      );
+      if (totalSegmentSeconds > 0) {
+        payload.duration = totalSegmentSeconds;
+      } else if (durationHours > 0) {
+        payload.duration = Math.round(durationHours * 3600);
+      }
     } else {
       payload.origin_airport = form.origin_airport;
       payload.destination_airport = form.destination_airport;
       payload.route_segments = [];
+      if (durationHours > 0) payload.duration = Math.round(durationHours * 3600);
     }
-
-    if (durationHours > 0) payload.duration = Math.round(durationHours * 3600);
 
     formAlerts.clearAlerts();
     try {
@@ -488,7 +514,7 @@ export default function PortalRoutesPage() {
                   {segments.map((seg, index) => (
                     <div
                       key={index}
-                      className="grid gap-3 rounded-md border border-dashed bg-muted/30 p-3 sm:grid-cols-[auto_1fr_1fr_auto]"
+                      className="grid gap-3 rounded-md border border-dashed bg-muted/30 p-3 sm:grid-cols-[auto_1fr_1fr_120px_auto]"
                     >
                       <span className="flex h-9 items-center text-sm font-medium text-muted-foreground">
                         Leg {index + 1}
@@ -509,6 +535,16 @@ export default function PortalRoutesPage() {
                           onValueChange={(v) => updateSegment(index, { destination_airport: v })}
                           placeholder="Arrival airport"
                           clearable={false}
+                        />
+                      </FormField>
+                      <FormField label="Duration (h)" hint="Est.">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.25}
+                          value={seg.duration_hours}
+                          onChange={(e) => updateSegment(index, { duration_hours: e.target.value })}
+                          placeholder="e.g. 2"
                         />
                       </FormField>
                       <div className="flex items-end pb-0.5">
@@ -610,7 +646,14 @@ export default function PortalRoutesPage() {
                     />
                   </FormField>
                 ))}
-                <FormField label="Duration (hours)" hint="Optional">
+                <FormField
+                  label="Duration (hours)"
+                  hint={
+                    form.is_multi_segment
+                      ? "Optional total — auto-summed from leg durations when provided"
+                      : "Estimated flying time for this direct route"
+                  }
+                >
                   <Input
                     type="number"
                     min={0}
@@ -685,13 +728,17 @@ export default function PortalRoutesPage() {
             </DetailSection>
             {selectedRoute.is_multi_segment && detailSegments.length > 0 && (
               <DetailSection title="Segments">
-                {detailSegments.map((seg, i) => (
-                  <DetailRow
-                    key={i}
-                    label={`Leg ${i + 1}`}
-                    value={`${airportLabelByName.get(seg.origin_airport) || seg.origin_airport} → ${airportLabelByName.get(seg.destination_airport) || seg.destination_airport}`}
-                  />
-                ))}
+                {detailSegments.map((seg, i) => {
+                  const legHours = segmentDurationHours(seg.duration);
+                  const path = `${airportLabelByName.get(seg.origin_airport) || seg.origin_airport} → ${airportLabelByName.get(seg.destination_airport) || seg.destination_airport}`;
+                  return (
+                    <DetailRow
+                      key={i}
+                      label={`Leg ${i + 1}`}
+                      value={legHours ? `${path} (${legHours} h est.)` : path}
+                    />
+                  );
+                })}
               </DetailSection>
             )}
           </>

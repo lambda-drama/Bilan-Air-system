@@ -82,12 +82,17 @@ function SeatsStepContent() {
       if (cancelled) return;
       setDraft(current);
       setScheduleId(scheduleId);
-      setSelectedSeatIds(current.selectedSeatIds || []);
 
       try {
         const flat = await loadSeatRows(scheduleId);
         if (cancelled) return;
         setSeatRows(flat);
+        const classForSeats = current.seatClass ?? "Economy";
+        const savedSeatIds = (current.selectedSeatIds || []).filter((id) => {
+          const seat = flat.find((s) => s.name === id);
+          return seat && seat.seat_class === classForSeats;
+        });
+        setSelectedSeatIds(savedSeatIds);
         if (!flat.length) {
           setError(
             "No seats on this flight. Generate seats from the airplane layout, or pick another schedule.",
@@ -106,9 +111,7 @@ function SeatsStepContent() {
     };
   }, [router, scheduleFromUrl, searchParams]);
 
-  const visibleSeats = seatRows.filter(
-    (s) => s.seat_class === seatClass || seatClass === "Economy",
-  );
+  const visibleSeats = seatRows.filter((s) => s.seat_class === seatClass);
 
   const seatsByRow = useMemo(() => {
     const grouped: Record<number, SeatRow[]> = {};
@@ -160,7 +163,7 @@ function SeatsStepContent() {
 
   const toggleSeat = (seatId: string) => {
     const seat = seatRows.find((s) => s.name === seatId);
-    if (!seat || seat.status !== "Available") return;
+    if (!seat || seat.status !== "Available" || seat.seat_class !== seatClass) return;
     if (selectedSeatIds.includes(seatId)) {
       setSelectedSeatIds(selectedSeatIds.filter((id) => id !== seatId));
     } else if (selectedSeatIds.length < MAX_TRAVELERS) {
@@ -175,18 +178,42 @@ function SeatsStepContent() {
       selectedSeatIds,
       passengerCount: selectedSeatIds.length,
     });
-    router.push("/portal/booking/new/travelers");
+    router.push(
+      `/portal/booking/new/travelers?schedule=${encodeURIComponent(draft.scheduleId)}`,
+    );
   };
+
+  const canContinue =
+    !loading &&
+    selectedSeatIds.length >= 1 &&
+    selectedSeatIds.length >= minSeatsRequired;
 
   return (
     <BookingFlowLayout
       title="Select seats"
       description={
         draft
-          ? `Flight ${draft.flightNumber} · select one seat per traveler (up to ${MAX_TRAVELERS})`
+          ? `Flight ${draft.flightNumber} · ${seatClass} cabin · select one seat per traveler (up to ${MAX_TRAVELERS})`
           : undefined
       }
     >
+      <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-4 sm:-mx-6 sm:px-6">
+        <Button variant="outline" onClick={() => router.push("/portal/booking/new")}>
+          Back
+        </Button>
+        <p className="order-last w-full text-center text-sm text-muted-foreground sm:order-0 sm:w-auto">
+          {selectedSeatIds.length} seat(s) selected
+          {minSeatsRequired > 1 ? ` · need at least ${minSeatsRequired}` : ""}
+        </p>
+        <Button
+          className="bg-gold text-navy hover:bg-gold-dark"
+          disabled={!canContinue}
+          onClick={continueToTravelers}
+        >
+          Next: Travelers
+        </Button>
+      </div>
+
       {error && (
         <div className="mb-4 space-y-3">
           <p className="text-sm text-destructive">{error}</p>
@@ -208,6 +235,10 @@ function SeatsStepContent() {
         <p className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading seat map...
+        </p>
+      ) : visibleSeats.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No {seatClass} seats on this flight. Go back and choose another cabin or flight.
         </p>
       ) : (
         <div className="space-y-2">
@@ -242,29 +273,8 @@ function SeatsStepContent() {
                   })}
               </div>
             ))}
-          <p className="pt-2 text-center text-xs text-muted-foreground">
-            {selectedSeatIds.length} seat(s) selected
-            {minSeatsRequired > 1 ? ` · need at least ${minSeatsRequired}` : ""}
-          </p>
         </div>
       )}
-
-      <div className="mt-8 flex justify-between gap-3 border-t pt-6">
-        <Button variant="outline" onClick={() => router.push("/portal/booking/new")}>
-          Back
-        </Button>
-        <Button
-          className="bg-gold text-navy hover:bg-gold-dark"
-          disabled={
-            loading ||
-            selectedSeatIds.length < 1 ||
-            selectedSeatIds.length < minSeatsRequired
-          }
-          onClick={continueToTravelers}
-        >
-          Next: Travelers
-        </Button>
-      </div>
     </BookingFlowLayout>
   );
 }

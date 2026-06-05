@@ -7,21 +7,13 @@ from frappe.utils import cint
 
 from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
 from bilan_sky.bilan_air_booking_system.utils.fare_pricing import route_fares_for_api
+from bilan_sky.bilan_air_booking_system.utils.flight_duration import duration_to_seconds
 from bilan_sky.bilan_air_booking_system.utils.flight_segments import get_route_segments
 
 
 def serialize_route_segments(route_name: str | None = None, doc=None) -> list[dict]:
-	segments = get_route_segments(route_name) if route_name else []
-	if doc and getattr(doc, "route_segments", None):
-		segments = [
-			{
-				"segment_index": cint(row.segment_index),
-				"origin_airport": row.origin_airport,
-				"destination_airport": row.destination_airport,
-			}
-			for row in sorted(doc.route_segments, key=lambda r: cint(r.segment_index))
-		]
-	return segments
+	name = route_name or (getattr(doc, "name", None) if doc else None)
+	return get_route_segments(name) if name else []
 
 
 def segments_summary(segments: list[dict]) -> str:
@@ -63,11 +55,13 @@ def apply_route_segments_to_doc(doc, segments: list | None) -> None:
 		return
 	doc.route_segments = []
 	for seg in segments or []:
+		duration = seg.get("duration")
 		doc.append(
 			"route_segments",
 			{
 				"segment_index": cint(seg.get("segment_index", len(doc.route_segments))),
 				"origin_airport": (seg.get("origin_airport") or "").strip(),
 				"destination_airport": (seg.get("destination_airport") or "").strip(),
+				"duration": duration_to_seconds(duration) or None,
 			},
 		)

@@ -4,6 +4,7 @@ import frappe
 from frappe.utils import add_days, getdate, nowdate
 
 from bilan_sky.bilan_air_booking_system.utils.airports import (
+	airport_display_label,
 	get_airport_iata,
 	resolve_airport_name,
 )
@@ -514,3 +515,305 @@ def get_booking_search_defaults():
 		"suggested_date": suggested_date,
 		"route": route.name,
 	}
+
+
+def _resolve_routes_for_browse(route=None, origin=None, destination=None):
+	"""Active routes matching optional route name or origin/destination airports."""
+	if route:
+		if not frappe.db.exists("Flight Route", route):
+			return []
+		if not frappe.db.get_value("Flight Route", route, "is_active"):
+			return []
+		return _public_get_all(
+			"Flight Route",
+			filters={"name": route, "is_active": 1},
+			fields=[
+				"name",
+				"route_name",
+				"origin_airport",
+				"destination_airport",
+				"base_fare_adult",
+				"base_fare_child",
+				"base_fare_infant",
+				"base_fare",
+				"is_multi_segment",
+			],
+		)
+
+	origin_airport = resolve_airport_name(origin) if origin else None
+	destination_airport = resolve_airport_name(destination) if destination else None
+
+	if origin or destination:
+		route_filters = {"is_active": 1}
+		if origin_airport:
+			route_filters["origin_airport"] = origin_airport
+		if destination_airport:
+			route_filters["destination_airport"] = destination_airport
+		routes = _public_get_all(
+			"Flight Route",
+			filters=route_filters,
+			fields=[
+				"name",
+				"route_name",
+				"origin_airport",
+				"destination_airport",
+				"base_fare_adult",
+				"base_fare_child",
+				"base_fare_infant",
+				"base_fare",
+				"is_multi_segment",
+			],
+		)
+		if not routes:
+			return []
+		from bilan_sky.bilan_air_booking_system.utils.flight_segments import route_serves_journey
+
+		if origin_airport and destination_airport:
+			routes = [
+				r
+				for r in routes
+				if route_serves_journey(r.name, origin_airport, destination_airport)
+				or (
+					not r.is_multi_segment
+					and r.origin_airport == origin_airport
+					and r.destination_airport == destination_airport
+				)
+			]
+		return routes
+
+	return _public_get_all(
+		"Flight Route",
+		filters={"is_active": 1},
+		fields=[
+			"name",
+			"route_name",
+			"origin_airport",
+			"destination_airport",
+			"base_fare_adult",
+			"base_fare_child",
+			"base_fare_infant",
+			"base_fare",
+			"is_multi_segment",
+		],
+	)
+
+
+def _schedule_to_browse_row(schedule, route_row, passengers=1):
+	schedule_name = _row_val(schedule, "name")
+	route_name = _row_val(route_row, "name")
+	_prepare_schedule_for_search(schedule_name)
+
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
+		get_schedule_segments,
+		schedule_is_multi_segment,
+	)
+
+	board = _row_val(route_row, "origin_airport")
+	deboard = _row_val(route_row, "destination_airport")
+	if schedule_is_multi_segment(schedule_name):
+		segments = get_schedule_segments(schedule_name)
+		if segments:
+			board = segments[0]["origin_airport"]
+			deboard = segments[-1]["destination_airport"]
+
+	available = _count_available_seats(schedule_name, board, deboard)
+	status = _row_val(schedule, "status") or "Scheduled"
+	bookable = status in ("Scheduled", "Delayed") and available >= int(passengers or 1)
+	prices = _prices_for_schedule(schedule, route_row, route_name)
+
+	return {
+		"schedule_id": schedule_name,
+		"flight_number": _row_val(schedule, "flight_number"),
+		"route": route_name,
+		"route_name": _row_val(route_row, "route_name") or route_name,
+		"origin": board,
+		"destination": deboard,
+		"origin_code": get_airport_iata(board) or board,
+		"destination_code": get_airport_iata(deboard) or deboard,
+		"origin_label": airport_display_label(board),
+		"destination_label": airport_display_label(deboard),
+		"departure_date": str(_row_val(schedule, "departure_date")),
+		"departure_time": _row_val(schedule, "departure_time"),
+		"arrival_date": str(_row_val(schedule, "arrival_date") or _row_val(schedule, "departure_date")),
+		"arrival_time": _row_val(schedule, "arrival_time"),
+		"status": status,
+		"airplane": _row_val(schedule, "airplane") or "",
+		"available_seats": available,
+		"prices": prices,
+		"bookable": bookable,
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def list_public_schedules(
+	date=None,
+	date_from=None,
+	date_to=None,
+	origin=None,
+	destination=None,
+	route=None,
+	flight_number=None,
+	status=None,
+	passengers=1,
+	bookable_only=0,
+	limit=150,
+):
+	"""Public timetable browse: upcoming schedules with optional filters."""
+	passengers = int(passengers or 1)
+	bookable_only = int(bookable_only or 0)
+	limit = min(int(limit or 150), 300)
+
+	if date:
+		start_date = _normalize_departure_date(date)
+		end_date = start_date
+	elif date_from or date_to:
+		start_date = _normalize_departure_date(date_from or nowdate())
+		end_date = _normalize_departure_date(date_to or add_days(start_date, 30))
+	else:
+		start_date = _normalize_departure_date(nowdate())
+		end_date = add_days(start_date, 30)
+
+	if end_date < start_date:
+		start_date, end_date = end_date, start_date
+
+	routes = _resolve_routes_for_browse(route=route, origin=origin, destination=destination)
+	if not routes:
+		return {
+			"flights": [],
+			"date_from": str(start_date),
+			"date_to": str(end_date),
+			"count": 0,
+		}
+
+	route_names = [_row_val(r, "name") for r in routes]
+	schedule_filters = {
+		"route": ["in", route_names],
+		"departure_date": ["between", [start_date, end_date]],
+		"docstatus": 1,
+	}
+
+	flight_number = (flight_number or "").strip()
+	if flight_number:
+		schedule_filters["flight_number"] = ["like", f"%{flight_number}%"]
+
+	status = (status or "").strip()
+	if status:
+		schedule_filters["status"] = status
+	elif bookable_only:
+		schedule_filters["status"] = ["in", ["Scheduled", "Delayed"]]
+
+	schedules = _public_get_all(
+		"Flight Schedule",
+		filters=schedule_filters,
+		fields=[
+			"name",
+			"flight_number",
+			"route",
+			"airplane",
+			"departure_date",
+			"departure_time",
+			"arrival_date",
+			"arrival_time",
+			"status",
+			"base_fare_adult_override",
+			"base_fare_child_override",
+			"base_fare_infant_override",
+		],
+		order_by="departure_date asc, departure_time asc",
+		limit=limit,
+	)
+
+	route_by_name = {_row_val(r, "name"): r for r in routes}
+	flights = []
+	for schedule in schedules:
+		route_name = _row_val(schedule, "route")
+		route_row = route_by_name.get(route_name)
+		if not route_row:
+			continue
+		row = _schedule_to_browse_row(schedule, route_row, passengers)
+		if bookable_only and not row["bookable"]:
+			continue
+		flights.append(row)
+
+	return {
+		"flights": flights,
+		"date_from": str(start_date),
+		"date_to": str(end_date),
+		"count": len(flights),
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def suggest_nearest_flight_dates(
+	origin=None,
+	destination=None,
+	anchor_date=None,
+	min_date=None,
+	passengers=1,
+	max_suggestions=3,
+	search_days=60,
+):
+	"""Nearest dates with bookable flights for a route, sorted by closeness to anchor_date."""
+	if not anchor_date or not origin or not destination:
+		return {"suggestions": [], "anchor_date": anchor_date}
+
+	passengers = int(passengers or 1)
+	max_suggestions = min(int(max_suggestions or 3), 5)
+	search_days = min(int(search_days or 60), 90)
+
+	anchor = _normalize_departure_date(anchor_date)
+	earliest = _normalize_departure_date(min_date) if min_date else add_days(anchor, -search_days)
+	latest = add_days(anchor, search_days)
+	if earliest > anchor:
+		earliest = anchor
+
+	origin_airport = resolve_airport_name(origin)
+	destination_airport = resolve_airport_name(destination)
+	if not origin_airport or not destination_airport:
+		return {"suggestions": [], "anchor_date": str(anchor)}
+
+	routes = _resolve_routes_for_browse(origin=origin, destination=destination)
+	if not routes:
+		return {"suggestions": [], "anchor_date": str(anchor)}
+
+	route_names = [_row_val(r, "name") for r in routes]
+	candidate_dates = _public_get_all(
+		"Flight Schedule",
+		filters={
+			"route": ["in", route_names],
+			"departure_date": ["between", [earliest, latest]],
+			"docstatus": 1,
+			"status": ["in", ["Scheduled", "Delayed"]],
+		},
+		pluck="departure_date",
+		distinct=True,
+	)
+
+	unique_dates = sorted(
+		{_normalize_departure_date(d) for d in candidate_dates if _normalize_departure_date(d) != anchor},
+		key=lambda d: (abs(frappe.utils.date_diff(d, anchor)), 0 if frappe.utils.date_diff(d, anchor) >= 0 else 1),
+	)
+
+	suggestions = []
+	for candidate in unique_dates:
+		results = _find_schedules_for_routes(
+			routes,
+			candidate,
+			passengers,
+			origin_airport,
+			destination_airport,
+		)
+		if not results:
+			continue
+		day_offset = frappe.utils.date_diff(candidate, anchor)
+		suggestions.append(
+			{
+				"date": str(candidate),
+				"flight_count": len(results),
+				"days_from_anchor": day_offset,
+			}
+		)
+		if len(suggestions) >= max_suggestions:
+			break
+
+	return {"suggestions": suggestions, "anchor_date": str(anchor)}

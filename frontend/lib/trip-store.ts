@@ -49,8 +49,14 @@ export function initTripContext(
   return ctx;
 }
 
-export function upsertLegSelection(selection: TripLegSelection) {
-  const ctx = loadTripContext();
+export function upsertLegSelection(
+  selection: TripLegSelection,
+  init?: { tripType: TripType; passengers: number; searchLegs: TripSearchLeg[] },
+) {
+  let ctx = loadTripContext();
+  if (!ctx && init) {
+    ctx = initTripContext(init.tripType, init.passengers, init.searchLegs);
+  }
   if (!ctx) return null;
   const next = ctx.selections.filter((s) => s.legIndex !== selection.legIndex);
   next.push(selection);

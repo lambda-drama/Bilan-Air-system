@@ -31,15 +31,56 @@ class FlightSchedule(Document):
                 frappe.rename_doc(self.doctype, self.name, expected_name, force=True)
                 self.name = expected_name
         self._sync_segments_and_capacity()
+        self._apply_arrival_estimate_if_needed()
 
     def _sync_segments_and_capacity(self):
         from bilan_sky.bilan_air_booking_system.utils.flight_segments import sync_schedule_segments_from_route
         from bilan_sky.bilan_air_booking_system.utils.seat_release import aircraft_capacity
 
-        if self.route and not self.segments:
+        if self.route and (not self.segments or self.has_value_changed("route")):
             sync_schedule_segments_from_route(self)
+        elif (
+            self.route
+            and self.segments
+            and (self.has_value_changed("departure_date") or self.has_value_changed("departure_time"))
+        ):
+            self._refresh_segment_arrival_estimates()
         if self.airplane:
             self.total_aircraft_capacity = aircraft_capacity(self.airplane)
+
+    def _refresh_segment_arrival_estimates(self):
+        from bilan_sky.bilan_air_booking_system.utils.flight_duration import estimate_schedule_arrival
+
+        estimates = estimate_schedule_arrival(
+            self.route, self.departure_date, self.departure_time
+        )
+        by_index = {row["segment_index"]: row for row in estimates.get("segments") or []}
+        for row in self.segments:
+            est = by_index.get(row.segment_index)
+            if not est:
+                continue
+            if hasattr(row, "duration"):
+                row.duration = est.get("duration") or getattr(row, "duration", None)
+            if hasattr(row, "arrival_date"):
+                row.arrival_date = est.get("arrival_date")
+            if hasattr(row, "arrival_time"):
+                row.arrival_time = est.get("arrival_time")
+
+    def _apply_arrival_estimate_if_needed(self):
+        if not (self.route and self.departure_date and self.departure_time):
+            return
+        if self.arrival_date and self.arrival_time:
+            return
+
+        from bilan_sky.bilan_air_booking_system.utils.flight_duration import estimate_schedule_arrival
+
+        estimate = estimate_schedule_arrival(
+            self.route, self.departure_date, self.departure_time
+        )
+        if estimate.get("arrival_date"):
+            self.arrival_date = estimate["arrival_date"]
+        if estimate.get("arrival_time"):
+            self.arrival_time = estimate["arrival_time"]
 
     def after_insert(self):
         self._ensure_seat_inventory()
@@ -344,3 +385,16 @@ def reschedule_flight(
         "status": schedule.status,
         "rescheduling_log": log.name,
     }
+
+
+@frappe.whitelist()
+def estimate_arrival_from_route(route: str, departure_date: str, departure_time: str):
+    """Return estimated arrival datetime(s) from route duration(s). User may override on the schedule."""
+    from bilan_sky.bilan_air_booking_system.utils.flight_duration import estimate_schedule_arrival
+
+    if not route:
+        frappe.throw(_("Route is required."))
+    if not (departure_date and departure_time):
+        frappe.throw(_("Departure date and time are required."))
+
+    return estimate_schedule_arrival(route, departure_date, departure_time)

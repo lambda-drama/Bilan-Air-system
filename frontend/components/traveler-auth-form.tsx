@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Loader2, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
@@ -139,9 +140,8 @@ export function TravelerAuthForm({
           </div>
           <div>
             <Label htmlFor="traveler-login-password">Password</Label>
-            <Input
+            <PasswordInput
               id="traveler-login-password"
-              type="password"
               required
               autoComplete="current-password"
               className="mt-1 bilan-light-field"
@@ -214,9 +214,8 @@ export function TravelerAuthForm({
           </div>
           <div>
             <Label htmlFor="traveler-signup-password">Password</Label>
-            <Input
+            <PasswordInput
               id="traveler-signup-password"
-              type="password"
               required
               minLength={6}
               autoComplete="new-password"
@@ -227,9 +226,8 @@ export function TravelerAuthForm({
           </div>
           <div>
             <Label htmlFor="traveler-signup-confirm">Confirm password</Label>
-            <Input
+            <PasswordInput
               id="traveler-signup-confirm"
-              type="password"
               required
               autoComplete="new-password"
               className="mt-1 bilan-light-field"

@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { openDeskDocument } from "@/services/desk";
 import { confirmBookingOnCredit, type BookingDetails } from "@/services/airBooking";
 import type { AirBookingRow } from "@/services/portal";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
+import { DisabledActionTooltip } from "@/components/portal/disabled-action-tooltip";
 import { toast } from "sonner";
 
 type PortalBookingSheetFooterProps = {
@@ -18,6 +20,9 @@ type PortalBookingSheetFooterProps = {
   onCancelComplete: () => void;
   onConfirmPayment?: () => void;
   onConfirmCreditComplete?: () => void | Promise<void>;
+  /** When false, Confirm on Credit stays visible but disabled. */
+  allowConfirmOnCredit?: boolean;
+  confirmOnCreditDisabledReason?: string | null;
   cancelling?: boolean;
   onSubmitCancel: (reason: string) => Promise<void>;
 };
@@ -31,20 +36,28 @@ export function PortalBookingSheetFooter({
   onCancelComplete,
   onConfirmPayment,
   onConfirmCreditComplete,
+  allowConfirmOnCredit = false,
+  confirmOnCreditDisabledReason = null,
   cancelling,
   onSubmitCancel,
 }: PortalBookingSheetFooterProps) {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState("");
   const [confirmingCredit, setConfirmingCredit] = useState(false);
+  const [creditConfirmOpen, setCreditConfirmOpen] = useState(false);
 
   const status =
     detail?.status ?? row?.reservation_status ?? row?.booking_status ?? "";
   const paymentStatus = detail?.payment_status ?? row?.payment_status ?? "";
   const isCancelled = status === "Void" || status === "Cancelled";
   const isUnpaid = paymentStatus !== "Paid" && paymentStatus !== "Refunded";
-  /** Same as Desk: PNR not issued until payment or agent credit confirms the reservation. */
-  const canConfirmOnCredit = !isCancelled && status === "Booked";
+  const showConfirmOnCredit = !isCancelled && status === "Booked";
+  const creditActionDisabled = !allowConfirmOnCredit || confirmingCredit;
+  const creditActionTooltip = !allowConfirmOnCredit
+    ? confirmOnCreditDisabledReason
+    : confirmingCredit
+      ? "Confirming on credit…"
+      : null;
 
   const handleConfirmCancel = async () => {
     const reason = cancelReason.trim();
@@ -64,16 +77,10 @@ export function PortalBookingSheetFooter({
   };
 
   const handleConfirmOnCredit = async () => {
-    if (
-      !window.confirm(
-        "Confirm on agent credit, issue PNR, and deduct the total fare from the agent credit limit?",
-      )
-    ) {
-      return;
-    }
     setConfirmingCredit(true);
     try {
       const res = await confirmBookingOnCredit(pnr);
+      setCreditConfirmOpen(false);
       toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
       await onConfirmCreditComplete?.();
     } catch (e) {
@@ -103,10 +110,10 @@ export function PortalBookingSheetFooter({
           />
           {cancelError && <p className="text-xs text-destructive mt-2">{cancelError}</p>}
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             variant="destructive"
-            className="flex-1"
+            className="w-full"
             disabled={cancelling || !cancelReason.trim()}
             onClick={handleConfirmCancel}
           >
@@ -121,7 +128,7 @@ export function PortalBookingSheetFooter({
           </Button>
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full"
             disabled={cancelling}
             onClick={() => {
               onShowCancelForm(false);
@@ -137,38 +144,62 @@ export function PortalBookingSheetFooter({
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+    <>
+      <ConfirmActionDialog
+        open={creditConfirmOpen}
+        onOpenChange={setCreditConfirmOpen}
+        title="Confirm on agent credit?"
+        description={
+          <>
+            <p>
+              Reservation <span className="font-mono font-medium text-foreground">{pnr}</span> will
+              be confirmed on your agent credit account.
+            </p>
+            <p>A PNR will be issued and the total fare will be deducted from the agent credit limit.</p>
+          </>
+        }
+        confirmLabel="Confirm on credit"
+        loading={confirmingCredit}
+        onConfirm={handleConfirmOnCredit}
+      />
+
+      <div className="grid w-full grid-cols-2 gap-2">
       <Button
         variant="outline"
-        className="flex-1 min-w-[120px]"
+        className="w-full"
         onClick={() => openDeskDocument("Air Booking", pnr)}
       >
         <Pencil className="mr-2 h-4 w-4" />
         Edit
       </Button>
-      {canConfirmOnCredit && (
-        <Button
-          variant="secondary"
-          className="flex-1 min-w-[160px]"
-          disabled={confirmingCredit}
-          onClick={handleConfirmOnCredit}
+      {showConfirmOnCredit && (
+        <DisabledActionTooltip
+          disabled={creditActionDisabled}
+          reason={creditActionTooltip}
         >
-          {confirmingCredit ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Confirming…
-            </>
-          ) : (
-            <>
-              <Ticket className="mr-2 h-4 w-4" />
-              Confirm on Credit (PNR)
-            </>
-          )}
-        </Button>
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={creditActionDisabled}
+            onClick={() => setCreditConfirmOpen(true)}
+          >
+            {confirmingCredit ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Confirming…
+              </>
+            ) : (
+              <>
+                <Ticket className="mr-2 h-4 w-4" />
+                Confirm on Credit (PNR)
+              </>
+            )}
+          </Button>
+        </DisabledActionTooltip>
       )}
       {isUnpaid && onConfirmPayment && (
         <Button
-          className="bg-gold text-navy hover:bg-gold-dark flex-1 min-w-[160px]"
+          className="bg-gold text-navy hover:bg-gold-dark w-full"
           onClick={onConfirmPayment}
         >
           Confirm payment & invoice
@@ -177,13 +208,14 @@ export function PortalBookingSheetFooter({
       {!isCancelled && (
         <Button
           variant="outline"
-          className="flex-1 min-w-[120px] text-destructive hover:bg-destructive hover:text-destructive-foreground sm:ml-auto"
+          className="w-full text-destructive hover:bg-destructive hover:text-destructive-foreground"
           onClick={() => onShowCancelForm(true)}
         >
           <XCircle className="mr-2 h-4 w-4" />
           Cancel booking
         </Button>
       )}
-    </div>
+      </div>
+    </>
   );
 }

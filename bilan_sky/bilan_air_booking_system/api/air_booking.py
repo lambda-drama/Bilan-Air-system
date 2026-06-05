@@ -15,6 +15,20 @@ def _load_booking(identifier, **kwargs):
 	return frappe.get_doc("Air Booking", resolve_air_booking(identifier), **kwargs)
 
 
+def _validate_seat_matches_cabin(seat_inventory_name: str, expected_cabin: str) -> None:
+	seat_class_link = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_class")
+	if not seat_class_link:
+		frappe.throw(_("Seat not found."))
+	class_name = frappe.db.get_value("Seat Class", seat_class_link, "class_name") or seat_class_link
+	if class_name != expected_cabin:
+		seat_label = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_number") or seat_inventory_name
+		frappe.throw(
+			_("Seat {0} is in {1}. Only {2} seats can be booked for this cabin.").format(
+				seat_label, class_name, expected_cabin
+			)
+		)
+
+
 @frappe.whitelist()
 def get_schedule_journey_defaults(schedule_name):
 	"""Boarding/deboarding defaults for Desk when a flight schedule is selected."""
@@ -91,10 +105,14 @@ def create_booking(booking_data):
             "fare_paid": 0,
         })
 
+    expected_cabin = (booking_data.get("seat_class") or "").strip()
+
     for row in passenger_links:
         if row.get("seat_number"):
             prepare_seat_for_new_booking(row["seat_number"])
-    
+            if expected_cabin:
+                _validate_seat_matches_cabin(row["seat_number"], expected_cabin)
+
     schedule_name = booking_data.get("flight_schedule")
     boarding = booking_data.get("boarding_airport")
     deboarding = booking_data.get("deboarding_airport")

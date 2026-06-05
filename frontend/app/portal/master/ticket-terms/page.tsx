@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
@@ -63,6 +64,7 @@ export default function PortalTicketTermsPage() {
   const [form, setForm] = useState(emptyForm);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
 
   const openCreate = () => {
@@ -106,10 +108,10 @@ export default function PortalTicketTermsPage() {
   };
 
   const handleDelete = async (name: string) => {
-    if (!window.confirm("Delete this ticket terms record? This cannot be undone.")) return;
     setDeleteLoading(true);
     try {
       await deleteTicketTerms(name);
+      setDeleteConfirmName(null);
       if (selectedId === name) setSelectedId(null);
       refresh();
       toast.success("Ticket terms deleted");
@@ -189,7 +191,7 @@ export default function PortalTicketTermsPage() {
                             <DropdownMenuItem
                               className="text-destructive"
                               disabled={deleteLoading}
-                              onClick={() => handleDelete(String(r.name))}
+                              onClick={() => setDeleteConfirmName(String(r.name))}
                             >
                               Delete
                             </DropdownMenuItem>
@@ -280,7 +282,7 @@ export default function PortalTicketTermsPage() {
                 size="icon"
                 className="shrink-0"
                 disabled={deleteLoading}
-                onClick={() => handleDelete(String(selected.name))}
+                onClick={() => setDeleteConfirmName(String(selected.name))}
                 aria-label="Delete ticket terms"
               >
                 <Trash2 className="h-4 w-4" />
@@ -308,6 +310,29 @@ export default function PortalTicketTermsPage() {
           </>
         )}
       </DetailSheet>
+
+      <ConfirmActionDialog
+        open={!!deleteConfirmName}
+        onOpenChange={(open) => !open && setDeleteConfirmName(null)}
+        title="Delete ticket terms?"
+        description={
+          deleteConfirmName ? (
+            <>
+              <p>
+                <span className="font-medium text-foreground">{deleteConfirmName}</span> will be
+                permanently removed.
+              </p>
+              <p>This cannot be undone.</p>
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        tone="destructive"
+        loading={deleteLoading}
+        onConfirm={() => {
+          if (deleteConfirmName) void handleDelete(deleteConfirmName);
+        }}
+      />
     </div>
   );
 }
