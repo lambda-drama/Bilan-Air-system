@@ -1,6 +1,7 @@
 """Reservation status master data, lookup helpers, and flight-departure transitions."""
 
 import frappe
+from frappe import _
 
 BOOKED = "Booked"
 CONFIRM = "Confirm"
@@ -70,22 +71,31 @@ def map_legacy_status(legacy_status):
 
 
 def resolve_air_booking(identifier, *, throw=True):
-	"""Resolve a reservation by internal name (RES-…) or confirmed PNR (BA-…)."""
+	"""Resolve a reservation by internal name (RES-…) or customer PNR."""
 	key = (identifier or "").strip()
 	if not key:
 		if throw:
-			frappe.throw("Reservation reference is required.")
+			frappe.throw(_("Reservation reference is required."))
 		return None
 
-	if frappe.db.exists("Air Booking", key):
-		return key
-
-	pnr_match = frappe.db.get_value("Air Booking", {"pnr": key}, "name")
-	if pnr_match:
-		return pnr_match
+	row = frappe.db.sql(
+		"""
+		SELECT name
+		FROM `tabAir Booking`
+		WHERE name = %(key)s
+		   OR UPPER(name) = UPPER(%(key)s)
+		   OR TRIM(IFNULL(pnr, '')) = %(key)s
+		   OR UPPER(TRIM(IFNULL(pnr, ''))) = UPPER(%(key)s)
+		LIMIT 1
+		""",
+		{"key": key},
+		as_dict=True,
+	)
+	if row:
+		return row[0].name
 
 	if throw:
-		frappe.throw(f"Reservation {key} not found.")
+		frappe.throw(_("Reservation {0} not found.").format(key))
 	return None
 
 

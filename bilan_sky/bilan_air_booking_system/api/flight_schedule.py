@@ -198,9 +198,12 @@ def list_flight_status(
 
     booking_reference = (booking_reference or "").strip()
     if booking_reference:
-        if not frappe.db.exists("Air Booking", booking_reference):
+        from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+
+        booking_name = resolve_air_booking(booking_reference, throw=False)
+        if not booking_name:
             return {"flights": [], "date": str(search_date), "updated_at": now()}
-        schedule_name = frappe.db.get_value("Air Booking", booking_reference, "flight_schedule")
+        schedule_name = frappe.db.get_value("Air Booking", booking_name, "flight_schedule")
         if not schedule_name:
             return {"flights": [], "date": str(search_date), "updated_at": now()}
         filters["name"] = schedule_name

@@ -13,3 +13,8 @@ export function bookingReference(detail: BookingReferenceFields): string {
     (detail.pnr || "").trim()
   );
 }
+
+/** Normalize user input for booking lookup (reservation ref or PNR). */
+export function normalizeBookingLookup(input: string): string {
+  return (input || "").trim().toUpperCase();
+}

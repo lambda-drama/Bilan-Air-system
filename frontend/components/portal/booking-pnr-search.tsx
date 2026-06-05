@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search } from "lucide-react";
+import { normalizeBookingLookup } from "@/lib/booking-reference";
 import { searchBookingsForCheckin, type CheckInBookingSuggestion } from "@/services/portal";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,15 @@ export function BookingPnrSearch({
     }
   };
 
+  const lookupCode = () => normalizeBookingLookup(searchText || pnr);
+
+  const handleDirectLookup = (raw: string) => {
+    const code = normalizeBookingLookup(raw);
+    if (!code) return;
+    onPnrChange(code);
+    void onLookup(code);
+  };
+
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
       <div className="min-w-0 flex-1">
@@ -89,6 +99,7 @@ export function BookingPnrSearch({
           value={pnr}
           onValueChange={handleSelect}
           onSearchChange={setSearchText}
+          onSubmitRaw={handleDirectLookup}
           isLoading={suggestLoading}
           placeholder={placeholder}
           emptyMessage={
@@ -102,8 +113,8 @@ export function BookingPnrSearch({
       <Button
         type="button"
         className="bg-gold text-navy hover:bg-gold-dark shrink-0"
-        onClick={() => onLookup(pnr)}
-        disabled={loading || !pnr.trim()}
+        onClick={() => handleDirectLookup(lookupCode())}
+        disabled={loading || !lookupCode()}
       >
         {loading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

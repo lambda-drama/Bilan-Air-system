@@ -50,11 +50,11 @@ const en: CheckInPageContent = {
   steps: ["Find Booking", "Confirm Details", "Boarding Pass"],
   find: {
     title: "Find your booking",
-    body: "Enter your booking reference and last name to begin check-in",
-    pnr: "Booking Reference",
-    lastName: "Lead Passenger Last Name",
+    body: "Enter your reservation reference (RES-…) or PNR (e.g. CA-0002) and a traveler last name",
+    pnr: "Booking Reference or PNR",
+    lastName: "Traveler Last Name",
     submit: "Find My Booking",
-    notFound: "Booking not found. Please check your reference and last name.",
+    notFound: "Booking not found. Please check your reference or PNR.",
   },
   confirm: {
     title: "Confirm passenger details",

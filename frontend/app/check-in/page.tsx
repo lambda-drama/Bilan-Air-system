@@ -10,7 +10,6 @@ import {
   Check,
   Loader2,
   Plane,
-  Printer,
   Radio,
   User,
 } from "lucide-react";
@@ -20,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BoardingPassCard } from "@/components/check-in/boarding-pass-card";
 import { Reveal } from "@/components/motion/reveal";
-import { useAuth } from "@/contexts/auth-context";
 import { useLocale } from "@/contexts/locale-context";
 import { formatClock, getCheckInPageContent } from "@/lib/content/check-in-page";
 import { formatFlightRouteLabel } from "@/lib/format-airport";
@@ -30,6 +28,7 @@ import {
   type BoardingPass,
   type CheckInBooking,
 } from "@/services/checkIn";
+import { bookingReference } from "@/lib/booking-reference";
 import { cn } from "@/lib/utils";
 
 type Step = "find" | "confirm" | "complete";
@@ -70,7 +69,6 @@ function StepIndicator({ steps, current }: { steps: [string, string, string]; cu
 
 function CheckInContent() {
   const searchParams = useSearchParams();
-  const { isAuthenticated } = useAuth();
   const { locale, isRtl } = useLocale();
   const copy = useMemo(() => getCheckInPageContent(locale), [locale]);
 
@@ -88,20 +86,36 @@ function CheckInContent() {
   const buildBoardingPassesFromBooking = useCallback((b: CheckInBooking): BoardingPass[] => {
     const origin = b.flight.origin_code || b.flight.origin;
     const dest = b.flight.destination_code || b.flight.destination;
+    const originLabel = b.flight.origin_label || origin;
+    const destLabel = b.flight.destination_label || dest;
     return b.passengers
       .filter((p) => ["Checked In", "Boarded"].includes(p.check_in_status || ""))
-      .map((p) => ({
-        passenger_name: p.name,
+      .map((p, index) => ({
+        airline_name: "BILAN AIR",
+        airline_tagline: "Beyond Skies Together",
+        passenger_name: (p.name || "").toUpperCase(),
+        passenger_type: p.type || "Adult",
+        sequence_no: index + 1,
+        booking_ref: b.pnr || bookingReference(b),
+        reservation_ref: b.reservation_ref || bookingReference(b),
+        pnr: b.pnr || bookingReference(b),
         ticket_number: p.ticket_number,
         seat: p.seat_label || p.seat,
         flight_number: b.flight.flight_number,
         origin_code: origin,
         destination_code: dest,
+        origin_label: originLabel,
+        destination_label: destLabel,
         departure_date: b.flight.departure_date,
         departure_time: b.flight.departure_time,
+        arrival_time: b.flight.arrival_time,
         boarding_time: b.flight.departure_time,
+        gate_close_time: b.flight.departure_time,
         gate: "TBC",
-        pnr: b.pnr,
+        zone: String(index + 1),
+        seat_class: "Economy",
+        check_in_status: p.check_in_status,
+        barcode_data: `${b.pnr || bookingReference(b)}|${p.ticket_number || ""}|${origin}|${dest}|${b.flight.flight_number}|${p.seat_label || p.seat}`,
       }));
   }, []);
 
@@ -112,10 +126,7 @@ function CheckInContent() {
     setLoading(true);
     setError("");
     try {
-      const result = await lookupBookingForCheckin(
-        pnr,
-        isAuthenticated ? undefined : lastName,
-      );
+      const result = await lookupBookingForCheckin(pnr, lastName);
       setBooking(result);
 
       if (result.all_checked_in) {
@@ -124,8 +135,8 @@ function CheckInContent() {
       } else {
         setStep("confirm");
       }
-    } catch {
-      setError(copy.find.notFound);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : copy.find.notFound);
       setBooking(null);
     } finally {
       setLoading(false);
@@ -137,10 +148,7 @@ function CheckInContent() {
     setCheckingIn(true);
     setError("");
     try {
-      const result = await selfCheckInAll(
-        booking.pnr,
-        isAuthenticated ? undefined : lastName,
-      );
+      const result = await selfCheckInAll(bookingReference(booking), lastName);
       setBooking(result.booking);
       setBoardingPasses(result.boarding_passes);
       setStep("complete");
@@ -152,11 +160,10 @@ function CheckInContent() {
   };
 
   useEffect(() => {
-    if (initialPnr && isAuthenticated) {
-      handleFind();
+    if (initialPnr) {
+      setPnr(initialPnr.toUpperCase());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPnr, isAuthenticated]);
+  }, [initialPnr]);
 
   const carryOnKg = booking?.baggage_policy?.carry_on_kg ?? 7;
   const checkedKg = booking?.baggage_policy?.max_baggage_kg ?? 23;
@@ -194,26 +201,25 @@ function CheckInContent() {
                   <Input
                     value={pnr}
                     onChange={(e) => setPnr(e.target.value.toUpperCase())}
-                    placeholder="PNR-2026-00001"
+                    placeholder="CA-0002 or RES-00001"
                     className="bg-cream/50"
                     required
                   />
                 </div>
 
-                {!isAuthenticated && (
-                  <div>
-                    <label className="text-xs font-semibold tracking-wide text-navy/60 mb-2 block">
-                      {copy.find.lastName} *
-                    </label>
-                    <Input
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Doe"
-                      className="bg-cream/50"
-                      required
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="text-xs font-semibold tracking-wide text-navy/60 mb-2 block">
+                    {copy.find.lastName} *
+                  </label>
+                  <Input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Smith"
+                    className="bg-cream/50"
+                    required
+                    autoComplete="family-name"
+                  />
+                </div>
 
                 {error && (
                   <p className="text-sm text-red-700 flex items-center gap-2">
@@ -224,7 +230,7 @@ function CheckInContent() {
 
                 <Button
                   type="submit"
-                  disabled={loading || !pnr.trim() || (!isAuthenticated && !lastName.trim())}
+                  disabled={loading || !pnr.trim() || !lastName.trim()}
                   className="w-full sm:w-auto bg-gold hover:bg-gold-dark text-navy font-semibold gap-2"
                 >
                   {loading ? (
@@ -362,20 +368,18 @@ function CheckInContent() {
               </div>
             </Reveal>
 
-            <div id="boarding-passes" className="space-y-4">
-              {boardingPasses.map((pass) => (
-                <BoardingPassCard key={`${pass.pnr}-${pass.passenger_name}`} pass={pass} />
+            <div id="boarding-passes" className="space-y-6">
+              {boardingPasses.map((pass, index) => (
+                <BoardingPassCard
+                  key={`${pass.pnr}-${pass.passenger_name}`}
+                  pass={pass}
+                  bookingRef={booking ? bookingReference(booking) : pass.booking_ref}
+                  passengerIndex={index}
+                />
               ))}
             </div>
 
             <div className={cn("flex flex-wrap gap-3", isRtl && "flex-row-reverse")}>
-              <Button
-                className="bg-gold hover:bg-gold-dark text-navy font-semibold gap-2"
-                onClick={() => window.print()}
-              >
-                <Printer className="w-4 h-4" />
-                {copy.complete.print}
-              </Button>
               <Button asChild variant="outline">
                 <Link href="/flight-status" className="gap-2">
                   <Radio className="w-4 h-4" />
