@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Printer } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   checkInAllPassengers,
   checkInPassenger,
   fetchBookingDetails,
   type BookingDetails,
 } from "@/services/airBooking";
-import { openDocumentPrintView } from "@/services/common";
-import { PrintFormatDropdown } from "@/components/portal/print-format-dropdown";
+import { BoardingPassPrintButton } from "@/components/check-in/boarding-pass-print-button";
+import { isBoardingPassPrintable } from "@/lib/boarding-pass";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { BookingPnrSearch } from "@/components/portal/booking-pnr-search";
 import { useCurrency } from "@/contexts/currency-context";
@@ -35,7 +35,7 @@ export default function PortalCheckInPage() {
   const [error, setError] = useState("");
 
   const lookupByPnr = async (code: string) => {
-    const trimmed = code.trim().toUpperCase();
+    const trimmed = code.trim();
     if (!trimmed) return;
     setLoading(true);
     setError("");
@@ -186,13 +186,6 @@ export default function PortalCheckInPage() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            {booking.payment_status === "Paid" && (
-              <PrintFormatDropdown
-                doctype="Air Booking"
-                docName={booking.reservation_ref}
-                variant="default"
-              />
-            )}
             {canCheckIn && !allCheckedIn && (
               <Button
                 variant="outline"
@@ -246,19 +239,12 @@ export default function PortalCheckInPage() {
                             )}
                           </Button>
                         )}
-                        {checkedIn && (
-                          <Button
-                            size="sm"
-                            className="bg-gold text-navy hover:bg-gold-dark"
-                            onClick={() =>
-                              openDocumentPrintView("Air Booking", booking.reservation_ref, "Standard", {
-                                triggerPrint: 1,
-                              })
-                            }
-                          >
-                            <Printer className="mr-1 h-3.5 w-3.5" />
-                            Print pass
-                          </Button>
+                        {isBoardingPassPrintable(p.check_in_status) && (
+                          <BoardingPassPrintButton
+                            bookingRef={bookingReference(booking)}
+                            passengerIndex={index}
+                            passengerName={p.name}
+                          />
                         )}
                       </TableCell>
                     </TableRow>

@@ -24,6 +24,8 @@ export interface SearchableSelectProps {
   inputClassName?: string;
   valueLabel?: string;
   clearable?: boolean;
+  /** Called when Enter is pressed with typed text and no dropdown row is highlighted. */
+  onSubmitRaw?: (value: string) => void;
 }
 
 export function SearchableSelect({
@@ -39,6 +41,7 @@ export function SearchableSelect({
   inputClassName,
   valueLabel,
   clearable = true,
+  onSubmitRaw,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -104,9 +107,20 @@ export function SearchableSelect({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
-    } else if (e.key === "Enter" && highlightedIndex >= 0) {
+    } else if (e.key === "Enter") {
       e.preventDefault();
-      selectOption(filtered[highlightedIndex]);
+      if (highlightedIndex >= 0) {
+        selectOption(filtered[highlightedIndex]);
+        return;
+      }
+      const typed = search.trim();
+      if (!typed) return;
+      const exact = options.find((o) => o.value.toLowerCase() === typed.toLowerCase());
+      if (exact) {
+        selectOption(exact);
+      } else {
+        onSubmitRaw?.(typed);
+      }
     } else if (e.key === "Escape") {
       setOpen(false);
     }

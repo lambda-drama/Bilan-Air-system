@@ -1,3 +1,4 @@
+import { normalizeBookingLookup } from "@/lib/booking-reference";
 import { apiRequest, methodUrl } from "./apiClient";
 import type { BaggagePolicy, BaggageRecord } from "./baggage";
 import type { PassengerTicketData } from "@/lib/passenger-ticket";
@@ -77,10 +78,10 @@ export async function createBooking(booking_data: CreateBookingData): Promise<Cr
   });
 }
 
-export async function fetchBookingDetails(pnr: string): Promise<BookingDetails> {
+export async function fetchBookingDetails(identifier: string): Promise<BookingDetails> {
   return apiRequest(methodUrl("air_booking", "fetch_booking_details"), {
     method: "POST",
-    body: JSON.stringify({ pnr }),
+    body: JSON.stringify({ pnr: normalizeBookingLookup(identifier) }),
   });
 }
 

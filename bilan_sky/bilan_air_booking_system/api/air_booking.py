@@ -270,20 +270,29 @@ def _user_owns_booking(booking):
 	return bool(email and booking.payer_email and email.lower() == booking.payer_email.lower())
 
 
+def _booking_last_names(booking):
+	names = set()
+	if booking.payer_name:
+		names.add(_last_name(booking.payer_name))
+	for pax in booking.passengers or []:
+		if pax.passenger_name:
+			names.add(_last_name(pax.passenger_name))
+	return {name for name in names if name}
+
+
 def _verify_checkin_identity(booking, last_name=None):
 	if _user_owns_booking(booking):
 		return True
 
 	last_name = (last_name or "").strip()
 	if not last_name:
-		frappe.throw("Last name is required.")
+		frappe.throw(_("Last name is required."))
 
-	ln = last_name.lower()
-	lead = booking.passengers[0].passenger_name if booking.passengers else ""
-	if _last_name(lead) == ln or _last_name(booking.payer_name) == ln:
+	ln = _last_name(last_name)
+	if ln in _booking_last_names(booking):
 		return True
 
-	frappe.throw("Booking not found. Please check your reference and last name.")
+	frappe.throw(_("Last name does not match this booking. Please check your details."))
 
 
 def _check_in_window_status(flight_schedule_name):
@@ -514,42 +523,86 @@ def get_passenger_ticket_print_data(pnr, passenger_row=None, passenger_index=Non
 	}
 
 
-def _boarding_passes_for_booking(booking):
+def _build_boarding_pass_payload(booking, pax, sequence_no):
 	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
 	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
 	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
 	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
 	departure = get_datetime(f"{flight.departure_date} {flight.departure_time}")
 	boarding_time = add_to_date(departure, minutes=-45)
+	gate_close_time = add_to_date(departure, minutes=-15)
 
+	seat_label = pax.seat_number
+	if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
+		seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
+
+	return {
+		"airline_name": "BILAN AIR",
+		"airline_tagline": "Beyond Skies Together",
+		"passenger_name": (pax.passenger_name or "").upper(),
+		"passenger_type": pax.passenger_type or "Adult",
+		"sequence_no": sequence_no,
+		"booking_ref": booking.pnr or booking.get_public_reference(),
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr or booking.get_public_reference(),
+		"ticket_number": pax.ticket_number,
+		"flight_number": flight.flight_number,
+		"origin_code": origin_iata,
+		"destination_code": dest_iata,
+		"origin_label": airport_display_label(route.origin_airport),
+		"destination_label": airport_display_label(route.destination_airport),
+		"departure_date": str(flight.departure_date),
+		"departure_time": flight.departure_time,
+		"arrival_time": flight.arrival_time,
+		"boarding_time": str(boarding_time)[11:19] if boarding_time else flight.departure_time,
+		"gate_close_time": str(gate_close_time)[11:19] if gate_close_time else flight.departure_time,
+		"seat": seat_label,
+		"gate": "TBC",
+		"zone": str(sequence_no),
+		"seat_class": _seat_class_label(pax.seat_number),
+		"check_in_status": pax.check_in_status,
+		"barcode_data": (
+			f"{booking.pnr or booking.name}|{pax.ticket_number or ''}|{origin_iata}|{dest_iata}|"
+			f"{flight.flight_number}|{seat_label}"
+		),
+	}
+
+
+def _boarding_passes_for_booking(booking):
 	passes = []
-	for pax in booking.passengers:
+	for idx, pax in enumerate(booking.passengers, start=1):
 		if pax.check_in_status not in ("Checked In", "Boarded"):
 			continue
-		seat_label = pax.seat_number
-		if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
-			seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
-		passes.append({
-			"passenger_name": pax.passenger_name,
-			"ticket_number": pax.ticket_number,
-			"seat": seat_label,
-			"flight_number": flight.flight_number,
-			"origin_code": origin_iata,
-			"destination_code": dest_iata,
-			"origin_label": airport_display_label(route.origin_airport),
-			"destination_label": airport_display_label(route.destination_airport),
-			"departure_date": str(flight.departure_date),
-			"departure_time": flight.departure_time,
-			"boarding_time": str(boarding_time)[11:16] if boarding_time else flight.departure_time,
-			"gate": "TBC",
-			"pnr": booking.get_public_reference(),
-		})
+		passes.append(_build_boarding_pass_payload(booking, pax, idx))
 	return passes
 
 
 @frappe.whitelist(allow_guest=True)
+def get_boarding_pass_print_data(pnr, passenger_row=None, passenger_index=None):
+	"""Print payload for one checked-in passenger boarding pass."""
+	booking = _load_booking(pnr, ignore_permissions=True)
+	pax = _resolve_passenger_row(booking, passenger_row, passenger_index)
+
+	if pax.check_in_status not in ("Checked In", "Boarded"):
+		frappe.throw(_("Boarding pass is available only after check-in."))
+
+	sequence_no = 1
+	for idx, row in enumerate(booking.passengers, start=1):
+		if row.name == pax.name:
+			sequence_no = idx
+			break
+
+	return {
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr,
+		"passenger_row": pax.name,
+		"boarding_pass": _build_boarding_pass_payload(booking, pax, sequence_no),
+	}
+
+
+@frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
-    """Get booking by PNR"""
+    """Get booking by reservation ref (RES-…) or customer PNR."""
     
     booking = _load_booking(pnr, ignore_permissions=True)
     return _serialize_booking_details(booking)
@@ -571,12 +624,16 @@ def cancel_booking(pnr, reason_for_cancel=None):
 
 @frappe.whitelist(allow_guest=True)
 def lookup_booking_for_checkin(pnr, last_name=None):
-	"""Verify PNR + last name (or logged-in payer) and return check-in eligible booking."""
-	pnr = (pnr or "").strip()
-	if not pnr:
-		frappe.throw("Booking not found. Please check your reference and last name.")
+	"""Verify reservation ref / PNR + last name (or logged-in payer) and return booking."""
+	key = (pnr or "").strip()
+	if not key:
+		frappe.throw(_("Booking reference or PNR is required."))
 
-	booking = _load_booking(pnr, ignore_permissions=True)
+	booking_name = resolve_air_booking(key, throw=False)
+	if not booking_name:
+		frappe.throw(_("Booking not found. Please check your reference or PNR."))
+
+	booking = frappe.get_doc("Air Booking", booking_name, ignore_permissions=True)
 	_verify_checkin_identity(booking, last_name)
 	return _serialize_booking_details(booking)
 

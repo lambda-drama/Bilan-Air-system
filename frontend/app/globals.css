@@ -387,7 +387,8 @@
   }
 
   .passenger-ticket-print-portal,
-  .baggage-print-portal {
+  .baggage-print-portal,
+  .boarding-pass-print-portal {
     display: none;
   }
 }
@@ -435,6 +436,29 @@
 
   body.printing-baggage-document .baggage-print-sheet,
   body.printing-baggage-document .baggage-print-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.printing-boarding-pass * {
+    visibility: hidden !important;
+  }
+
+  body.printing-boarding-pass #boarding-pass-print-root,
+  body.printing-boarding-pass #boarding-pass-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-boarding-pass #boarding-pass-print-root {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  body.printing-boarding-pass .boarding-pass-sheet,
+  body.printing-boarding-pass .boarding-pass-sheet * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

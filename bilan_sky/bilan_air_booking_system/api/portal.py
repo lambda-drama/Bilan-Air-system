@@ -291,8 +291,10 @@ def ensure_schedule_seats(schedule_name):
 
 @frappe.whitelist()
 def search_bookings_for_checkin(query=None, limit=15):
-	"""Typeahead for portal check-in: PNR, payer name, phone, or email."""
+	"""Typeahead for portal check-in: reservation ref, PNR, payer name, phone, or email."""
 	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+
 	limit = int(limit or 15)
 	q = (query or "").strip()
 
@@ -311,7 +313,16 @@ def search_bookings_for_checkin(query=None, limit=15):
 	]
 
 	if q:
-		bookings = frappe.get_all(
+		bookings = []
+		seen = set()
+		exact_name = resolve_air_booking(q, throw=False)
+		if exact_name:
+			exact_row = frappe.db.get_value("Air Booking", exact_name, fields, as_dict=True)
+			if exact_row and exact_row.get("reservation_status") != "Void":
+				bookings.append(exact_row)
+				seen.add(exact_name)
+
+		for row in frappe.get_all(
 			"Air Booking",
 			filters=filters,
 			or_filters=[
@@ -324,7 +335,12 @@ def search_bookings_for_checkin(query=None, limit=15):
 			fields=fields,
 			order_by="booking_date desc",
 			limit_page_length=limit,
-		)
+		):
+			if row.name not in seen:
+				bookings.append(row)
+				seen.add(row.name)
+			if len(bookings) >= limit:
+				break
 	else:
 		bookings = frappe.get_all(
 			"Air Booking",
@@ -371,12 +387,19 @@ def list_air_bookings(limit=50, offset=0, status=None, search=None):
 
 	or_filters = None
 	if search:
-		or_filters = {
-			"name": ["like", f"%{search}%"],
-			"pnr": ["like", f"%{search}%"],
-			"payer_name": ["like", f"%{search}%"],
-			"payer_phone": ["like", f"%{search}%"],
-		}
+		from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+
+		q = str(search).strip()
+		exact_name = resolve_air_booking(q, throw=False)
+		if exact_name:
+			filters["name"] = exact_name
+		else:
+			or_filters = {
+				"name": ["like", f"%{q}%"],
+				"pnr": ["like", f"%{q}%"],
+				"payer_name": ["like", f"%{q}%"],
+				"payer_phone": ["like", f"%{q}%"],
+			}
 
 	return _paginated(
 		"Air Booking",
@@ -968,16 +991,17 @@ def portal_hold_seat(seat_name, booking_reference=None):
 	booking_reference = (booking_reference or "").strip() or None
 
 	if booking_reference:
-		if not frappe.db.exists("Air Booking", booking_reference):
-			frappe.throw(_("Booking {0} not found").format(booking_reference))
-		booking = frappe.get_doc("Air Booking", booking_reference)
+		from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+
+		booking_name = resolve_air_booking(booking_reference)
+		booking = frappe.get_doc("Air Booking", booking_name)
 		if booking.flight_schedule != seat.flight_schedule:
 			frappe.throw(_("Booking {0} is not on this flight").format(booking_reference))
 		from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
 
 		result = reserve_seat_for_booking(
 			seat_name,
-			booking_reference,
+			booking_name,
 			flight_schedule=booking.flight_schedule,
 			boarding_airport=booking.boarding_airport,
 			deboarding_airport=booking.deboarding_airport,

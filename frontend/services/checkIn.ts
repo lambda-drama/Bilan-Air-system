@@ -1,3 +1,5 @@
+import { normalizeBookingLookup } from "@/lib/booking-reference";
+import type { BoardingPassData } from "@/lib/boarding-pass";
 import { apiRequest, methodUrl } from "./apiClient";
 import type { BookingDetails } from "./airBooking";
 
@@ -24,21 +26,7 @@ export interface CheckInBooking extends BookingDetails {
   baggage_policy?: BookingDetails["baggage_policy"] & { carry_on_kg?: number };
 }
 
-export interface BoardingPass {
-  passenger_name: string;
-  ticket_number?: string;
-  seat: string;
-  flight_number: string;
-  origin_code: string;
-  destination_code: string;
-  origin_label?: string;
-  destination_label?: string;
-  departure_date: string;
-  departure_time: string;
-  boarding_time: string;
-  gate: string;
-  pnr: string;
-}
+export type BoardingPass = BoardingPassData;
 
 export interface SelfCheckInResult {
   success: boolean;
@@ -47,22 +35,42 @@ export interface SelfCheckInResult {
   boarding_passes: BoardingPass[];
 }
 
-export async function lookupBookingForCheckin(pnr: string, lastName?: string) {
+export async function lookupBookingForCheckin(identifier: string, lastName?: string) {
   return apiRequest<CheckInBooking>(methodUrl("air_booking", "lookup_booking_for_checkin"), {
     method: "POST",
     body: JSON.stringify({
-      pnr: pnr.trim(),
+      pnr: normalizeBookingLookup(identifier),
       last_name: lastName?.trim() || undefined,
     }),
   });
 }
 
-export async function selfCheckInAll(pnr: string, lastName?: string) {
+export async function selfCheckInAll(identifier: string, lastName?: string) {
   return apiRequest<SelfCheckInResult>(methodUrl("air_booking", "self_check_in_all"), {
     method: "POST",
     body: JSON.stringify({
-      pnr: pnr.trim(),
+      pnr: normalizeBookingLookup(identifier),
       last_name: lastName?.trim() || undefined,
+    }),
+  });
+}
+
+export async function getBoardingPassPrintData(params: {
+  pnr: string;
+  passenger_row?: string;
+  passenger_index?: number;
+}) {
+  return apiRequest<{
+    reservation_ref: string;
+    pnr?: string | null;
+    passenger_row: string;
+    boarding_pass: BoardingPassData;
+  }>(methodUrl("air_booking", "get_boarding_pass_print_data"), {
+    method: "POST",
+    body: JSON.stringify({
+      pnr: normalizeBookingLookup(params.pnr),
+      passenger_row: params.passenger_row || undefined,
+      passenger_index: params.passenger_index ?? undefined,
     }),
   });
 }

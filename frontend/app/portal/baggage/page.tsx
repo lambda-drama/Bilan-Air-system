@@ -23,7 +23,7 @@ export default function PortalBaggagePage() {
   const [traceResult, setTraceResult] = useState<BaggageTraceResult | null>(null);
 
   const lookupByPnr = async (code: string) => {
-    const trimmed = code.trim().toUpperCase();
+    const trimmed = code.trim();
     if (!trimmed) return;
     setBookingLoading(true);
     setBookingError("");
