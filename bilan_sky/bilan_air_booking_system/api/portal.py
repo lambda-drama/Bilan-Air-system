@@ -401,6 +401,92 @@ def list_air_bookings(limit=50, offset=0, status=None, search=None):
 
 
 @frappe.whitelist()
+def list_passenger_tickets(limit=50, offset=0, search=None):
+	"""Issued passenger tickets from confirmed Air Bookings."""
+	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM
+
+	conditions = [
+		"ab.reservation_status = %(status)s",
+		"IFNULL(p.ticket_number, '') != ''",
+	]
+	params = {
+		"status": CONFIRM,
+		"limit": cint(limit) or 50,
+		"offset": cint(offset),
+	}
+
+	if search and str(search).strip():
+		params["search"] = f"%{str(search).strip()}%"
+		conditions.append(
+			"(p.ticket_number LIKE %(search)s "
+			"OR p.passenger_name LIKE %(search)s "
+			"OR ab.pnr LIKE %(search)s "
+			"OR ab.name LIKE %(search)s)"
+		)
+
+	where = " AND ".join(conditions)
+	base_from = """
+		FROM `tabAir Booking Passenger` p
+		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
+		WHERE {where}
+	""".format(where=where)
+
+	total = frappe.db.sql(
+		f"SELECT COUNT(*) {base_from}",
+		params,
+	)[0][0]
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			p.name AS passenger_row,
+			p.passenger_name,
+			p.ticket_number,
+			p.seat_number,
+			p.passenger_type,
+			ab.name AS reservation_ref,
+			ab.pnr,
+			ab.flight_schedule,
+			ab.booking_date
+		{base_from}
+		ORDER BY ab.booking_date DESC, p.idx ASC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		params,
+		as_dict=True,
+	)
+
+	schedule_ids = {row.flight_schedule for row in rows if row.get("flight_schedule")}
+	schedule_meta = {}
+	if schedule_ids:
+		for schedule in frappe.get_all(
+			"Flight Schedule",
+			filters={"name": ["in", list(schedule_ids)]},
+			fields=["name", "flight_number", "departure_date"],
+		):
+			schedule_meta[schedule.name] = schedule
+
+	seat_ids = {row.seat_number for row in rows if row.get("seat_number")}
+	seat_labels = {}
+	if seat_ids:
+		for seat in frappe.get_all(
+			"Seat Inventory",
+			filters={"name": ["in", list(seat_ids)]},
+			fields=["name", "seat_number"],
+		):
+			seat_labels[seat.name] = seat.seat_number
+
+	for row in rows:
+		schedule = schedule_meta.get(row.get("flight_schedule")) or {}
+		row["flight_number"] = schedule.get("flight_number")
+		row["departure_date"] = str(schedule.get("departure_date") or "") or None
+		row["seat_label"] = seat_labels.get(row.get("seat_number")) or row.get("seat_number")
+
+	return {"data": rows, "total": total}
+
+
+@frappe.whitelist()
 def list_passengers(limit=50, offset=0, search=None):
 	or_filters = None
 	if search:

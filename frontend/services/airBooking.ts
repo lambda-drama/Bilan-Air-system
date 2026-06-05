@@ -1,5 +1,6 @@
 import { apiRequest, methodUrl } from "./apiClient";
 import type { BaggagePolicy, BaggageRecord } from "./baggage";
+import type { PassengerTicketData } from "@/lib/passenger-ticket";
 
 export interface BookingPassengerInput {
   passenger_name: string;
@@ -45,6 +46,7 @@ export interface BookingDetails {
   payer_phone?: string;
   payer_email?: string;
   passengers: Array<{
+    row_name?: string;
     name: string;
     passenger?: string;
     id_number?: string;
@@ -53,6 +55,7 @@ export interface BookingDetails {
     seat_label?: string;
     ticket_number?: string;
     check_in_status?: string;
+    can_print_ticket?: boolean;
   }>;
   flight: {
     flight_number: string;
@@ -78,6 +81,26 @@ export async function fetchBookingDetails(pnr: string): Promise<BookingDetails> 
   return apiRequest(methodUrl("air_booking", "fetch_booking_details"), {
     method: "POST",
     body: JSON.stringify({ pnr }),
+  });
+}
+
+export async function getPassengerTicketPrintData(params: {
+  pnr: string;
+  passenger_row?: string;
+  passenger_index?: number;
+}): Promise<{
+  reservation_ref: string;
+  pnr: string;
+  passenger_row: string;
+  ticket: PassengerTicketData;
+}> {
+  return apiRequest(methodUrl("air_booking", "get_passenger_ticket_print_data"), {
+    method: "POST",
+    body: JSON.stringify({
+      pnr: params.pnr,
+      passenger_row: params.passenger_row || undefined,
+      passenger_index: params.passenger_index ?? undefined,
+    }),
   });
 }
 

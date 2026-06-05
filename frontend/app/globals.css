@@ -385,4 +385,57 @@
       filter: none !important;
     }
   }
+
+  .passenger-ticket-print-portal,
+  .baggage-print-portal {
+    display: none;
+  }
+}
+
+@media print {
+  body.printing-passenger-ticket * {
+    visibility: hidden !important;
+  }
+
+  body.printing-passenger-ticket #passenger-ticket-print-root,
+  body.printing-passenger-ticket #passenger-ticket-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-passenger-ticket #passenger-ticket-print-root {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  body.printing-passenger-ticket .passenger-ticket-sheet,
+  body.printing-passenger-ticket .passenger-ticket-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.printing-baggage-document * {
+    visibility: hidden !important;
+  }
+
+  body.printing-baggage-document #baggage-print-root,
+  body.printing-baggage-document #baggage-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-baggage-document #baggage-print-root {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  body.printing-baggage-document .baggage-print-sheet,
+  body.printing-baggage-document .baggage-print-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

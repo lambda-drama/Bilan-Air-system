@@ -60,6 +60,39 @@ export async function listBookings(opts?: {
   });
 }
 
+export interface PassengerTicketRow {
+  passenger_row: string;
+  passenger_name: string;
+  ticket_number: string;
+  seat_number?: string;
+  seat_label?: string;
+  passenger_type: string;
+  reservation_ref: string;
+  pnr?: string | null;
+  flight_schedule: string;
+  flight_number?: string;
+  departure_date?: string | null;
+  booking_date?: string;
+}
+
+export async function listPassengerTickets(opts?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}) {
+  return apiRequest<PaginatedResponse<PassengerTicketRow>>(
+    methodUrl("portal", "list_passenger_tickets"),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        limit: opts?.limit ?? 100,
+        offset: opts?.offset ?? 0,
+        search: opts?.search ?? null,
+      }),
+    },
+  );
+}
+
 export interface BookingInvoiceRow {
   name: string;
   invoice_type?: string;

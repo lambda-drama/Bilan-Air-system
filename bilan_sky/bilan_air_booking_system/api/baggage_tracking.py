@@ -1,6 +1,8 @@
 # bilan_air/api/baggage_tracking.py
 
 import frappe
+from frappe import _
+from frappe.utils import format_datetime, get_datetime
 
 
 @frappe.whitelist()
@@ -89,6 +91,92 @@ def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenge
         "is_excess": is_excess,
         "passenger_name": passenger_name,
     }
+
+def _passenger_last_name(name):
+	parts = (name or "").strip().split()
+	return parts[-1].upper() if parts else (name or "").upper()
+
+
+def _build_baggage_print_payload(baggage):
+	from bilan_sky.bilan_air_booking_system.utils.airports import (
+		airport_display_label,
+		get_airport_iata,
+	)
+
+	booking = frappe.get_doc("Air Booking", baggage.air_booking, ignore_permissions=True)
+	flight = frappe.get_doc("Flight Schedule", baggage.flight_schedule, ignore_permissions=True)
+	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
+	settings = frappe.get_single("BA Settings")
+
+	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
+	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
+
+	all_tags = frappe.get_all(
+		"Baggage Tracking",
+		filters={"air_booking": booking.name},
+		fields=["name", "tracking_number"],
+		order_by="creation asc",
+	)
+	sequence_no = 1
+	for idx, row in enumerate(all_tags, start=1):
+		if row.name == baggage.name:
+			sequence_no = idx
+			break
+
+	checked_in_at = None
+	if baggage.checked_in_at:
+		checked_in_at = format_datetime(get_datetime(baggage.checked_in_at), "dd MMM yyyy, HH:mm")
+
+	return {
+		"airline_name": "BILAN AIR",
+		"airline_tagline": "Beyond Skies Together",
+		"tracking_number": baggage.tracking_number,
+		"passenger_name": baggage.passenger_name,
+		"passenger_last_name": _passenger_last_name(baggage.passenger_name),
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr or booking.get_public_reference(),
+		"flight_number": flight.flight_number,
+		"origin_code": origin_iata,
+		"destination_code": dest_iata,
+		"origin_label": airport_display_label(route.origin_airport),
+		"destination_label": airport_display_label(route.destination_airport),
+		"departure_date": str(flight.departure_date) if flight.departure_date else None,
+		"departure_time": flight.departure_time,
+		"weight_kg": baggage.weight_kg,
+		"baggage_fee": baggage.baggage_fee,
+		"is_excess": bool(baggage.is_excess),
+		"allowance_kg": settings.max_baggage_kg,
+		"status": baggage.status,
+		"checked_in_at": checked_in_at,
+		"sequence_no": sequence_no,
+		"total_bags": len(all_tags),
+		"barcode_data": f"{baggage.tracking_number}|{dest_iata}|{flight.flight_number}|{booking.pnr or booking.name}",
+	}
+
+
+@frappe.whitelist()
+def get_baggage_print_data(tracking_number):
+	"""Print payload for a baggage tag or passenger receipt."""
+	from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+
+	require_portal_staff()
+	if not tracking_number:
+		frappe.throw(_("Tracking number is required."))
+
+	baggage_name = frappe.db.get_value(
+		"Baggage Tracking", {"tracking_number": tracking_number}, "name"
+	) or tracking_number
+	if not frappe.db.exists("Baggage Tracking", baggage_name):
+		frappe.throw(_("Baggage tag not found."))
+
+	baggage = frappe.get_doc("Baggage Tracking", baggage_name)
+	baggage.check_permission("read")
+
+	return {
+		"tracking_number": baggage.tracking_number,
+		"baggage": _build_baggage_print_payload(baggage),
+	}
+
 
 @frappe.whitelist(allow_guest=True)
 def trace_baggage(tracking_number):

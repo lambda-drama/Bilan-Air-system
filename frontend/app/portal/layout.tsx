@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/portal/user-avatar"
-import { formatRoleLabel } from "@/lib/user-display"
+import { formatRoleLabel, getDisplayFirstName } from "@/lib/user-display"
 import { hasPortalAccess } from "@/lib/portal-access"
 import { useAuth } from "@/contexts/auth-context"
 import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen"
@@ -40,6 +40,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
     (route) => pathname === route || pathname?.endsWith(route),
   )
   const portalAccess = user ? hasPortalAccess(user.roles) : false
+  const firstName = getDisplayFirstName(user)
 
   useEffect(() => {
     if (isLoading) return
@@ -120,7 +121,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
               <Menu className="h-6 w-6" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">
-              Admin Portal
+              Welcome back, {firstName}
             </h1>
           </div>
 
