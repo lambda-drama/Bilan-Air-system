@@ -19,3 +19,4 @@ bilan_sky.patches.v1_0.sync_booking_agent_rights_from_mode
 bilan_sky.patches.v1_0.backfill_route_segments_and_seat_release
 bilan_sky.patches.v1_0.backfill_booking_company_from_agents
 bilan_sky.patches.v1_0.migrate_base_fares_json_to_columns
+bilan_sky.patches.v1_0.clear_air_booking_reservation_ref_reqd

@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { bookingReference } from "@/lib/booking-reference";
 
 export default function PortalCheckInPage() {
   const { formatMoney } = useCurrency();
@@ -42,7 +43,7 @@ export default function PortalCheckInPage() {
     try {
       const detail = await fetchBookingDetails(trimmed);
       setBooking(detail);
-      setPnr(detail.pnr);
+      setPnr(bookingReference(detail));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Booking not found");
     } finally {
@@ -51,8 +52,8 @@ export default function PortalCheckInPage() {
   };
 
   const refresh = async () => {
-    if (!booking?.pnr) return;
-    const detail = await fetchBookingDetails(booking.pnr);
+    if (!booking) return;
+    const detail = await fetchBookingDetails(bookingReference(booking));
     setBooking(detail);
   };
 
@@ -67,7 +68,7 @@ export default function PortalCheckInPage() {
     if (!booking) return;
     setCheckingIn(index);
     try {
-      await checkInPassenger(booking.pnr, index, parseCheckInWeight(index));
+      await checkInPassenger(bookingReference(booking), index, parseCheckInWeight(index));
       toast.success(`Traveler ${index + 1} checked in`);
       setCheckInWeights((prev) => {
         const next = { ...prev };
@@ -86,7 +87,7 @@ export default function PortalCheckInPage() {
     if (!booking) return;
     setCheckingIn("all");
     try {
-      await checkInAllPassengers(booking.pnr);
+      await checkInAllPassengers(bookingReference(booking));
       toast.success("All travelers checked in");
       await refresh();
     } catch (e) {
@@ -110,7 +111,8 @@ export default function PortalCheckInPage() {
       <div>
         <h2 className="text-2xl font-semibold">Check-in</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Search by PNR, payer name, phone, or email. Pick a suggestion to load the booking.
+          Search by reservation ref, PNR, payer name, phone, or email. Pick a suggestion to load
+          the booking.
         </p>
       </div>
 
@@ -138,8 +140,12 @@ export default function PortalCheckInPage() {
         <>
           <div className="rounded-lg border bg-card p-4 grid gap-3 sm:grid-cols-2">
             <div>
+              <p className="text-xs text-muted-foreground">Reservation</p>
+              <p className="font-semibold">{booking.reservation_ref}</p>
+            </div>
+            <div>
               <p className="text-xs text-muted-foreground">PNR</p>
-              <p className="font-semibold">{booking.pnr}</p>
+              <p className="font-semibold">{booking.pnr || "—"}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Payer</p>
@@ -181,7 +187,11 @@ export default function PortalCheckInPage() {
 
           <div className="flex flex-wrap gap-2">
             {booking.payment_status === "Paid" && (
-              <PrintFormatDropdown doctype="Air Booking" docName={booking.pnr} variant="default" />
+              <PrintFormatDropdown
+                doctype="Air Booking"
+                docName={booking.reservation_ref}
+                variant="default"
+              />
             )}
             {canCheckIn && !allCheckedIn && (
               <Button
@@ -241,7 +251,7 @@ export default function PortalCheckInPage() {
                             size="sm"
                             className="bg-gold text-navy hover:bg-gold-dark"
                             onClick={() =>
-                              openDocumentPrintView("Air Booking", booking.pnr, "Standard", {
+                              openDocumentPrintView("Air Booking", booking.reservation_ref, "Standard", {
                                 triggerPrint: 1,
                               })
                             }
@@ -259,7 +269,7 @@ export default function PortalCheckInPage() {
           </div>
 
           <BookingBaggagePanel
-            pnr={booking.pnr}
+            bookingRef={bookingReference(booking)}
             travelers={booking.passengers.map((p) => ({ name: p.name }))}
             baggage={booking.baggage || []}
             policy={booking.baggage_policy}

@@ -15,13 +15,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { PrintFormatDropdown } from "@/components/portal/print-format-dropdown";
 
 interface Traveler {
   name: string;
 }
 
 interface BookingBaggagePanelProps {
-  pnr: string;
+  /** Reservation ref (RES-…) or confirmed PNR — not only the PNR field. */
+  bookingRef: string;
   travelers: Traveler[];
   baggage: BaggageRecord[];
   policy?: BaggagePolicy;
@@ -34,7 +36,7 @@ interface BookingBaggagePanelProps {
 }
 
 export function BookingBaggagePanel({
-  pnr,
+  bookingRef,
   travelers,
   baggage,
   policy,
@@ -72,7 +74,7 @@ export function BookingBaggagePanel({
     }
     setAddingIndex(index);
     try {
-      const res = await addBaggage(pnr, weight, index);
+      const res = await addBaggage(bookingRef, weight, index);
       toast.success(
         `Baggage tag ${res.tracking_number}${res.fee > 0 ? ` · excess ${formatMoney(res.fee)}` : ""}`,
       );
@@ -111,6 +113,9 @@ export function BookingBaggagePanel({
               <TableHead>Weight</TableHead>
               <TableHead>Fee</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-12 text-right">
+                <span className="sr-only">Print tag</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -126,6 +131,12 @@ export function BookingBaggagePanel({
                   ) : null}
                 </TableCell>
                 <TableCell>{b.status}</TableCell>
+                <TableCell className="text-right">
+                  <PrintFormatDropdown
+                    doctype="Baggage Tracking"
+                    docName={b.name || b.tracking_number}
+                  />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

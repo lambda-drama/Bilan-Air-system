@@ -28,11 +28,12 @@ def preview_baggage_fee(weight_kg):
 
 @frappe.whitelist()
 def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenger_index=None):
-    """Create baggage tracking record"""
-    
+    """Create baggage tracking record. ``pnr`` may be reservation ref (RES-…) or customer PNR."""
+
     from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
 
-    booking = frappe.get_doc("Air Booking", resolve_air_booking(pnr))
+    booking_name = resolve_air_booking(pnr)
+    booking = frappe.get_doc("Air Booking", booking_name)
     settings = frappe.get_single("BA Settings")
 
     if passenger_index is not None:
@@ -54,7 +55,7 @@ def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenge
     
     baggage = frappe.get_doc({
         "doctype": "Baggage Tracking",
-        "air_booking": pnr,
+        "air_booking": booking.name,
         "passenger": passenger_id,
         "passenger_name": passenger_name,
         "flight_schedule": booking.flight_schedule,
@@ -63,13 +64,22 @@ def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenge
         "is_excess": is_excess,
         "status": "Checked In"
     })
-    baggage.insert()
-    frappe.db.commit()
-    
-    booking.append("baggage_tracking_numbers", {
-        "baggage_tracking": baggage.name
-    })
-    booking.save()
+    baggage.insert(ignore_permissions=True)
+
+    link_row = {
+        "doctype": "Air Booking Baggage Link",
+        "parent": booking.name,
+        "parenttype": "Air Booking",
+        "parentfield": "baggage_tracking_numbers",
+        "baggage_tracking": baggage.name,
+    }
+    if booking.docstatus == 1:
+        frappe.get_doc(link_row).insert(ignore_permissions=True)
+    else:
+        booking.append("baggage_tracking_numbers", {"baggage_tracking": baggage.name})
+        booking.flags.ignore_validate = True
+        booking.save(ignore_permissions=True)
+
     frappe.db.commit()
     
     return {

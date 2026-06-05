@@ -1,6 +1,7 @@
 """Booking agent profile helpers (credit limit, portal user mapping)."""
 
 import frappe
+from frappe import _
 from frappe.utils import cint, flt
 
 from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
@@ -25,8 +26,6 @@ def resolve_agent_profile_name(
 	exclude_name: str | None = None,
 ) -> str:
 	"""Build unique profile name (document ID) from company + username."""
-	from frappe import _
-
 	booking_company = (booking_company or "").strip()
 	if not booking_company:
 		frappe.throw(_("Company / Agency is required."))
@@ -131,8 +130,32 @@ def validate_agent_can_create_booking(user: str | None = None):
 	return agent
 
 
-def validate_agent_can_confirm_booking(booking, user: str | None = None, *, via_credit: bool = False):
+def resolve_credit_agent_for_confirmation(booking, user: str | None = None):
+	"""Logged-in agent, else Booking Agent set on the reservation (Desk staff)."""
+	user = user or frappe.session.user
 	agent = get_booking_agent_for_user(user)
+	if agent:
+		return agent
+
+	booking_agent = (getattr(booking, "booking_agent", None) or "").strip()
+	if booking_agent and frappe.db.exists("Booking Agent", booking_agent):
+		return frappe.get_doc("Booking Agent", booking_agent)
+
+	frappe.throw(
+		_(
+			"No Booking Agent on this reservation and your user is not linked to an active agent profile. "
+			"Set Booking Agent on the reservation or log in as the agent."
+		),
+		title=_("Booking agent profile missing"),
+	)
+
+
+def validate_agent_can_confirm_booking(booking, user: str | None = None, *, via_credit: bool = False):
+	agent = (
+		resolve_credit_agent_for_confirmation(booking, user=user)
+		if via_credit
+		else get_booking_agent_for_user(user)
+	)
 	if not agent:
 		frappe.throw(
 			_("No active Booking Agent profile is linked to your user."),
@@ -239,8 +262,20 @@ def create_booking_agent_profile(
 
 def validate_credit_confirmation_for_booking(booking, user: str | None = None):
 	"""Ensure the current user may confirm this fare on agent credit."""
-	agent = validate_agent_can_confirm_booking(booking, user=user, via_credit=False)
-	if not agent.can_confirm_on_credit(flt(booking.total_fare)):
+	booking.calculate_total_fare()
+	amount = flt(booking.total_fare)
+	if amount <= 0:
+		frappe.throw(
+			_("Cannot confirm on credit until a total fare is calculated. Assign seats, save the reservation, and ensure route fares are set."),
+			title=_("Zero fare"),
+		)
+	agent = resolve_credit_agent_for_confirmation(booking, user=user)
+	if not agent.allows_confirmation():
+		frappe.throw(
+			_("The selected booking agent is not allowed to confirm tickets."),
+			title=_("Confirmation not permitted"),
+		)
+	if not agent.can_confirm_on_credit(amount):
 		frappe.throw(
 			f"Cannot confirm on credit for {agent.agent_name}. "
 			f"Mode: {agent.confirmation_mode}. "

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, XCircle } from "lucide-react";
+import { Loader2, Pencil, Ticket, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { openDeskDocument } from "@/services/desk";
-import type { BookingDetails } from "@/services/airBooking";
+import { confirmBookingOnCredit, type BookingDetails } from "@/services/airBooking";
 import type { AirBookingRow } from "@/services/portal";
+import { toast } from "sonner";
 
 type PortalBookingSheetFooterProps = {
   pnr: string;
@@ -16,6 +17,7 @@ type PortalBookingSheetFooterProps = {
   onShowCancelForm: (show: boolean) => void;
   onCancelComplete: () => void;
   onConfirmPayment?: () => void;
+  onConfirmCreditComplete?: () => void | Promise<void>;
   cancelling?: boolean;
   onSubmitCancel: (reason: string) => Promise<void>;
 };
@@ -28,17 +30,21 @@ export function PortalBookingSheetFooter({
   onShowCancelForm,
   onCancelComplete,
   onConfirmPayment,
+  onConfirmCreditComplete,
   cancelling,
   onSubmitCancel,
 }: PortalBookingSheetFooterProps) {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState("");
+  const [confirmingCredit, setConfirmingCredit] = useState(false);
 
   const status =
     detail?.status ?? row?.reservation_status ?? row?.booking_status ?? "";
   const paymentStatus = detail?.payment_status ?? row?.payment_status ?? "";
   const isCancelled = status === "Void" || status === "Cancelled";
   const isUnpaid = paymentStatus !== "Paid" && paymentStatus !== "Refunded";
+  /** Same as Desk: PNR not issued until payment or agent credit confirms the reservation. */
+  const canConfirmOnCredit = !isCancelled && status === "Booked";
 
   const handleConfirmCancel = async () => {
     const reason = cancelReason.trim();
@@ -54,6 +60,26 @@ export function PortalBookingSheetFooter({
       onCancelComplete();
     } catch {
       /* parent handles toast */
+    }
+  };
+
+  const handleConfirmOnCredit = async () => {
+    if (
+      !window.confirm(
+        "Confirm on agent credit, issue PNR, and deduct the total fare from the agent credit limit?",
+      )
+    ) {
+      return;
+    }
+    setConfirmingCredit(true);
+    try {
+      const res = await confirmBookingOnCredit(pnr);
+      toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
+      await onConfirmCreditComplete?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Confirm on credit failed");
+    } finally {
+      setConfirmingCredit(false);
     }
   };
 
@@ -120,14 +146,24 @@ export function PortalBookingSheetFooter({
         <Pencil className="mr-2 h-4 w-4" />
         Edit
       </Button>
-      {!isCancelled && (
+      {canConfirmOnCredit && (
         <Button
-          variant="outline"
-          className="flex-1 min-w-[120px] text-destructive hover:bg-destructive hover:text-destructive-foreground"
-          onClick={() => onShowCancelForm(true)}
+          variant="secondary"
+          className="flex-1 min-w-[160px]"
+          disabled={confirmingCredit}
+          onClick={handleConfirmOnCredit}
         >
-          <XCircle className="mr-2 h-4 w-4" />
-          Cancel
+          {confirmingCredit ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Confirming…
+            </>
+          ) : (
+            <>
+              <Ticket className="mr-2 h-4 w-4" />
+              Confirm on Credit (PNR)
+            </>
+          )}
         </Button>
       )}
       {isUnpaid && onConfirmPayment && (
@@ -136,6 +172,16 @@ export function PortalBookingSheetFooter({
           onClick={onConfirmPayment}
         >
           Confirm payment & invoice
+        </Button>
+      )}
+      {!isCancelled && (
+        <Button
+          variant="outline"
+          className="flex-1 min-w-[120px] text-destructive hover:bg-destructive hover:text-destructive-foreground sm:ml-auto"
+          onClick={() => onShowCancelForm(true)}
+        >
+          <XCircle className="mr-2 h-4 w-4" />
+          Cancel booking
         </Button>
       )}
     </div>

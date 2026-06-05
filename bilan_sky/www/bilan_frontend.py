@@ -9,6 +9,24 @@ FRONTEND_ROOT = os.path.join(
 	"frontend",
 )
 
+# First path segment reserved for Frappe (see hooks.website_route_rules).
+_FRAPPE_RESERVED_SEGMENTS = frozenset(
+	{
+		"printview",
+		"login",
+		"logout",
+		"desk",
+		"list",
+		"me",
+		"profile",
+		"api",
+		"assets",
+		"files",
+		"private",
+		"app",
+	}
+)
+
 
 def get_context(context):
 	context.no_cache = 1
@@ -24,6 +42,12 @@ def _get_route_path() -> str:
 		# Home page resolves to this www route name; not a Next.js path segment.
 		if route in ("", "bilan_frontend"):
 			return ""
+		first = route.split("/", 1)[0]
+		if first in _FRAPPE_RESERVED_SEGMENTS:
+			frappe.throw(
+				f"Route /{route} is handled by Frappe, not the Bilan frontend.",
+				frappe.PageDoesNotExistError,
+			)
 		return route
 	return ""
 

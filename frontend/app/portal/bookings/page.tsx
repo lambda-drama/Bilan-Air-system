@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
-import { cancelBooking, fetchBookingDetails, type BookingDetails } from "@/services/airBooking";
+import {
+  cancelBooking,
+  confirmBookingOnCredit,
+  fetchBookingDetails,
+  type BookingDetails,
+} from "@/services/airBooking";
 import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
 import { openDeskDocument } from "@/services/desk";
 import { toast } from "sonner";
@@ -16,6 +21,7 @@ import { useCurrency } from "@/contexts/currency-context";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
+import { bookingReference } from "@/lib/booking-reference";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -32,18 +38,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const ALL_STATUSES_VALUE = "__all__";
+
+const RESERVATION_STATUS_OPTIONS = [
+  { value: "Booked", label: "Booked" },
+  { value: "Confirm", label: "Confirm" },
+  { value: "Void", label: "Void" },
+  { value: "Flight Taken", label: "Flight Taken" },
+] as const;
 
 export default function PortalBookingsPage() {
   const { formatMoney } = useCurrency();
+  const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
   const fetchBookings = useCallback(
     async (search: string) => {
-      const res = await listBookings({ search: search.trim() || undefined, limit: 100 });
+      const res = await listBookings({
+        search: search.trim() || undefined,
+        status: statusFilter === ALL_STATUSES_VALUE ? undefined : statusFilter,
+        limit: 100,
+      });
       return res.data;
     },
-    [],
+    [statusFilter],
   );
   const { search, setSearch, rows, loading, error, refresh } = useLiveListQuery<AirBookingRow>(
     fetchBookings,
+    { reloadKey: statusFilter },
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -51,6 +79,7 @@ export default function PortalBookingsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingCreditId, setConfirmingCreditId] = useState<string | null>(null);
 
   const reloadDetail = useCallback(async (pnr: string) => {
     const next = await fetchBookingDetails(pnr);
@@ -77,14 +106,35 @@ export default function PortalBookingsPage() {
   const reservationStatus = (row: AirBookingRow) =>
     row.reservation_status || row.booking_status || "";
 
-  const openDetails = (pnr: string, opts?: { cancel?: boolean }) => {
-    setShowCancelForm(!!opts?.cancel);
+  const openDetails = (pnr: string) => {
+    setShowCancelForm(false);
     setSelectedId(pnr);
   };
 
   const closeDetails = () => {
     setSelectedId(null);
     setShowCancelForm(false);
+  };
+
+  const handleConfirmOnCredit = async (bookingRef: string) => {
+    if (
+      !window.confirm(
+        "Confirm on agent credit, issue PNR, and deduct the total fare from the agent credit limit?",
+      )
+    ) {
+      return;
+    }
+    setConfirmingCreditId(bookingRef);
+    try {
+      const res = await confirmBookingOnCredit(bookingRef);
+      toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
+      refresh();
+      if (selectedId === bookingRef) await reloadDetail(bookingRef);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Confirm on credit failed");
+    } finally {
+      setConfirmingCreditId(null);
+    }
   };
 
   const handleCancelBooking = async (reason: string) => {
@@ -109,17 +159,41 @@ export default function PortalBookingsPage() {
         <div>
           <h2 className="text-2xl font-semibold">Bookings</h2>
           <p className="text-sm text-muted-foreground">
-            In-office bookings — click PNR for details, edit, or cancel
+            In-office bookings — click reservation ref for details and actions
           </p>
         </div>
         <BookingStartLink>Office booking</BookingStartLink>
       </div>
 
-      <ListSearch
-        value={search}
-        onChange={setSearch}
-        placeholder="Search PNR, name, phone..."
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search reservation ref, PNR, payer, phone..."
+          className="w-full sm:max-w-md"
+        />
+        <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+          <label
+            htmlFor="booking-status-filter"
+            className="text-sm font-medium text-muted-foreground shrink-0"
+          >
+            Status
+          </label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger id="booking-status-filter" className="w-full sm:w-[180px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
+              {RESERVATION_STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -130,6 +204,7 @@ export default function PortalBookingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Reservation</TableHead>
                 <TableHead>PNR</TableHead>
                 <TableHead>Flight</TableHead>
                 <TableHead>Payer</TableHead>
@@ -142,8 +217,10 @@ export default function PortalBookingsPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    {search.trim() ? "No bookings match your search." : "No bookings yet."}
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    {search.trim() || statusFilter !== ALL_STATUSES_VALUE
+                      ? "No bookings match your filters."
+                      : "No bookings yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -156,6 +233,7 @@ export default function PortalBookingsPage() {
                     <TableCell>
                       <DocLink onClick={() => openDetails(b.name)}>{b.name}</DocLink>
                     </TableCell>
+                    <TableCell className="text-muted-foreground">{b.pnr || "—"}</TableCell>
                     <TableCell>{b.flight_schedule}</TableCell>
                     <TableCell>{b.payer_name}</TableCell>
                     <TableCell>{reservationStatus(b)}</TableCell>
@@ -175,21 +253,21 @@ export default function PortalBookingsPage() {
                             >
                               Edit
                             </DropdownMenuItem>
-                            {reservationStatus(b) !== "Void" && (
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={() => openDetails(b.name, { cancel: true })}
-                              >
-                                Cancel booking
-                              </DropdownMenuItem>
-                            )}
-                            {isUnpaid(b.payment_status) && (
+                            {reservationStatus(b) === "Booked" && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
-                                  Confirm payment & invoice
+                                <DropdownMenuItem
+                                  disabled={confirmingCreditId === b.name}
+                                  onClick={() => handleConfirmOnCredit(b.name)}
+                                >
+                                  Confirm on Credit (PNR)
                                 </DropdownMenuItem>
                               </>
+                            )}
+                            {isUnpaid(b.payment_status) && (
+                              <DropdownMenuItem onClick={() => setPaymentDialogPnr(b.name)}>
+                                Confirm payment & invoice
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -225,6 +303,10 @@ export default function PortalBookingsPage() {
               onCancelComplete={() => refresh()}
               cancelling={cancelling}
               onConfirmPayment={() => setPaymentDialogPnr(selectedId)}
+              onConfirmCreditComplete={async () => {
+                refresh();
+                if (selectedId) await reloadDetail(selectedId);
+              }}
               onSubmitCancel={handleCancelBooking}
             />
           ) : undefined
@@ -233,7 +315,8 @@ export default function PortalBookingsPage() {
         {detail && (
           <>
             <DetailSection title="Booking">
-              <DetailRow label="PNR" value={detail.pnr} />
+              <DetailRow label="Reservation" value={detail.reservation_ref} />
+              <DetailRow label="PNR" value={detail.pnr || "—"} />
               <DetailRow label="Status" value={detail.status} />
               <DetailRow label="Payment" value={detail.payment_status} />
               <DetailRow label="Total fare" value={formatMoney(detail.total_fare)} />
@@ -265,13 +348,13 @@ export default function PortalBookingsPage() {
             )}
             <div className="pt-2">
               <BookingBaggagePanel
-                pnr={detail.pnr}
+                bookingRef={bookingReference(detail)}
                 travelers={detail.passengers.map((p) => ({ name: p.name }))}
                 baggage={detail.baggage || []}
                 policy={detail.baggage_policy}
                 baggageFeesTotal={detail.baggage_fees_total}
                 onUpdated={async () => {
-                  await reloadDetail(detail.pnr);
+                  await reloadDetail(bookingReference(detail));
                   refresh();
                 }}
               />

@@ -16,6 +16,8 @@ import {
   getScheduleSeatInventory,
   portalHoldSeat,
   portalReleaseSeat,
+  portalReleaseSeatForSale,
+  portalRestrictSeat,
   type PortalSeatRow,
   type ScheduleSeatInventory,
 } from "@/services/seatInventoryPortal";
@@ -183,23 +185,55 @@ function SeatInventoryContent() {
     }
   };
 
-  const handleRelease = async () => {
+  const handleClearHold = async () => {
     if (!selectedSeat) return;
     setActionLoading(true);
     try {
       const updated = await portalReleaseSeat(selectedSeat.name);
       refreshSeatInView(updated);
-      toast.success(`Seat ${updated.seat_number} released`);
+      toast.success(`Seat ${updated.seat_number} is available again`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not release seat");
+      toast.error(e instanceof Error ? e.message : "Could not clear hold");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const canHold = selectedSeat?.status === "Available";
-  const canRelease =
-    selectedSeat && ["Hold", "Reserved"].includes(selectedSeat.status);
+  const handleReleaseForSale = async () => {
+    if (!selectedSeat) return;
+    setActionLoading(true);
+    try {
+      const updated = await portalReleaseSeatForSale(selectedSeat.name);
+      refreshSeatInView(updated);
+      toast.success(`Seat ${updated.seat_number} released for sale`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not release seat for sale");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestrict = async () => {
+    if (!selectedSeat) return;
+    setActionLoading(true);
+    try {
+      const updated = await portalRestrictSeat(selectedSeat.name);
+      refreshSeatInView(updated);
+      toast.success(`Seat ${updated.seat_number} restricted from sale`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not restrict seat");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const seatStatus = selectedSeat?.status;
+  const canHold = seatStatus === "Available";
+  const canClearHold = seatStatus === "Hold" || seatStatus === "Reserved";
+  const canReleaseForSale = seatStatus === "Unreleased";
+  const canRestrict = seatStatus === "Available";
+  const isBooked = seatStatus === "Booked";
+  const isOccupied = seatStatus === "Occupied";
 
   return (
     <div className="space-y-6">
@@ -292,8 +326,9 @@ function SeatInventoryContent() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <StatCard label="Available" value={inventory.stats.Available || 0} tone="text-emerald-700" />
+            <StatCard label="Unreleased" value={inventory.stats.Unreleased || 0} tone="text-slate-600" />
             <StatCard label="On hold" value={(inventory.stats.Hold || 0) + (inventory.stats.Reserved || 0)} tone="text-amber-700" />
             <StatCard label="Booked" value={inventory.stats.Booked || 0} />
             <StatCard label="Occupied" value={inventory.stats.Occupied || 0} tone="text-red-700" />
@@ -331,7 +366,7 @@ function SeatInventoryContent() {
                 onSeatClick={setSelectedSeat}
               />
               <p className="mt-4 text-xs text-muted-foreground text-center">
-                Click a seat to hold, release, or view booking details
+                Click a seat to release, hold, restrict, or view details
               </p>
             </CardContent>
           </Card>
@@ -355,6 +390,15 @@ function SeatInventoryContent() {
         footer={
           selectedSeat ? (
             <div className="flex flex-col gap-3 w-full">
+              {canReleaseForSale && (
+                <Button
+                  className="bg-gold text-navy hover:bg-gold-dark w-full"
+                  disabled={actionLoading}
+                  onClick={handleReleaseForSale}
+                >
+                  Release for sale
+                </Button>
+              )}
               {canHold && (
                 <div className="space-y-2">
                   <Label htmlFor="hold-pnr">Hold for booking (PNR) — optional</Label>
@@ -383,20 +427,35 @@ function SeatInventoryContent() {
                   </div>
                 </div>
               )}
-              {canRelease && (
+              {canRestrict && (
+                <Button
+                  variant="outline"
+                  disabled={actionLoading}
+                  onClick={handleRestrict}
+                  className="w-full"
+                >
+                  Restrict from sale
+                </Button>
+              )}
+              {canClearHold && (
                 <Button
                   variant="destructive"
                   disabled={actionLoading}
-                  onClick={handleRelease}
+                  onClick={handleClearHold}
                   className="w-full"
                 >
-                  Release seat
+                  Clear hold
                 </Button>
               )}
-              {selectedSeat.status === "Booked" && (
+              {isBooked && (
                 <p className="text-xs text-muted-foreground">
                   Booked seats must be changed via the booking record. Open booking{" "}
                   {selectedSeat.booking_reference || "—"} in Desk or Bookings.
+                </p>
+              )}
+              {isOccupied && (
+                <p className="text-xs text-muted-foreground">
+                  Occupied seats cannot be changed here. Use check-in or booking tools.
                 </p>
               )}
             </div>

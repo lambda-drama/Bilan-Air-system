@@ -39,17 +39,19 @@
  ],
  "fields": [
   {
+   "depends_on": "eval:!doc.__islocal",
    "description": "Internal reservation ID created when the agent books (e.g. RES-00001). This is not the customer PNR.",
    "fieldname": "reservation_ref",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Reservation Ref",
-   "read_only": 1,
-   "reqd": 1
+   "no_copy": 1,
+   "read_only": 1
   },
   {
-   "description": "Customer PNR (e.g. BA-00001). Generated only when the ticket is confirmed — after payment or approved agent credit. Ticket numbers use this PNR.",
+   "allow_on_submit": 1,
+   "description": "Customer PNR (e.g. BA-00001). Generated only when the ticket is confirmed \u2014 after payment or approved agent credit. Ticket numbers use this PNR.",
    "fieldname": "pnr",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -71,15 +73,19 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
+   "description": "Agent whose credit is used for Confirm on Credit. Set when confirming from Desk as staff.",
    "fieldname": "booking_agent",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Booking Agent",
-   "options": "Booking Agent",
-   "read_only": 1
+   "options": "Booking Agent"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "confirmed_via",
    "fieldtype": "Select",
+   "in_global_search": 1,
    "label": "Confirmed Via",
    "options": "\nPayment\nAgent Credit",
    "read_only": 1
@@ -172,6 +178,7 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Total Fare",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -250,6 +257,7 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reason_for_cancel",
    "fieldtype": "Text Editor",
    "label": "Reason for Cancel"
@@ -259,7 +267,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-30 15:42:45.734956",
+ "modified": "2026-06-05 11:44:02.998586",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Air Booking",
@@ -276,6 +284,21 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
    "write": 1
   }
  ],

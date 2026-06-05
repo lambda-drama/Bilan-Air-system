@@ -31,7 +31,11 @@ export interface CreateBookingResult {
 }
 
 export interface BookingDetails {
-  pnr: string;
+  /** Internal reservation ID (Air Booking name, e.g. RES-00001). */
+  reservation_ref: string;
+  /** Customer PNR after confirmation; empty while still Booked. */
+  pnr?: string | null;
+  public_reference?: string;
   status: string;
   payment_status: string;
   total_fare: number;
@@ -136,6 +140,21 @@ export async function confirmPaymentAndInvoice(
       payment_method: payment_method || null,
       paid_account: paid_account || null,
     }),
+  });
+}
+
+export type ConfirmOnCreditResult = {
+  success: boolean;
+  pnr: string;
+  reservation_ref?: string;
+  already_confirmed?: boolean;
+};
+
+/** Issue PNR and tickets using agent credit (reservation ref or PNR). */
+export async function confirmBookingOnCredit(bookingRef: string): Promise<ConfirmOnCreditResult> {
+  return apiRequest(methodUrl("air_booking", "confirm_booking_on_credit"), {
+    method: "POST",
+    body: JSON.stringify({ pnr: bookingRef }),
   });
 }
 
