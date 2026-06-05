@@ -9,11 +9,27 @@ from frappe.utils import cint
 from bilan_sky.bilan_air_booking_system.utils.airports import resolve_airport_name
 
 
+def _child_segment_fields(parent_doctype: str) -> list[str]:
+	"""Only SELECT columns that exist in DB (safe before bench migrate)."""
+	child_dt = f"{parent_doctype} Segment"
+	columns = set(frappe.db.get_table_columns(child_dt) or [])
+	fields = [
+		field
+		for field in ("segment_index", "origin_airport", "destination_airport")
+		if field in columns
+	]
+	for optional in ("duration", "arrival_date", "arrival_time"):
+		if optional in columns:
+			fields.append(optional)
+	return fields or ["segment_index", "origin_airport", "destination_airport"]
+
+
 def _segment_rows(parent_doctype: str, parent_name: str) -> list[dict]:
+	child_dt = f"{parent_doctype} Segment"
 	rows = frappe.get_all(
-		f"{parent_doctype} Segment",
+		child_dt,
 		filters={"parent": parent_name},
-		fields=["segment_index", "origin_airport", "destination_airport"],
+		fields=_child_segment_fields(parent_doctype),
 		order_by="segment_index asc",
 	)
 	if rows:
@@ -24,22 +40,34 @@ def _segment_rows(parent_doctype: str, parent_name: str) -> list[dict]:
 def get_route_segments(route_name: str) -> list[dict]:
 	if not route_name:
 		return []
-	route = frappe.get_doc("Flight Route", route_name)
-	if getattr(route, "is_multi_segment", 0) and route.route_segments:
-		return [
-			{
-				"segment_index": cint(row.segment_index),
-				"origin_airport": row.origin_airport,
-				"destination_airport": row.destination_airport,
-			}
-			for row in sorted(route.route_segments, key=lambda r: cint(r.segment_index))
-		]
-	if route.origin_airport and route.destination_airport:
+	from bilan_sky.bilan_air_booking_system.utils.flight_duration import duration_to_seconds
+
+	is_multi = cint(frappe.db.get_value("Flight Route", route_name, "is_multi_segment"))
+	if is_multi:
+		rows = _segment_rows("Flight Route", route_name)
+		if rows:
+			return [
+				{
+					"segment_index": cint(row.segment_index),
+					"origin_airport": row.origin_airport,
+					"destination_airport": row.destination_airport,
+					"duration": duration_to_seconds(row.get("duration")),
+				}
+				for row in rows
+			]
+
+	route_columns = set(frappe.db.get_table_columns("Flight Route") or [])
+	route_fields = ["origin_airport", "destination_airport"]
+	if "duration" in route_columns:
+		route_fields.append("duration")
+	route = frappe.db.get_value("Flight Route", route_name, route_fields, as_dict=True)
+	if route and route.origin_airport and route.destination_airport:
 		return [
 			{
 				"segment_index": 0,
 				"origin_airport": route.origin_airport,
 				"destination_airport": route.destination_airport,
+				"duration": duration_to_seconds(route.get("duration")),
 			}
 		]
 	return []
@@ -117,17 +145,31 @@ def validate_route_segments(segments: list) -> None:
 
 
 def sync_schedule_segments_from_route(schedule) -> None:
+	from bilan_sky.bilan_air_booking_system.utils.flight_duration import estimate_schedule_arrival
+
 	segments = get_route_segments(schedule.route)
+	estimates = estimate_schedule_arrival(
+		schedule.route, schedule.departure_date, schedule.departure_time
+	)
+	by_index = {row["segment_index"]: row for row in estimates.get("segments") or []}
+
+	child_columns = set(frappe.db.get_table_columns("Flight Schedule Segment") or [])
+
 	schedule.segments = []
 	for row in segments:
-		schedule.append(
-			"segments",
-			{
-				"segment_index": row["segment_index"],
-				"origin_airport": row["origin_airport"],
-				"destination_airport": row["destination_airport"],
-			},
-		)
+		est = by_index.get(row["segment_index"], {})
+		payload = {
+			"segment_index": row["segment_index"],
+			"origin_airport": row["origin_airport"],
+			"destination_airport": row["destination_airport"],
+		}
+		if "duration" in child_columns:
+			payload["duration"] = est.get("duration") or row.get("duration") or None
+		if "arrival_date" in child_columns:
+			payload["arrival_date"] = est.get("arrival_date")
+		if "arrival_time" in child_columns:
+			payload["arrival_time"] = est.get("arrival_time")
+		schedule.append("segments", payload)
 
 
 def resolve_airport_on_schedule(schedule_name: str, airport) -> str | None:

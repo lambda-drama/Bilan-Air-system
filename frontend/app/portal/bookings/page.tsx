@@ -9,6 +9,7 @@ import {
   fetchBookingDetails,
   type BookingDetails,
 } from "@/services/airBooking";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
 import { openDeskDocument } from "@/services/desk";
 import { toast } from "sonner";
@@ -16,8 +17,10 @@ import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detai
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
 import { ListSearch } from "@/components/portal/list-search";
+import { DisabledActionTooltip } from "@/components/portal/disabled-action-tooltip";
 import { PortalBookingSheetFooter } from "@/components/portal/portal-booking-actions";
 import { useCurrency } from "@/contexts/currency-context";
+import { useBookingAgentCreditEligibility } from "@/hooks/use-booking-agent-credit";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
@@ -80,6 +83,17 @@ export default function PortalBookingsPage() {
   const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCreditId, setConfirmingCreditId] = useState<string | null>(null);
+  const [creditConfirmRef, setCreditConfirmRef] = useState<string | null>(null);
+  const {
+    loading: agentCreditLoading,
+    canConfirmOnCredit: allowConfirmOnCredit,
+    confirmOnCreditDisabledReason,
+  } = useBookingAgentCreditEligibility();
+
+  const creditActionEnabled = !agentCreditLoading && allowConfirmOnCredit;
+  const creditActionDisabledReason = agentCreditLoading
+    ? "Checking your booking agent profile…"
+    : confirmOnCreditDisabledReason;
 
   const reloadDetail = useCallback(async (pnr: string) => {
     const next = await fetchBookingDetails(pnr);
@@ -117,16 +131,10 @@ export default function PortalBookingsPage() {
   };
 
   const handleConfirmOnCredit = async (bookingRef: string) => {
-    if (
-      !window.confirm(
-        "Confirm on agent credit, issue PNR, and deduct the total fare from the agent credit limit?",
-      )
-    ) {
-      return;
-    }
     setConfirmingCreditId(bookingRef);
     try {
       const res = await confirmBookingOnCredit(bookingRef);
+      setCreditConfirmRef(null);
       toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
       refresh();
       if (selectedId === bookingRef) await reloadDetail(bookingRef);
@@ -256,12 +264,22 @@ export default function PortalBookingsPage() {
                             {reservationStatus(b) === "Booked" && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  disabled={confirmingCreditId === b.name}
-                                  onClick={() => handleConfirmOnCredit(b.name)}
+                                <DisabledActionTooltip
+                                  disabled={!creditActionEnabled}
+                                  reason={creditActionDisabledReason}
+                                  side="left"
                                 >
-                                  Confirm on Credit (PNR)
-                                </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    disabled={
+                                      !creditActionEnabled || confirmingCreditId === b.name
+                                    }
+                                    onClick={() => {
+                                      if (creditActionEnabled) setCreditConfirmRef(b.name);
+                                    }}
+                                  >
+                                    Confirm on Credit (PNR)
+                                  </DropdownMenuItem>
+                                </DisabledActionTooltip>
                               </>
                             )}
                             {isUnpaid(b.payment_status) && (
@@ -307,6 +325,8 @@ export default function PortalBookingsPage() {
                 refresh();
                 if (selectedId) await reloadDetail(selectedId);
               }}
+              allowConfirmOnCredit={creditActionEnabled}
+              confirmOnCreditDisabledReason={creditActionDisabledReason}
               onSubmitCancel={handleCancelBooking}
             />
           ) : undefined
@@ -369,6 +389,31 @@ export default function PortalBookingsPage() {
           </DetailSection>
         )}
       </DetailSheet>
+
+      <ConfirmActionDialog
+        open={!!creditConfirmRef}
+        onOpenChange={(open) => !open && setCreditConfirmRef(null)}
+        title="Confirm on agent credit?"
+        description={
+          creditConfirmRef ? (
+            <>
+              <p>
+                Reservation{" "}
+                <span className="font-mono font-medium text-foreground">{creditConfirmRef}</span>{" "}
+                will be confirmed on your agent credit account.
+              </p>
+              <p>
+                A PNR will be issued and the total fare will be deducted from the agent credit limit.
+              </p>
+            </>
+          ) : null
+        }
+        confirmLabel="Confirm on credit"
+        loading={!!creditConfirmRef && confirmingCreditId === creditConfirmRef}
+        onConfirm={() => {
+          if (creditConfirmRef) void handleConfirmOnCredit(creditConfirmRef);
+        }}
+      />
 
       <ConfirmPaymentDialog
         open={!!paymentDialogPnr}

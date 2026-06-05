@@ -65,10 +65,14 @@ def crew_member_is_pilot(crew_member: str | None) -> bool:
 	return crew_role_category(role) == PILOT_CATEGORY
 
 
-def validate_flight_crew_pilots(doc, *, require_captain: bool = True) -> None:
-	"""Ensure captain (and optional FO) are active crew with Pilot-category roles."""
+def validate_flight_crew_pilots(doc, *, require_captain: bool = True, require_first_officer: bool = True) -> None:
+	"""Ensure captain and first officer are active crew with Pilot-category roles."""
 	if require_captain and not doc.captain:
 		frappe.throw(_("Captain is required."))
+
+	first_officer = (getattr(doc, "first_officer", None) or "").strip()
+	if require_first_officer and not first_officer:
+		frappe.throw(_("First Officer is required."))
 
 	if doc.captain and not crew_member_is_pilot(doc.captain):
 		frappe.throw(
@@ -76,13 +80,13 @@ def validate_flight_crew_pilots(doc, *, require_captain: bool = True) -> None:
 			title=_("Invalid captain"),
 		)
 
-	if getattr(doc, "first_officer", None) and doc.first_officer:
-		if not crew_member_is_pilot(doc.first_officer):
+	if first_officer:
+		if not crew_member_is_pilot(first_officer):
 			frappe.throw(
 				_("First Officer must be a crew member with a Pilot role (Crew Role category: Pilot)."),
 				title=_("Invalid first officer"),
 			)
-		if doc.first_officer == doc.captain:
+		if first_officer == doc.captain:
 			frappe.throw(_("Captain and First Officer cannot be the same person."))
 
 

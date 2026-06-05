@@ -209,7 +209,8 @@
    "fieldname": "first_officer",
    "fieldtype": "Link",
    "label": "First Officer",
-   "options": "Crew Member"
+   "options": "Crew Member",
+   "reqd": 1
   },
   {
    "fieldname": "cabin_crew",

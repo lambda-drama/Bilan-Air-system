@@ -22,6 +22,7 @@ import {
 } from "@/services/portalMaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -690,16 +691,14 @@ export default function PortalBookingAgentsPage() {
             {!activationByEmail ? (
               <>
                 <FormField label="Portal password" required>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                   />
                 </FormField>
                 <FormField label="Confirm password" required>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     value={form.password_confirm}
                     onChange={(e) => setForm({ ...form, password_confirm: e.target.value })}

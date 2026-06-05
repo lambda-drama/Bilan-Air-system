@@ -148,6 +148,34 @@ export async function amendFlightSchedule(
   });
 }
 
+export interface ArrivalEstimate {
+  arrival_date?: string;
+  arrival_time?: string;
+  total_duration_seconds?: number | null;
+  segments?: Array<{
+    segment_index: number;
+    origin_airport: string;
+    destination_airport: string;
+    duration?: number | null;
+    arrival_date?: string | null;
+    arrival_time?: string | null;
+  }>;
+}
+
+export async function estimateArrivalFromRoute(
+  route: string,
+  departure_date: string,
+  departure_time: string,
+) {
+  return apiRequest<ArrivalEstimate>(
+    "/api/method/bilan_sky.bilan_air_booking_system.doctype.flight_schedule.flight_schedule.estimate_arrival_from_route",
+    {
+      method: "POST",
+      body: JSON.stringify({ route, departure_date, departure_time }),
+    },
+  );
+}
+
 export async function rescheduleFlight(params: {
   schedule_name: string;
   reschedule_reason: string;

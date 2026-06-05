@@ -18,6 +18,7 @@ export type RouteSegmentRow = {
   segment_index: number;
   origin_airport: string;
   destination_airport: string;
+  duration?: number | null;
   origin_airport_label?: string;
   destination_airport_label?: string;
 };

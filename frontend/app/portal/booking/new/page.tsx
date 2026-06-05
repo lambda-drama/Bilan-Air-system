@@ -15,6 +15,7 @@ import { useCurrency } from "@/contexts/currency-context";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import {
   draftFromFlight,
+  loadOfficeBookingDraft,
   saveOfficeBookingDraft,
 } from "@/lib/office-booking-store";
 import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
@@ -53,6 +54,7 @@ function OfficeBookingSearchContent() {
   const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
   const [initializing, setInitializing] = useState(true);
+  const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
 
   useEffect(() => {
     const schedule = searchParams.get("schedule");
@@ -78,10 +80,56 @@ function OfficeBookingSearchContent() {
             label: formatAirportDisplay({ city, iata: value }),
           })),
         );
-        setOrigin(defaults.origin_iata);
-        setDestination(defaults.destination_iata);
-        setDepartureDate(defaults.suggested_date);
-        if (defaults.route) setSelectedRoute(defaults.route);
+        let nextOrigin = defaults.origin_iata;
+        let nextDestination = defaults.destination_iata;
+        let nextDate = defaults.suggested_date;
+        let nextRoute = defaults.route || "";
+        let nextMode: SearchMode = "route";
+        let nextPassengers = 1;
+        let nextSeatClass = "Economy";
+
+        const draft = loadOfficeBookingDraft();
+        if (draft?.scheduleId) setActiveScheduleId(draft.scheduleId);
+        if (draft) {
+          if (draft.seatClass) nextSeatClass = draft.seatClass;
+          if (draft.passengerCount) nextPassengers = draft.passengerCount;
+          if (draft.departureDate) nextDate = draft.departureDate;
+          if (draft.route) {
+            nextRoute = draft.route;
+            nextMode = "route";
+            const matched = routes.find((r) => r.name === draft.route);
+            if (matched?.origin_code) nextOrigin = matched.origin_code;
+            if (matched?.destination_code) nextDestination = matched.destination_code;
+          } else if (draft.origin && draft.destination) {
+            nextOrigin = draft.origin;
+            nextDestination = draft.destination;
+            nextMode = "airports";
+            nextRoute = "";
+          }
+        }
+
+        setSeatClass(nextSeatClass);
+        setPassengerCount(nextPassengers);
+        setOrigin(nextOrigin);
+        setDestination(nextDestination);
+        setDepartureDate(nextDate);
+        setSelectedRoute(nextRoute);
+        setSearchMode(nextMode);
+
+        if (
+          draft &&
+          nextDate &&
+          (nextRoute || (nextOrigin && nextDestination))
+        ) {
+          void runFlightSearch({
+            mode: nextMode,
+            route: nextRoute,
+            origin: nextOrigin,
+            destination: nextDestination,
+            date: nextDate,
+            passengers: nextPassengers,
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -118,16 +166,23 @@ function OfficeBookingSearchContent() {
     if (r.destination_code) setDestination(r.destination_code);
   };
 
-  const searchFlights = async () => {
-    if (!departureDate) {
+  const runFlightSearch = async (opts: {
+    mode: SearchMode;
+    route: string;
+    origin: string;
+    destination: string;
+    date: string;
+    passengers: number;
+  }) => {
+    if (!opts.date) {
       showValidation(["Departure date"]);
       return;
     }
-    if (searchMode === "route" && !selectedRoute) {
+    if (opts.mode === "route" && !opts.route) {
       showValidation(["Route"]);
       return;
     }
-    if (searchMode === "airports" && (!origin || !destination)) {
+    if (opts.mode === "airports" && (!opts.origin || !opts.destination)) {
       showValidation(["From", "To"]);
       return;
     }
@@ -136,17 +191,17 @@ function OfficeBookingSearchContent() {
     setSearchError("");
     try {
       const res =
-        searchMode === "route"
+        opts.mode === "route"
           ? await findFlights({
-              route: selectedRoute,
-              date: departureDate,
-              passengers: passengerCount,
+              route: opts.route,
+              date: opts.date,
+              passengers: opts.passengers,
             })
           : await findFlights({
-              origin,
-              destination,
-              date: departureDate,
-              passengers: passengerCount,
+              origin: opts.origin,
+              destination: opts.destination,
+              date: opts.date,
+              passengers: opts.passengers,
             });
       if (res.error) {
         setSearchError(res.error);
@@ -163,9 +218,26 @@ function OfficeBookingSearchContent() {
     }
   };
 
+  const searchFlights = () =>
+    runFlightSearch({
+      mode: searchMode,
+      route: selectedRoute,
+      origin,
+      destination,
+      date: departureDate,
+      passengers: passengerCount,
+    });
+
   const selectFlight = (flight: FlightSearchResult) => {
-    saveOfficeBookingDraft(
-      draftFromFlight(flight, {
+    const existing = loadOfficeBookingDraft();
+    const keepSeats =
+      existing?.scheduleId === flight.schedule_id &&
+      existing.seatClass === seatClass
+        ? existing.selectedSeatIds
+        : [];
+
+    saveOfficeBookingDraft({
+      ...draftFromFlight(flight, {
         seatClass,
         passengerCount,
         origin,
@@ -173,8 +245,13 @@ function OfficeBookingSearchContent() {
         departureDate,
         route: searchMode === "route" ? selectedRoute : flight.route,
       }),
-    );
-    router.push("/portal/booking/new/seats");
+      selectedSeatIds: keepSeats,
+      payer: existing?.payer,
+      passengers: existing?.passengers,
+      markPaid: existing?.markPaid,
+    });
+    setActiveScheduleId(flight.schedule_id);
+    router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(flight.schedule_id)}`);
   };
 
   if (initializing) {
@@ -301,7 +378,9 @@ function OfficeBookingSearchContent() {
                 key={f.schedule_id}
                 type="button"
                 onClick={() => selectFlight(f)}
-                className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:border-gold hover:bg-muted/50"
+                className={`flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:border-gold hover:bg-muted/50 ${
+                  activeScheduleId === f.schedule_id ? "border-gold bg-gold/10" : ""
+                }`}
               >
                 <div>
                   <p className="font-medium">{f.flight_number}</p>

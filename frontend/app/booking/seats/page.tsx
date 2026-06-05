@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
@@ -9,7 +9,13 @@ import { ArrowRight } from 'lucide-react';
 import { fetchSeatMap, type SeatMapEntry } from '@/services/flightSchedule';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
 import { parseFlightsSearchParams } from '@/lib/flights-search-url';
-import { getLegSelection, loadTripContext, upsertLegSelection } from '@/lib/trip-store';
+import {
+  getLegSelection,
+  initTripContext,
+  loadTripContext,
+  upsertLegSelection,
+} from '@/lib/trip-store';
+import { buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import { tripLegLabel } from '@/lib/trip-types';
 
 interface SeatRow {
@@ -27,7 +33,35 @@ function SeatSelectionContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const { tripType, passengers, leg, searchLegs } = parseFlightsSearchParams(searchParams);
+  const tripParam = searchParams.get('trip') || 'oneway';
+  const passengersParam = searchParams.get('passengers') || '1';
+  const legParam = searchParams.get('leg') || '0';
+  const originParam = searchParams.get('origin') || '';
+  const destinationParam = searchParams.get('destination') || '';
+  const dateParam = searchParams.get('date') || '';
+  const returnDateParam = searchParams.get('returnDate') || '';
+  const legsParam = searchParams.get('legs') || '';
+
+  const { tripType, passengers, leg, origin, destination, date, returnDate, searchLegs } = useMemo(
+    () => parseFlightsSearchParams(searchParams),
+    [
+      tripParam,
+      passengersParam,
+      legParam,
+      originParam,
+      destinationParam,
+      dateParam,
+      returnDateParam,
+      legsParam,
+    ],
+  );
+
+  const searchLegsKey = useMemo(() => JSON.stringify(searchLegs), [searchLegs]);
+
+  useLayoutEffect(() => {
+    initTripContext(tripType, passengers, searchLegs);
+  }, [tripType, passengers, searchLegsKey, searchLegs]);
+
   const tripCtx = loadTripContext();
   const legSelection = getLegSelection(leg);
   const isMultiLeg = tripType !== 'oneway' && searchLegs.length > 1;
@@ -67,13 +101,11 @@ function SeatSelectionContent() {
       .finally(() => setLoading(false));
   }, [flightId]);
 
-  const visibleSeats = seats.filter(
-    (s) => s.seat_class === seatClass || seatClass === 'Economy',
-  );
+  const visibleSeats = seats.filter((s) => s.seat_class === seatClass);
 
   const toggleSeat = (seatId: string) => {
     const seat = seats.find((s) => s.name === seatId);
-    if (!seat || seat.status !== 'Available') return;
+    if (!seat || seat.status !== 'Available' || seat.seat_class !== seatClass) return;
 
     if (selectedSeats.includes(seatId)) {
       setSelectedSeats(selectedSeats.filter((s) => s !== seatId));
@@ -135,10 +167,22 @@ function SeatSelectionContent() {
   });
 
   if (isMultiLeg && !legSelection) {
+    const backToFlights =
+      tripType === 'return' && searchLegs[0]
+        ? buildFlightsSearchUrl({
+            tripType: 'return',
+            origin: searchLegs[0].origin,
+            destination: searchLegs[0].destination,
+            departureDate: searchLegs[0].date,
+            returnDate: returnDate || searchLegs[1]?.date,
+            passengers,
+          })
+        : '/#book';
+
     return (
       <main className="min-h-screen bg-cream pt-32 text-center px-4">
         <p className="text-navy/70 mb-4">Please select your flights before choosing seats.</p>
-        <Button onClick={() => router.push('/#book')}>Back to search</Button>
+        <Button onClick={() => router.push(backToFlights)}>Back to flight selection</Button>
       </main>
     );
   }

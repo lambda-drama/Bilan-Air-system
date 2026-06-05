@@ -85,9 +85,10 @@ export default function RecurringFlightPlansPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [routes, setRoutes] = useState<Array<{ name: string; label: string }>>([]);
-  const [airplanes, setAirplanes] = useState<Array<{ name: string; label: string }>>([]);
-  const [crew, setCrew] = useState<Array<{ name: string; full_name: string }>>([]);
+  const [routes, setRoutes] = useState<Array<{ value: string; label: string }>>([]);
+  const [airplanes, setAirplanes] = useState<Array<{ value: string; label: string }>>([]);
+  const [captains, setCaptains] = useState<Array<{ name: string; full_name: string }>>([]);
+  const [firstOfficers, setFirstOfficers] = useState<Array<{ name: string; full_name: string }>>([]);
   const formAlerts = useFormDialogAlerts();
 
   useEffect(() => {
@@ -95,15 +96,17 @@ export default function RecurringFlightPlansPage() {
       fetchAllRoutes(),
       fetchAllAirplanes(),
       listCrewMembers({ capacity: "captain" }),
-    ]).then(([r, a, captains]) => {
-      setRoutes(r.map((x) => ({ name: x.name, label: x.route_name || x.name })));
-      setAirplanes(a.map((x) => ({ name: x.name, label: x.name })));
-      setCrew(
-        captains.map((m) => ({
+      listCrewMembers({ capacity: "first_officer" }),
+    ]).then(([r, a, captainList, foList]) => {
+      setRoutes(r.map((x) => ({ value: x.name, label: x.route_name || x.name })));
+      setAirplanes(a.map((x) => ({ value: x.name, label: x.name })));
+      const mapCrew = (list: typeof captainList) =>
+        list.map((m) => ({
           name: String(m.name),
           full_name: String(m.full_name || m.name),
-        })),
-      );
+        }));
+      setCaptains(mapCrew(captainList));
+      setFirstOfficers(mapCrew(foList));
     });
   }, []);
 
@@ -119,7 +122,7 @@ export default function RecurringFlightPlansPage() {
     arrival_day_offset: parseInt(form.arrival_day_offset, 10) || 0,
     status: form.status,
     captain: form.captain,
-    first_officer: form.first_officer || undefined,
+    first_officer: form.first_officer,
     monthly_day: form.frequency === "Monthly" ? parseInt(form.monthly_day, 10) || 1 : undefined,
     sunday: form.sunday ? 1 : 0,
     monday: form.monday ? 1 : 0,
@@ -147,6 +150,7 @@ export default function RecurringFlightPlansPage() {
       { key: "start_date", label: "Start date" },
       { key: "end_date", label: "End date" },
       { key: "captain", label: "Captain" },
+      { key: "first_officer", label: "First officer" },
     ]);
     if (form.frequency === "Weekly" && !WEEKDAYS.some((d) => form[d.key])) {
       missing.push("At least one weekday");
@@ -358,12 +362,30 @@ export default function RecurringFlightPlansPage() {
               onChange={(e) => setForm({ ...form, arrival_time: e.target.value })}
             />
           </FormField>
-          <FormField label="Captain" required fullWidth>
+          <FormField label="Captain" required>
             <SearchableSelect
               value={form.captain}
-              onValueChange={(v) => setForm({ ...form, captain: v })}
-              options={crew.map((c) => ({ name: c.name, label: c.full_name }))}
+              onValueChange={(v) =>
+                setForm({
+                  ...form,
+                  captain: v,
+                  first_officer: v && form.first_officer === v ? "" : form.first_officer,
+                })
+              }
+              options={captains.map((c) => ({ value: c.name, label: c.full_name }))}
               placeholder="Select captain"
+              clearable={false}
+            />
+          </FormField>
+          <FormField label="First officer" required>
+            <SearchableSelect
+              value={form.first_officer}
+              onValueChange={(v) => setForm({ ...form, first_officer: v })}
+              options={firstOfficers
+                .filter((c) => c.name !== form.captain)
+                .map((c) => ({ value: c.name, label: c.full_name }))}
+              placeholder="Select first officer"
+              clearable={false}
             />
           </FormField>
         </FormGrid>

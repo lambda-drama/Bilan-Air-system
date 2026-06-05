@@ -89,12 +89,14 @@
    "reqd": 1
   },
   {
+   "description": "Estimated from route duration; you can change this.",
    "fieldname": "arrival_date",
    "fieldtype": "Date",
    "label": "Arrival Date",
    "reqd": 1
   },
   {
+   "description": "Estimated from route duration; you can change this.",
    "fieldname": "arrival_time",
    "fieldtype": "Time",
    "label": "Arrival Time",
@@ -129,7 +131,8 @@
    "fieldname": "first_officer",
    "fieldtype": "Link",
    "label": "First Officer",
-   "options": "Crew Member"
+   "options": "Crew Member",
+   "reqd": 1
   },
   {
    "fieldname": "cabin_crew",

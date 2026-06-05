@@ -20,6 +20,8 @@ export interface CreateBookingData {
   passengers: BookingPassengerInput[];
   /** office = desk (no user accounts for travelers); online = public site */
   booking_source?: "office" | "online";
+  /** Cabin chosen in search (Economy, Business, First Class) — validates seat selection */
+  seat_class?: string;
 }
 
 export interface CreateBookingResult {

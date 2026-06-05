@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Percent, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { fetchAllRoutes } from "@/services/flightRoute";
 import {
@@ -78,6 +79,7 @@ export default function PortalFareRulesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
 
   useEffect(() => {
@@ -201,10 +203,10 @@ export default function PortalFareRulesPage() {
   };
 
   const handleDelete = async (name: string) => {
-    if (!window.confirm("Delete this fare rule? This cannot be undone.")) return;
     setDeleteLoading(true);
     try {
       await deleteFareRule(name);
+      setDeleteConfirmName(null);
       if (selectedId === name) setSelectedId(null);
       refresh();
       toast.success("Fare rule deleted");
@@ -325,7 +327,7 @@ export default function PortalFareRulesPage() {
                             <DropdownMenuItem
                               className="text-destructive"
                               disabled={deleteLoading}
-                              onClick={() => handleDelete(rule.name)}
+                              onClick={() => setDeleteConfirmName(rule.name)}
                             >
                               Delete
                             </DropdownMenuItem>
@@ -445,7 +447,7 @@ export default function PortalFareRulesPage() {
                 variant="destructive"
                 size="icon"
                 disabled={deleteLoading}
-                onClick={() => handleDelete(selectedRow.name)}
+                onClick={() => setDeleteConfirmName(selectedRow.name)}
                 aria-label="Delete fare rule"
               >
                 <Trash2 className="h-4 w-4" />
@@ -479,6 +481,29 @@ export default function PortalFareRulesPage() {
           </DetailSection>
         )}
       </DetailSheet>
+
+      <ConfirmActionDialog
+        open={!!deleteConfirmName}
+        onOpenChange={(open) => !open && setDeleteConfirmName(null)}
+        title="Delete fare rule?"
+        description={
+          deleteConfirmName ? (
+            <>
+              <p>
+                Fare rule <span className="font-medium text-foreground">{deleteConfirmName}</span>{" "}
+                will be permanently removed.
+              </p>
+              <p>This cannot be undone.</p>
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        tone="destructive"
+        loading={deleteLoading}
+        onConfirm={() => {
+          if (deleteConfirmName) void handleDelete(deleteConfirmName);
+        }}
+      />
     </div>
   );
 }

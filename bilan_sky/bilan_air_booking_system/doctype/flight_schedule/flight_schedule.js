@@ -19,10 +19,14 @@ frappe.ui.form.on('Flight Schedule', {
                 open_reschedule_dialog(frm);
             }, __('Actions'));
         }
+        if (frm.is_new() && frm._arrival_manually_set === undefined) {
+            frm._arrival_manually_set = false;
+        }
     },
 
     route: function(frm) {
         preview_flight_number(frm);
+        estimate_arrival_from_route(frm);
     },
 
     airplane: function(frm) {
@@ -32,11 +36,21 @@ frappe.ui.form.on('Flight Schedule', {
     departure_date: function(frm) {
         preview_flight_number(frm);
         check_booking_cutoff(frm);
+        estimate_arrival_from_route(frm);
     },
-    
+
     departure_time: function(frm) {
         check_booking_cutoff(frm);
-    }
+        estimate_arrival_from_route(frm);
+    },
+
+    arrival_date: function(frm) {
+        frm._arrival_manually_set = true;
+    },
+
+    arrival_time: function(frm) {
+        frm._arrival_manually_set = true;
+    },
 });
 
 function setup_crew_queries(frm) {
@@ -121,6 +135,64 @@ function open_reschedule_dialog(frm) {
         }
     });
     dialog.show();
+}
+
+function estimate_arrival_from_route(frm) {
+    if (frm._arrival_manually_set) {
+        return;
+    }
+    if (!frm.doc.route || !frm.doc.departure_date || !frm.doc.departure_time) {
+        return;
+    }
+
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.doctype.flight_schedule.flight_schedule.estimate_arrival_from_route',
+        args: {
+            route: frm.doc.route,
+            departure_date: frm.doc.departure_date,
+            departure_time: frm.doc.departure_time,
+        },
+        callback: function(r) {
+            const estimate = r.message;
+            if (!estimate) {
+                return;
+            }
+            if (estimate.arrival_date) {
+                frm.set_value('arrival_date', estimate.arrival_date);
+            }
+            if (estimate.arrival_time) {
+                frm.set_value('arrival_time', estimate.arrival_time);
+            }
+            if (estimate.segments && frm.doc.segments) {
+                estimate.segments.forEach(function(seg) {
+                    const row = (frm.doc.segments || []).find(
+                        (s) => parseInt(s.segment_index, 10) === parseInt(seg.segment_index, 10)
+                    );
+                    if (!row) {
+                        return;
+                    }
+                    frappe.model.set_value(
+                        row.doctype,
+                        row.name,
+                        'duration',
+                        seg.duration || null
+                    );
+                    frappe.model.set_value(
+                        row.doctype,
+                        row.name,
+                        'arrival_date',
+                        seg.arrival_date || null
+                    );
+                    frappe.model.set_value(
+                        row.doctype,
+                        row.name,
+                        'arrival_time',
+                        seg.arrival_time || null
+                    );
+                });
+            }
+        },
+    });
 }
 
 function preview_flight_number(frm) {

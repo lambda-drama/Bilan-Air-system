@@ -6,6 +6,7 @@ import { PortalAddButton } from "@/components/portal/portal-add-button";
 import {
   amendFlightSchedule,
   cancelFlightSchedule,
+  estimateArrivalFromRoute,
   fetchFlightDetails,
   getFlightSchedule,
   listSchedules,
@@ -115,6 +116,11 @@ function canEditPrices(status: string) {
   return ["Scheduled", "Delayed"].includes(status);
 }
 
+function formatEstimateTime(time?: string) {
+  if (!time) return "";
+  return time.length >= 5 ? time.slice(0, 5) : time;
+}
+
 export default function PortalFlightsPage() {
   const router = useRouter();
   const { formatMoney } = useCurrency();
@@ -140,6 +146,8 @@ export default function PortalFlightsPage() {
   } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: statusFilter });
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyScheduleForm);
+  const [arrivalTouched, setArrivalTouched] = useState(false);
+  const [amendArrivalTouched, setAmendArrivalTouched] = useState(true);
   const formAlerts = useFormDialogAlerts();
 
   const handleAddDialogOpenChange = (next: boolean) => {
@@ -148,6 +156,7 @@ export default function PortalFlightsPage() {
       formAlerts.clearAlerts();
       setForm(emptyScheduleForm);
       setFareOverrideForm(emptyPassengerFaresForm());
+      setArrivalTouched(false);
     }
   };
   const [routes, setRoutes] = useState<
@@ -262,6 +271,7 @@ export default function PortalFlightsPage() {
       setAmendForm(emptyScheduleForm);
       setFareOverrideForm(emptyPassengerFaresForm());
       setEditRouteBaseFares(null);
+      setAmendArrivalTouched(true);
       amendAlerts.clearAlerts();
     }
   };
@@ -349,6 +359,7 @@ export default function PortalFlightsPage() {
       });
       setFareOverrideForm(overrideFormFromSchedule(doc));
       setEditRouteBaseFares(doc.route_base_fares ?? null);
+      setAmendArrivalTouched(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load schedule");
       setAmendTarget(null);
@@ -356,6 +367,55 @@ export default function PortalFlightsPage() {
       setAmendLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!addOpen || arrivalTouched) return;
+    if (!form.route || !form.departure_date || !form.departure_time) return;
+
+    let cancelled = false;
+    estimateArrivalFromRoute(form.route, form.departure_date, form.departure_time)
+      .then((est) => {
+        if (cancelled || (!est.arrival_date && !est.arrival_time)) return;
+        setForm((prev) => ({
+          ...prev,
+          ...(est.arrival_date ? { arrival_date: est.arrival_date } : {}),
+          ...(est.arrival_time ? { arrival_time: formatEstimateTime(est.arrival_time) } : {}),
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addOpen, arrivalTouched, form.route, form.departure_date, form.departure_time]);
+
+  useEffect(() => {
+    if (!amendTarget || amendArrivalTouched || amendLoading) return;
+    if (!amendForm.route || !amendForm.departure_date || !amendForm.departure_time) return;
+
+    let cancelled = false;
+    estimateArrivalFromRoute(amendForm.route, amendForm.departure_date, amendForm.departure_time)
+      .then((est) => {
+        if (cancelled || (!est.arrival_date && !est.arrival_time)) return;
+        setAmendForm((prev) => ({
+          ...prev,
+          ...(est.arrival_date ? { arrival_date: est.arrival_date } : {}),
+          ...(est.arrival_time ? { arrival_time: formatEstimateTime(est.arrival_time) } : {}),
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    amendTarget,
+    amendArrivalTouched,
+    amendLoading,
+    amendForm.route,
+    amendForm.departure_date,
+    amendForm.departure_time,
+  ]);
 
   const submitAmend = async () => {
     if (!amendTarget) return;
@@ -367,6 +427,7 @@ export default function PortalFlightsPage() {
       { key: "arrival_date", label: "Arrival date" },
       { key: "arrival_time", label: "Arrival time" },
       { key: "captain", label: "Captain" },
+      { key: "first_officer", label: "First officer" },
     ]);
     if (missing.length) {
       amendAlerts.showValidation(missing);
@@ -382,8 +443,8 @@ export default function PortalFlightsPage() {
         arrival_date: amendForm.arrival_date,
         arrival_time: amendForm.arrival_time,
         captain: amendForm.captain,
+        first_officer: amendForm.first_officer,
       };
-      if (amendForm.first_officer) payload.first_officer = amendForm.first_officer;
       const fareOverride = buildOverridePayload(fareOverrideForm);
       if (fareOverride) Object.assign(payload, fareOverride);
       const created = await amendFlightSchedule(amendTarget.name, payload, { submit: true });
@@ -535,16 +596,26 @@ export default function PortalFlightsPage() {
     [captains],
   );
 
-  const firstOfficerOptions = useMemo(
-    () =>
+  const firstOfficerOptionsFor = useCallback(
+    (captainId: string) =>
       firstOfficers
-        .filter((c) => c.name !== form.captain)
+        .filter((c) => c.name !== captainId)
         .map((c) => ({
           value: c.name,
           label: c.full_name,
           description: c.crew_role,
         })),
-    [firstOfficers, form.captain],
+    [firstOfficers],
+  );
+
+  const createFirstOfficerOptions = useMemo(
+    () => firstOfficerOptionsFor(form.captain),
+    [firstOfficerOptionsFor, form.captain],
+  );
+
+  const amendFirstOfficerOptions = useMemo(
+    () => firstOfficerOptionsFor(amendForm.captain),
+    [firstOfficerOptionsFor, amendForm.captain],
   );
 
   const handleCreate = async () => {
@@ -557,6 +628,7 @@ export default function PortalFlightsPage() {
       { key: "arrival_time", label: "Arrival time" },
       { key: "status", label: "Status" },
       { key: "captain", label: "Captain" },
+      { key: "first_officer", label: "First officer" },
     ]);
     if (missing.length) {
       formAlerts.showValidation(missing);
@@ -574,8 +646,8 @@ export default function PortalFlightsPage() {
         arrival_time: form.arrival_time,
         status: form.status,
         captain: form.captain,
+        first_officer: form.first_officer,
       };
-      if (form.first_officer) payload.first_officer = form.first_officer;
       if (form.initial_seats_released.trim()) {
         payload.initial_seats_released = parseInt(form.initial_seats_released, 10) || 0;
       }
@@ -829,18 +901,24 @@ export default function PortalFlightsPage() {
                 onChange={(e) => setForm({ ...form, departure_time: e.target.value })}
               />
             </FormField>
-            <FormField label="Arrival date" required>
+            <FormField label="Arrival date" required hint="Estimated from route; you can override">
               <Input
                 type="date"
                 value={form.arrival_date}
-                onChange={(e) => setForm({ ...form, arrival_date: e.target.value })}
+                onChange={(e) => {
+                  setArrivalTouched(true);
+                  setForm({ ...form, arrival_date: e.target.value });
+                }}
               />
             </FormField>
-            <FormField label="Arrival time" required>
+            <FormField label="Arrival time" required hint="Estimated from route; you can override">
               <Input
                 type="time"
                 value={form.arrival_time}
-                onChange={(e) => setForm({ ...form, arrival_time: e.target.value })}
+                onChange={(e) => {
+                  setArrivalTouched(true);
+                  setForm({ ...form, arrival_time: e.target.value });
+                }}
               />
             </FormField>
           </FormGrid>
@@ -865,16 +943,17 @@ export default function PortalFlightsPage() {
                 clearable={false}
               />
             </FormField>
-            <FormField label="First officer">
+            <FormField label="First officer" required>
               <SearchableSelect
-                options={firstOfficerOptions}
+                options={createFirstOfficerOptions}
                 value={form.first_officer}
                 onValueChange={(v) => setForm({ ...form, first_officer: v })}
                 disabled={!form.departure_date}
                 placeholder={
-                  form.departure_date ? "Search first officer (optional)..." : "Set departure date first"
+                  form.departure_date ? "Search first officer..." : "Set departure date first"
                 }
                 emptyMessage="No first officer found"
+                clearable={false}
               />
             </FormField>
           </FormGrid>
@@ -1067,7 +1146,10 @@ export default function PortalFlightsPage() {
                   <SearchableSelect
                     options={routeOptions}
                     value={amendForm.route}
-                    onValueChange={(v) => setAmendForm({ ...amendForm, route: v })}
+                    onValueChange={(v) => {
+                      setAmendArrivalTouched(false);
+                      setAmendForm({ ...amendForm, route: v });
+                    }}
                     placeholder="Search route..."
                     emptyMessage="No route found"
                     clearable={false}
@@ -1088,41 +1170,45 @@ export default function PortalFlightsPage() {
                   <Input
                     type="date"
                     value={amendForm.departure_date}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      setAmendArrivalTouched(false);
                       setAmendForm({
                         ...amendForm,
                         departure_date: e.target.value,
                         captain: "",
                         first_officer: "",
-                      })
-                    }
+                      });
+                    }}
                   />
                 </FormField>
                 <FormField label="Departure time" required>
                   <Input
                     type="time"
                     value={amendForm.departure_time}
-                    onChange={(e) =>
-                      setAmendForm({ ...amendForm, departure_time: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setAmendArrivalTouched(false);
+                      setAmendForm({ ...amendForm, departure_time: e.target.value });
+                    }}
                   />
                 </FormField>
-                <FormField label="Arrival date" required>
+                <FormField label="Arrival date" required hint="Estimated from route; you can override">
                   <Input
                     type="date"
                     value={amendForm.arrival_date}
-                    onChange={(e) =>
-                      setAmendForm({ ...amendForm, arrival_date: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setAmendArrivalTouched(true);
+                      setAmendForm({ ...amendForm, arrival_date: e.target.value });
+                    }}
                   />
                 </FormField>
-                <FormField label="Arrival time" required>
+                <FormField label="Arrival time" required hint="Estimated from route; you can override">
                   <Input
                     type="time"
                     value={amendForm.arrival_time}
-                    onChange={(e) =>
-                      setAmendForm({ ...amendForm, arrival_time: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setAmendArrivalTouched(true);
+                      setAmendForm({ ...amendForm, arrival_time: e.target.value });
+                    }}
                   />
                 </FormField>
               </FormGrid>
@@ -1149,18 +1235,19 @@ export default function PortalFlightsPage() {
                     clearable={false}
                   />
                 </FormField>
-                <FormField label="First officer">
+                <FormField label="First officer" required>
                   <SearchableSelect
-                    options={firstOfficerOptions}
+                    options={amendFirstOfficerOptions}
                     value={amendForm.first_officer}
                     onValueChange={(v) => setAmendForm({ ...amendForm, first_officer: v })}
                     disabled={!amendForm.departure_date}
                     placeholder={
                       amendForm.departure_date
-                        ? "Search first officer (optional)..."
+                        ? "Search first officer..."
                         : "Set departure date first"
                     }
                     emptyMessage="No first officer found"
+                    clearable={false}
                   />
                 </FormField>
               </FormGrid>

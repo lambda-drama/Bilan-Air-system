@@ -15,10 +15,22 @@ from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 class FlightRoute(Document):
 	def validate(self):
 		self._validate_segments()
+		self._sync_duration_from_segments()
 		self._set_route_name()
 		if not self.flight_series_base:
 			self.flight_series_base = get_next_flight_series_base()
 		self._sync_base_fares()
+
+	def _sync_duration_from_segments(self):
+		from bilan_sky.bilan_air_booking_system.utils.flight_duration import duration_to_seconds
+
+		if not self.is_multi_segment or not self.route_segments:
+			return
+		total = sum(
+			duration_to_seconds(getattr(row, "duration", None)) for row in self.route_segments
+		)
+		if total:
+			self.duration = total
 
 	def _validate_segments(self):
 		from bilan_sky.bilan_air_booking_system.utils.flight_segments import (

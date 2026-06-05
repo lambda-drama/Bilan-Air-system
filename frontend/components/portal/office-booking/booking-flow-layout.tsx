@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { loadOfficeBookingDraft } from "@/lib/office-booking-store";
 import { Button } from "@/components/ui/button";
 
 const STEPS = [
@@ -19,6 +20,21 @@ function stepIndex(pathname: string | null): number {
   if (pathname.includes("/travelers")) return 2;
   if (pathname.includes("/seats")) return 1;
   return 0;
+}
+
+function hrefForStep(step: (typeof STEPS)[number], index: number, current: number): string | null {
+  if (index >= current) return null;
+  if (step.id === "seats") {
+    const draft = loadOfficeBookingDraft();
+    if (draft?.scheduleId) {
+      return `${step.path}?schedule=${encodeURIComponent(draft.scheduleId)}`;
+    }
+  }
+  if (step.id === "travelers") {
+    const draft = loadOfficeBookingDraft();
+    if (!draft?.scheduleId || !draft.selectedSeatIds?.length) return null;
+  }
+  return step.path;
 }
 
 export function BookingFlowLayout({
@@ -53,16 +69,9 @@ export function BookingFlowLayout({
           {STEPS.map((step, index) => {
             const done = index < current;
             const active = index === current;
-            return (
-              <li
-                key={step.id}
-                className={cn(
-                  "flex items-center gap-3 text-sm",
-                  active && "font-medium text-foreground",
-                  done && "text-muted-foreground",
-                  !active && !done && "text-muted-foreground/60",
-                )}
-              >
+            const backHref = hrefForStep(step, index, current);
+            const stepContent = (
+              <>
                 <span
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
@@ -74,6 +83,28 @@ export function BookingFlowLayout({
                   {done ? <Check className="h-4 w-4" /> : index + 1}
                 </span>
                 <span>{step.label}</span>
+              </>
+            );
+            return (
+              <li
+                key={step.id}
+                className={cn(
+                  "flex items-center gap-3 text-sm",
+                  active && "font-medium text-foreground",
+                  done && "text-muted-foreground",
+                  !active && !done && "text-muted-foreground/60",
+                )}
+              >
+                {backHref ? (
+                  <Link
+                    href={backHref}
+                    className="flex items-center gap-3 rounded-md transition-colors hover:text-foreground"
+                  >
+                    {stepContent}
+                  </Link>
+                ) : (
+                  stepContent
+                )}
                 {index < STEPS.length - 1 && (
                   <span className="hidden flex-1 border-t border-dashed sm:mx-2 sm:block" />
                 )}

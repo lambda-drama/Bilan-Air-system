@@ -1,4 +1,5 @@
 import { apiRequest, methodUrl, uploadFile } from "./apiClient";
+import type { BookingAgentProfile } from "@/lib/booking-agent-credit";
 import type { FrappeUser } from "./auth";
 import { getLoggedUser } from "./auth";
 
@@ -7,6 +8,7 @@ export type PortalUserProfile = FrappeUser & {
   last_name: string;
   phone: string;
   mobile_no: string;
+  booking_agent_profile?: BookingAgentProfile | null;
 };
 
 export async function fetchPortalUserProfile(): Promise<PortalUserProfile> {

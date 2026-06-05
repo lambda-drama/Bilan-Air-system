@@ -41,6 +41,7 @@ export function Navbar() {
   const navLinks = isAuthenticated
     ? [
         { href: '/#book', label: t.nav.book },
+        { href: '/schedules', label: t.nav.schedules },
         { href: '/flight-status', label: t.nav.flightStatus },
         { href: '/check-in', label: t.nav.checkIn },
         { href: '/#services', label: t.nav.services },
@@ -50,6 +51,7 @@ export function Navbar() {
     : [
         { href: '/#book', label: t.nav.book },
         { href: '/about', label: t.nav.about },
+        { href: '/schedules', label: t.nav.schedules },
         { href: '/flight-status', label: t.nav.flightStatus },
         { href: '/#services', label: t.nav.services },
         { href: '/manage-booking', label: t.nav.manageBooking },

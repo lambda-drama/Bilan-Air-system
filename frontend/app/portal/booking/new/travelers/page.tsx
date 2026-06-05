@@ -146,6 +146,7 @@ export default function OfficeBookingTravelersPage() {
       const result = await createBooking({
         booking_source: "office",
         flight_schedule: draft.scheduleId,
+        seat_class: draft.seatClass,
         payer_name: payer.name.trim(),
         payer_email: payer.email.trim(),
         payer_phone: payer.phone.trim(),

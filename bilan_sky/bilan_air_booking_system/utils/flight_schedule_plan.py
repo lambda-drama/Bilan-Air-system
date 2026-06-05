@@ -103,7 +103,7 @@ def _schedule_payload_from_plan(plan, departure_date: date) -> dict:
 		"initial_seats_released": cint(getattr(plan, "initial_seats_released", 0) or 0),
 		"schedule_plan": plan.name,
 		"captain": plan.captain,
-		"first_officer": plan.first_officer or None,
+		"first_officer": plan.first_officer,
 		"cabin_crew": [],
 	}
 	for row in plan.cabin_crew or []:
