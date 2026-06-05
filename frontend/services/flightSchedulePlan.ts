@@ -16,6 +16,13 @@ export type FlightSchedulePlanRow = {
   generated_count?: number;
 };
 
+export async function getFlightSchedulePlanDefaults() {
+  return apiRequest<{ suggested_plan_title: string }>(
+    planApi("get_flight_schedule_plan_defaults"),
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
 export async function listFlightSchedulePlans(opts?: {
   limit?: number;
   search?: string;

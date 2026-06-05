@@ -9,6 +9,7 @@ from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule
 from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 	count_plan_occurrences,
 	generate_flight_schedules_from_plan,
+	next_plan_title,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
@@ -19,6 +20,13 @@ def _parse_data(data):
 
 		return json.loads(data)
 	return data or {}
+
+
+@frappe.whitelist()
+def get_flight_schedule_plan_defaults():
+	"""Defaults for the portal new-plan dialog."""
+	require_portal_staff()
+	return {"suggested_plan_title": next_plan_title()}
 
 
 @frappe.whitelist()
@@ -76,6 +84,9 @@ def save_flight_schedule_plan(data):
 
 	normalize_schedule_override_payload(data)
 	payload = {k: v for k, v in data.items() if k not in ("name", "base_fares_override", "base_fare_override")}
+
+	if not (payload.get("plan_title") or "").strip():
+		payload["plan_title"] = next_plan_title()
 
 	if name:
 		doc = frappe.get_doc("Flight Schedule Plan", name)
