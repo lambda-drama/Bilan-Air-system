@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { PrintFormatDropdown } from "@/components/portal/print-format-dropdown";
+import { BaggagePrintButton } from "@/components/portal/baggage-print-button";
 
 interface Traveler {
   name: string;
@@ -132,9 +132,9 @@ export function BookingBaggagePanel({
                 </TableCell>
                 <TableCell>{b.status}</TableCell>
                 <TableCell className="text-right">
-                  <PrintFormatDropdown
-                    doctype="Baggage Tracking"
-                    docName={b.name || b.tracking_number}
+                  <BaggagePrintButton
+                    trackingNumber={b.tracking_number}
+                    passengerName={b.passenger_name}
                   />
                 </TableCell>
               </TableRow>

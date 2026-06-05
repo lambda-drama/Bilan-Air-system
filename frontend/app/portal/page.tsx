@@ -20,13 +20,8 @@ import { getDashboardStats } from "@/services/portal"
 import { listBookings } from "@/services/portal"
 import type { AirBookingRow } from "@/services/portal"
 import { useCurrency } from "@/contexts/currency-context"
-import { useAuth } from "@/contexts/auth-context"
-import { getDisplayFirstName } from "@/lib/user-display"
-
 export default function PortalDashboard() {
-  const { user } = useAuth()
   const { formatMoney } = useCurrency()
-  const firstName = getDisplayFirstName(user)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [stats, setStats] = useState({
     total_bookings: 0,
@@ -58,10 +53,7 @@ export default function PortalDashboard() {
       {/* Welcome Section */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Welcome back, {firstName}
-          </h1>
-          <p className="text-muted-foreground">
+          <p className="text-lg text-muted-foreground">
             Here&apos;s what&apos;s happening with your airline today.
           </p>
         </div>

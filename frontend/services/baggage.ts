@@ -1,4 +1,5 @@
 import { apiRequest, methodUrl } from "./apiClient";
+import type { BaggagePrintData } from "@/lib/baggage-print";
 
 export interface BaggagePolicy {
   max_baggage_kg: number;
@@ -49,6 +50,16 @@ export async function addBaggage(
   return apiRequest(methodUrl("baggage_tracking", "add_baggage"), {
     method: "POST",
     body: JSON.stringify({ pnr, weight_kg, passenger_index }),
+  });
+}
+
+export async function getBaggagePrintData(tracking_number: string): Promise<{
+  tracking_number: string;
+  baggage: BaggagePrintData;
+}> {
+  return apiRequest(methodUrl("baggage_tracking", "get_baggage_print_data"), {
+    method: "POST",
+    body: JSON.stringify({ tracking_number: tracking_number.trim() }),
   });
 }
 

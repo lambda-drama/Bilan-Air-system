@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Ticket } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
 import {
   cancelBooking,
@@ -25,6 +26,8 @@ import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { bookingReference } from "@/lib/booking-reference";
+import { isPassengerTicketPrintable } from "@/lib/passenger-ticket";
+import { PassengerTicketPrintButton } from "@/components/portal/passenger-ticket-print-button";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -170,7 +173,15 @@ export default function PortalBookingsPage() {
             In-office bookings — click reservation ref for details and actions
           </p>
         </div>
-        <BookingStartLink>Office booking</BookingStartLink>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/portal/bookings/tickets">
+              <Ticket className="mr-2 h-4 w-4 shrink-0" />
+              All tickets
+            </Link>
+          </Button>
+          <BookingStartLink>Office booking</BookingStartLink>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -357,13 +368,30 @@ export default function PortalBookingsPage() {
             </DetailSection>
             {detail.passengers?.length > 0 && (
               <DetailSection title="Passengers">
-                {detail.passengers.map((p) => (
-                  <DetailRow
-                    key={p.name}
-                    label={p.name}
-                    value={`${p.type} · seat ${p.seat_label || p.seat}${p.ticket_number ? ` · ticket ${p.ticket_number}` : ""}`}
-                  />
-                ))}
+                <div className="space-y-3">
+                  {detail.passengers.map((p, index) => (
+                    <div
+                      key={p.row_name || `${p.name}-${index}`}
+                      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">{p.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {p.type} · seat {p.seat_label || p.seat}
+                          {p.ticket_number ? ` · ticket ${p.ticket_number}` : ""}
+                        </p>
+                      </div>
+                      {isPassengerTicketPrintable(detail, p) ? (
+                        <PassengerTicketPrintButton
+                          bookingRef={bookingReference(detail)}
+                          passengerRow={p.row_name}
+                          passengerIndex={index}
+                          passengerName={p.name}
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
               </DetailSection>
             )}
             <div className="pt-2">

@@ -313,6 +313,7 @@ def _serialize_booking_details(booking):
 			seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
 
 		passengers.append({
+			"row_name": pax.name,
 			"name": pax.passenger_name,
 			"passenger": pax.passenger,
 			"id_number": pax.id_number,
@@ -321,6 +322,7 @@ def _serialize_booking_details(booking):
 			"seat_label": seat_label,
 			"ticket_number": pax.ticket_number,
 			"check_in_status": pax.check_in_status,
+			"can_print_ticket": _passenger_can_print_ticket(booking, pax),
 		})
 
 	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
@@ -371,6 +373,144 @@ def _serialize_booking_details(booking):
 			"arrival_time": flight.arrival_time,
 			"status": flight.status,
 		},
+	}
+
+
+def _airport_full_label(airport_link):
+	row = frappe.db.get_value(
+		"Airport",
+		airport_link,
+		["airport_name", "city", "iata_code"],
+		as_dict=True,
+	)
+	if row and row.get("airport_name"):
+		return row.airport_name
+	return airport_display_label(airport_link)
+
+
+def _seat_class_label(seat_inventory_name):
+	if not seat_inventory_name or not frappe.db.exists("Seat Inventory", seat_inventory_name):
+		return "Economy"
+	seat_class_link = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_class")
+	if not seat_class_link:
+		return "Economy"
+	return frappe.db.get_value("Seat Class", seat_class_link, "class_name") or "Economy"
+
+
+def _default_ticket_terms():
+	row = frappe.get_all(
+		"Ticket Terms",
+		filters={"default": 1},
+		fields=["title", "terms_conditions"],
+		limit=1,
+	)
+	if not row:
+		row = frappe.get_all(
+			"Ticket Terms",
+			fields=["title", "terms_conditions"],
+			order_by="modified desc",
+			limit=1,
+		)
+	if not row:
+		return {"title": "", "terms_html": ""}
+	return {
+		"title": row[0].title,
+		"terms_html": strip_html(row[0].terms_conditions or "").strip(),
+	}
+
+
+def _passenger_can_print_ticket(booking, pax):
+	return (
+		booking.reservation_status == CONFIRM
+		and bool((booking.pnr or "").strip())
+		and bool((pax.ticket_number or "").strip())
+	)
+
+
+def _build_passenger_ticket_payload(booking, pax, sequence_no):
+	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
+	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
+	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
+	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
+	departure = get_datetime(f"{flight.departure_date} {flight.departure_time}")
+	boarding_time = add_to_date(departure, minutes=-40)
+	gate_close_time = add_to_date(departure, minutes=-15)
+
+	seat_label = pax.seat_number
+	if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
+		seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
+
+	policy = _baggage_policy()
+	settings = frappe.get_single("BA Settings")
+
+	return {
+		"airline_name": "BILAN AIR",
+		"airline_tagline": "Beyond Skies Together",
+		"passenger_name": (pax.passenger_name or "").upper(),
+		"sequence_no": sequence_no,
+		"booking_ref": booking.pnr or booking.get_public_reference(),
+		"ticket_number": pax.ticket_number,
+		"flight_number": flight.flight_number,
+		"origin_code": origin_iata,
+		"destination_code": dest_iata,
+		"origin_label": _airport_full_label(route.origin_airport),
+		"destination_label": _airport_full_label(route.destination_airport),
+		"seat_class": _seat_class_label(pax.seat_number),
+		"departure_date": str(flight.departure_date),
+		"departure_time": flight.departure_time,
+		"arrival_time": flight.arrival_time,
+		"boarding_time": str(boarding_time)[11:19] if boarding_time else flight.departure_time,
+		"gate_close_time": str(gate_close_time)[11:19] if gate_close_time else flight.departure_time,
+		"seat": seat_label,
+		"gate": "TBC",
+		"zone": str(sequence_no),
+		"passenger_type": pax.passenger_type or "Adult",
+		"baggage_policy": {
+			"checked_kg": policy.get("max_baggage_kg"),
+			"carry_on_kg": policy.get("carry_on_kg"),
+			"excess_fee_per_kg": settings.excess_baggage_fee,
+		},
+		"ticket_terms": _default_ticket_terms(),
+		"barcode_data": f"{booking.pnr or booking.name}|{pax.ticket_number}|{origin_iata}|{dest_iata}|{flight.flight_number}",
+	}
+
+
+def _resolve_passenger_row(booking, passenger_row=None, passenger_index=None):
+	if passenger_row:
+		for pax in booking.passengers:
+			if pax.name == passenger_row:
+				return pax
+		frappe.throw(_("Passenger row not found on this booking."))
+
+	idx = int(passenger_index or 0)
+	if idx < 0 or idx >= len(booking.passengers):
+		frappe.throw(_("Invalid passenger index."))
+	return booking.passengers[idx]
+
+
+@frappe.whitelist()
+def get_passenger_ticket_print_data(pnr, passenger_row=None, passenger_index=None):
+	"""Print payload for one confirmed passenger ticket (Air Booking child row)."""
+	booking = _load_booking(pnr)
+	booking.check_permission("read")
+
+	pax = _resolve_passenger_row(booking, passenger_row, passenger_index)
+	if not _passenger_can_print_ticket(booking, pax):
+		frappe.throw(
+			_("Ticket is available only after the booking is confirmed and a ticket number is issued.")
+		)
+
+	sequence_no = 1
+	for idx, row in enumerate(booking.passengers, start=1):
+		if row.name == pax.name:
+			sequence_no = idx
+			break
+
+	return {
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr,
+		"passenger_row": pax.name,
+		"ticket": _build_passenger_ticket_payload(booking, pax, sequence_no),
 	}
 
 
