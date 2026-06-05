@@ -59,6 +59,34 @@ def schedule_is_multi_segment(schedule_name: str) -> bool:
 	return len(get_schedule_segments(schedule_name)) > 1
 
 
+def default_journey_airports(schedule_name: str) -> dict:
+	"""Default boarding/deboarding for a schedule (first origin → last destination)."""
+	segments = get_schedule_segments(schedule_name)
+	if not segments:
+		return {
+			"boarding_airport": None,
+			"deboarding_airport": None,
+			"is_multi_segment": False,
+			"segments": [],
+			"schedule_airports": [],
+		}
+
+	schedule_airports: list[str] = []
+	for row in segments:
+		for key in ("origin_airport", "destination_airport"):
+			airport = row.get(key)
+			if airport and airport not in schedule_airports:
+				schedule_airports.append(airport)
+
+	return {
+		"boarding_airport": segments[0]["origin_airport"],
+		"deboarding_airport": segments[-1]["destination_airport"],
+		"is_multi_segment": len(segments) > 1,
+		"segments": segments,
+		"schedule_airports": schedule_airports,
+	}
+
+
 def validate_route_segments(segments: list) -> None:
 	if not segments:
 		frappe.throw(_("Add at least one flight segment."))

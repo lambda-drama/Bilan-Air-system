@@ -22,12 +22,33 @@ class AirBooking(Document):
 
             series = (get_ba_setting("reservation_naming_series", None) or "RES-.#####").strip()
             self.name = make_autoname(series)
+        self._sync_reservation_ref()
+
+    def before_insert(self):
+        self._sync_reservation_ref()
 
     def validate(self):
-        if self.name:
-            self.reservation_ref = self.name
+        self._sync_reservation_ref()
+        self._apply_default_journey_airports()
         if self.pnr and self.reservation_status not in (CONFIRM, FLIGHT_TAKEN):
             frappe.throw("PNR can only be set on a confirmed reservation.")
+
+    def _sync_reservation_ref(self):
+        """Mirror document name; assigned on insert from reservation naming series."""
+        if self.name:
+            self.reservation_ref = self.name
+
+    def _apply_default_journey_airports(self):
+        """Fill boarding/deboarding from the flight schedule when not set."""
+        if not self.flight_schedule:
+            return
+        from bilan_sky.bilan_air_booking_system.utils.flight_segments import default_journey_airports
+
+        defaults = default_journey_airports(self.flight_schedule)
+        if not self.boarding_airport and defaults.get("boarding_airport"):
+            self.boarding_airport = defaults["boarding_airport"]
+        if not self.deboarding_airport and defaults.get("deboarding_airport"):
+            self.deboarding_airport = defaults["deboarding_airport"]
 
     # =========================================================
     # BEFORE SAVE VALIDATIONS
@@ -55,8 +76,41 @@ class AirBooking(Document):
     def _save_status_updates(self):
         # Status transitions should not be blocked by seat validation rules.
         self.flags.ignore_validate = True
-        self.save()
-        self.flags.ignore_validate = False
+        try:
+            if self.docstatus == 1:
+                self._update_after_submit()
+            else:
+                self.save()
+        finally:
+            self.flags.ignore_validate = False
+
+    def _update_after_submit(self):
+        """Persist allow_on_submit fields on submitted reservations without full save()."""
+        from frappe.model.meta import get_meta
+
+        table_fieldtypes = ("Table", "Table MultiSelect")
+        allowed_parent = {
+            df.fieldname
+            for df in get_meta(self.doctype).fields
+            if df.get("allow_on_submit") and df.fieldtype not in table_fieldtypes
+        }
+        if allowed_parent:
+            parent_values = {fieldname: self.get(fieldname) for fieldname in allowed_parent}
+            frappe.db.set_value(self.doctype, self.name, parent_values, update_modified=True)
+
+        child_meta = {}
+        for child in self.get_all_children():
+            if child.doctype not in child_meta:
+                child_meta[child.doctype] = {
+                    df.fieldname
+                    for df in get_meta(child.doctype).fields
+                    if df.get("allow_on_submit")
+                }
+            allowed_child = child_meta[child.doctype]
+            if not child.name or not allowed_child:
+                continue
+            row_values = {fieldname: child.get(fieldname) for fieldname in allowed_child}
+            frappe.db.set_value(child.doctype, child.name, row_values, update_modified=True)
     
     def validate_booking_cutoff(self):
         """Prevent booking if within cutoff time"""
@@ -94,12 +148,24 @@ class AirBooking(Document):
             prepare_seat_for_new_booking,
         )
 
+        from bilan_sky.bilan_air_booking_system.utils.seat_inventory_resolve import (
+            resolve_seat_inventory_ref,
+        )
+
         for passenger in self.passengers:
             if not passenger.seat_number:
                 continue
 
-            prepare_seat_for_new_booking(passenger.seat_number, self.name)
-            seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
+            seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
+            if not seat_name:
+                frappe.throw(
+                    f"Seat {passenger.seat_number} was not found on flight {self.flight_schedule}. "
+                    "Choose a seat from Seat Inventory for this schedule."
+                )
+            passenger.seat_number = seat_name
+
+            prepare_seat_for_new_booking(seat_name, self.name)
+            seat = frappe.get_doc("Seat Inventory", seat_name)
 
             if seat.flight_schedule != self.flight_schedule:
                 frappe.throw(
@@ -143,9 +209,19 @@ class AirBooking(Document):
         fare_multiplier = fare_rule_multiplier(flight.route, flight.departure_date)
 
         # Calculate fare per passenger
+        from bilan_sky.bilan_air_booking_system.utils.seat_inventory_resolve import (
+            resolve_seat_inventory_ref,
+        )
+
         for passenger in self.passengers:
             if not passenger.seat_number:
                 continue
+
+            seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
+            if not seat_name:
+                continue
+
+            passenger.seat_number = seat_name
 
             base_fare = base_fare_for_passenger(
                 flight,
@@ -153,15 +229,22 @@ class AirBooking(Document):
                 self._get_passenger_type(passenger),
             )
 
-            seat = frappe.get_doc("Seat Inventory", passenger.seat_number)
+            seat = frappe.get_doc("Seat Inventory", seat_name)
             seat_class = frappe.get_doc("Seat Class", seat.seat_class)
-            class_multiplier = seat_class.price_multiplier
+            class_multiplier = flt(seat_class.price_multiplier) or 1.0
 
             final_fare = base_fare * class_multiplier * fare_multiplier
             passenger.fare_paid = round(final_fare, 2)
-        
+
         # Calculate total
-        self.total_fare = sum([p.fare_paid for p in self.passengers])
+        self.total_fare = sum([flt(p.fare_paid) for p in self.passengers])
+
+        if self.passengers and flt(self.total_fare) <= 0:
+            has_seat = any((p.seat_number or "").strip() for p in self.passengers)
+            if has_seat:
+                frappe.throw(
+                    "Total fare is zero. Pick seats from Seat Inventory for this flight and set base fares on the route."
+                )
     
     # =========================================================
     # TICKET NUMBERS
@@ -228,10 +311,30 @@ class AirBooking(Document):
 
         return validate_credit_confirmation_for_booking(self)
 
+    def _ensure_confirmable_fare_for_credit(self):
+        """Block credit confirmation when no billable fare was calculated."""
+        if flt(self.total_fare) > 0:
+            return
+        passengers = self.passengers or []
+        if not passengers:
+            frappe.throw("Add at least one passenger before confirming on credit.")
+        without_seat = [p.passenger_name or p.name for p in passengers if not p.seat_number]
+        if without_seat:
+            frappe.throw(
+                "Assign a seat to each passenger before confirming on credit. "
+                f"Missing seat for: {', '.join(without_seat)}"
+            )
+        frappe.throw(
+            "Total fare is zero. Set base fares on the flight route (or schedule overrides) and save, then try again."
+        )
+
     def confirm_booking(self, via_credit=False):
         """Confirm ticket: issue PNR + ticket numbers after payment or approved agent credit."""
         if self.reservation_status == VOID:
             frappe.throw("Cannot confirm a voided reservation.")
+        self.calculate_total_fare()
+        if via_credit:
+            self._ensure_confirmable_fare_for_credit()
         self._validate_confirmation_eligibility(via_credit=via_credit)
         if self.reservation_status == CONFIRM and self.pnr:
             return {"success": True, "pnr": self.pnr, "already_confirmed": True}

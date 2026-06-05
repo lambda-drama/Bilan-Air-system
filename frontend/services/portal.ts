@@ -3,6 +3,7 @@ import type { PaginatedResponse } from "@/types/bilan";
 
 export interface AirBookingRow {
   name: string;
+  pnr?: string | null;
   flight_schedule: string;
   payer_name: string;
   payer_email?: string;
@@ -17,7 +18,9 @@ export interface AirBookingRow {
 }
 
 export interface CheckInBookingSuggestion {
-  pnr: string;
+  pnr?: string | null;
+  reservation_ref: string;
+  public_reference?: string;
   payer_name: string;
   payer_phone?: string;
   payer_email?: string;

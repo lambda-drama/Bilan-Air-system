@@ -9,6 +9,7 @@ import { BookingPnrSearch } from "@/components/portal/booking-pnr-search";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DetailRow, DetailSection } from "@/components/portal/detail-sheet";
+import { bookingReference } from "@/lib/booking-reference";
 
 export default function PortalBaggagePage() {
   const [pnr, setPnr] = useState("");
@@ -30,7 +31,7 @@ export default function PortalBaggagePage() {
     try {
       const detail = await fetchBookingDetails(trimmed);
       setBooking(detail);
-      setPnr(detail.pnr);
+      setPnr(bookingReference(detail));
     } catch (e) {
       setBookingError(e instanceof Error ? e.message : "Booking not found");
     } finally {
@@ -39,8 +40,8 @@ export default function PortalBaggagePage() {
   };
 
   const refreshBooking = async () => {
-    if (!booking?.pnr) return;
-    const detail = await fetchBookingDetails(booking.pnr);
+    if (!booking) return;
+    const detail = await fetchBookingDetails(bookingReference(booking));
     setBooking(detail);
   };
 
@@ -77,7 +78,8 @@ export default function PortalBaggagePage() {
           <h3 className="text-lg font-medium">Create baggage tag</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          Search by PNR, payer name, phone, or email. Pick a booking, enter each bag&apos;s weight,
+          Search by reservation ref, PNR, payer name, phone, or email. Pick a booking, enter each
+          bag&apos;s weight,
           then <strong>Create tag</strong>. Numbers follow{" "}
           <span className="font-mono">001-PNR</span>, <span className="font-mono">002-PNR</span>, …
         </p>
@@ -100,7 +102,13 @@ export default function PortalBaggagePage() {
           <div className="space-y-2">
             <p className="text-sm">
               <span className="text-muted-foreground">Booking</span>{" "}
-              <span className="font-semibold">{booking.pnr}</span>
+              <span className="font-semibold">{booking.reservation_ref}</span>
+              {booking.pnr ? (
+                <>
+                  {" "}
+                  · <span className="text-muted-foreground">PNR</span> {booking.pnr}
+                </>
+              ) : null}
               {booking.payer_name ? (
                 <>
                   {" "}
@@ -109,7 +117,7 @@ export default function PortalBaggagePage() {
               ) : null}
             </p>
             <BookingBaggagePanel
-              pnr={booking.pnr}
+              bookingRef={bookingReference(booking)}
               travelers={booking.passengers.map((p) => ({ name: p.name }))}
               baggage={booking.baggage || []}
               policy={booking.baggage_policy}

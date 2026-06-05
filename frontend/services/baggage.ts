@@ -6,6 +6,8 @@ export interface BaggagePolicy {
 }
 
 export interface BaggageRecord {
+  /** Baggage Tracking document name (same as tracking_number). */
+  name?: string;
   tracking_number: string;
   passenger_name: string;
   passenger?: string;

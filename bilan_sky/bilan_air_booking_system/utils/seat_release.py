@@ -100,6 +100,80 @@ def apply_release_status_to_schedule(schedule, *, only_unreleased: bool = False)
 	return newly_released
 
 
+def _seat_layout_index(schedule, seat_number: str) -> int | None:
+	"""Zero-based position of seat_number in airplane layout order."""
+	if not schedule.airplane:
+		return None
+	airplane = frappe.get_doc("Airplane", schedule.airplane)
+	for index, (number, _seat_class) in enumerate(iter_layout_seat_slots(airplane)):
+		if number == seat_number:
+			return index
+	return None
+
+
+def release_single_seat_for_sale(seat_name: str) -> dict:
+	"""Release one Unreleased seat for booking and bump schedule release count if needed."""
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	if seat.status != "Unreleased":
+		frappe.throw(
+			_("Seat {0} is {1}. Only unreleased seats can be released for sale here.").format(
+				seat.seat_number, seat.status
+			)
+		)
+
+	schedule = frappe.get_doc("Flight Schedule", seat.flight_schedule)
+	seat_index = _seat_layout_index(schedule, seat.seat_number)
+	capacity = aircraft_capacity(schedule.airplane)
+	current = effective_release_count(schedule)
+	new_count = current
+	if seat_index is not None:
+		new_count = max(current, seat_index + 1)
+	new_count = min(new_count, capacity)
+
+	seat.status = "Available"
+	seat.save(ignore_permissions=True)
+
+	if new_count != current:
+		frappe.db.set_value(
+			"Flight Schedule",
+			schedule.name,
+			"seats_released_count",
+			new_count,
+			update_modified=False,
+		)
+
+	frappe.db.commit()
+	return {
+		"seat": seat.name,
+		"seats_released_count": new_count,
+		"total_aircraft_capacity": capacity,
+	}
+
+
+def restrict_single_seat_from_sale(seat_name: str) -> dict:
+	"""Move an empty Available seat back to Unreleased (staff restriction)."""
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	if seat.status != "Available":
+		frappe.throw(
+			_("Seat {0} is {1}. Only available seats with no booking can be restricted.").format(
+				seat.seat_number, seat.status
+			)
+		)
+	if seat.booking_reference:
+		frappe.throw(_("Seat {0} is linked to a booking.").format(seat.seat_number))
+	if frappe.db.exists(
+		"Seat Segment Allocation",
+		{"seat_inventory": seat.name, "status": ["in", ["Hold", "Booked"]]},
+	):
+		frappe.throw(_("Seat {0} has active segment allocations.").format(seat.seat_number))
+
+	seat.status = "Unreleased"
+	seat.hold_expiry = None
+	seat.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"seat": seat.name}
+
+
 def release_additional_seats(schedule_name: str, count: int) -> dict:
 	schedule = frappe.get_doc("Flight Schedule", schedule_name)
 	capacity = aircraft_capacity(schedule.airplane)

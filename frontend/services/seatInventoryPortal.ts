@@ -57,3 +57,17 @@ export async function portalReleaseSeat(seatName: string) {
     body: JSON.stringify({ seat_name: seatName }),
   });
 }
+
+export async function portalReleaseSeatForSale(seatName: string) {
+  return apiRequest<PortalSeatRow>(methodUrl("portal", "portal_release_seat_for_sale"), {
+    method: "POST",
+    body: JSON.stringify({ seat_name: seatName }),
+  });
+}
+
+export async function portalRestrictSeat(seatName: string) {
+  return apiRequest<PortalSeatRow>(methodUrl("portal", "portal_restrict_seat"), {
+    method: "POST",
+    body: JSON.stringify({ seat_name: seatName }),
+  });
+}

@@ -52,7 +52,25 @@ add_to_apps_screen = [
 	},
 ]
 
+# Frappe www endpoints that must not be swallowed by the Next.js catch-all below.
+_bilan_frappe_www_routes = (
+	"printview",
+	"login",
+	"logout",
+	"desk",
+	"list",
+	"me",
+	"profile",
+	"contact",
+	"about",
+	"error",
+	"404",
+	"update-password",
+	"complete_signup",
+)
+
 website_route_rules = [
+	*({"from_route": f"/{route}", "to_route": route} for route in _bilan_frappe_www_routes),
 	{"from_route": "/", "to_route": "bilan_frontend"},
 	{"from_route": "/<path:app_path>", "to_route": "bilan_frontend"},
 ]

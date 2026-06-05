@@ -1,7 +1,8 @@
 # bilan_air/api/air_booking.py
 
 import frappe
-from frappe.utils import add_to_date, get_datetime, now, strip_html
+from frappe import _
+from frappe.utils import add_to_date, flt, get_datetime, now, strip_html
 
 from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
     prepare_seat_for_new_booking,
@@ -12,6 +13,17 @@ from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM,
 
 def _load_booking(identifier, **kwargs):
 	return frappe.get_doc("Air Booking", resolve_air_booking(identifier), **kwargs)
+
+
+@frappe.whitelist()
+def get_schedule_journey_defaults(schedule_name):
+	"""Boarding/deboarding defaults for Desk when a flight schedule is selected."""
+	if not schedule_name or not frappe.db.exists("Flight Schedule", schedule_name):
+		frappe.throw(_("Flight schedule not found"))
+	frappe.get_doc("Flight Schedule", schedule_name).check_permission("read")
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import default_journey_airports
+
+	return default_journey_airports(schedule_name)
 
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
@@ -200,6 +212,7 @@ def _booking_baggage_rows(booking):
 			"Baggage Tracking",
 			link.baggage_tracking,
 			[
+				"name",
 				"tracking_number",
 				"passenger_name",
 				"passenger",
@@ -211,6 +224,7 @@ def _booking_baggage_rows(booking):
 			as_dict=True,
 		)
 		if data:
+			data["name"] = data.get("name") or link.baggage_tracking
 			rows.append(data)
 	return rows
 
@@ -564,9 +578,15 @@ def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_acco
 
 @frappe.whitelist()
 def confirm_booking_on_credit(pnr):
-	"""Issue PNR and tickets using the logged-in agent's credit limit."""
+	"""Issue PNR and tickets using agent credit (logged-in agent or Booking Agent on the reservation)."""
 	booking = _load_booking(pnr)
 	booking.check_permission("write")
+	booking.calculate_total_fare()
+	if not flt(booking.total_fare):
+		frappe.throw(
+			_("Total fare is zero. Assign seats from Seat Inventory, save, and ensure route base fares are set."),
+			title=_("Zero fare"),
+		)
 	result = booking.confirm_booking(via_credit=True)
 	frappe.db.commit()
 	return result

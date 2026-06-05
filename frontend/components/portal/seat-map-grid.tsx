@@ -33,6 +33,11 @@ export const SEAT_STATUS_STYLES: Record<
     className: "border-red-400/70 bg-red-50 text-red-900 hover:border-red-500",
     legendClass: "bg-red-100 border-red-400",
   },
+  Unreleased: {
+    label: "Unreleased",
+    className: "border-slate-300 bg-slate-100 text-slate-500 hover:border-slate-400",
+    legendClass: "bg-slate-200 border-slate-400",
+  },
 };
 
 export function seatStatusStyle(status: string) {
@@ -46,7 +51,7 @@ export function seatStatusStyle(status: string) {
 }
 
 export function SeatMapLegend() {
-  const items = ["Available", "Hold", "Booked", "Occupied"];
+  const items = ["Available", "Unreleased", "Hold", "Booked", "Occupied"];
   return (
     <div className="flex flex-wrap gap-3 text-xs">
       {items.map((status) => {

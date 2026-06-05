@@ -373,6 +373,7 @@ def list_air_bookings(limit=50, offset=0, status=None, search=None):
 	if search:
 		or_filters = {
 			"name": ["like", f"%{search}%"],
+			"pnr": ["like", f"%{search}%"],
 			"payer_name": ["like", f"%{search}%"],
 			"payer_phone": ["like", f"%{search}%"],
 		}
@@ -913,7 +914,7 @@ def portal_hold_seat(seat_name, booking_reference=None):
 
 @frappe.whitelist()
 def portal_release_seat(seat_name):
-	"""Release a held seat back to available (agent action)."""
+	"""Clear a hold and return the seat to Available."""
 	require_portal_staff()
 	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
 		frappe.throw(_("Seat not found"))
@@ -931,6 +932,11 @@ def portal_release_seat(seat_name):
 	if seat.status == "Available":
 		frappe.throw(_("Seat {0} is already available").format(seat.seat_number))
 
+	if seat.status == "Unreleased":
+		frappe.throw(
+			_("Seat {0} is unreleased. Use release for sale instead.").format(seat.seat_number)
+		)
+
 	seat.status = "Available"
 	seat.booking_reference = None
 	seat.hold_expiry = None
@@ -938,6 +944,38 @@ def portal_release_seat(seat_name):
 	frappe.db.commit()
 
 	return _seat_inventory_row(seat)
+
+
+@frappe.whitelist()
+def portal_release_seat_for_sale(seat_name):
+	"""Release one unreleased seat for booking."""
+	require_portal_staff()
+	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
+		frappe.throw(_("Seat not found"))
+
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	seat.check_permission("write")
+
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import release_single_seat_for_sale
+
+	release_single_seat_for_sale(seat_name)
+	return _seat_inventory_row(frappe.get_doc("Seat Inventory", seat_name))
+
+
+@frappe.whitelist()
+def portal_restrict_seat(seat_name):
+	"""Restrict an empty available seat from sale (Unreleased)."""
+	require_portal_staff()
+	if not seat_name or not frappe.db.exists("Seat Inventory", seat_name):
+		frappe.throw(_("Seat not found"))
+
+	seat = frappe.get_doc("Seat Inventory", seat_name)
+	seat.check_permission("write")
+
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import restrict_single_seat_from_sale
+
+	restrict_single_seat_from_sale(seat_name)
+	return _seat_inventory_row(frappe.get_doc("Seat Inventory", seat_name))
 
 
 @frappe.whitelist()

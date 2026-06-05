@@ -7,12 +7,14 @@ import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Button } from "@/components/ui/button";
 
 export function bookingSuggestionToOption(s: CheckInBookingSuggestion) {
+  const ref = s.reservation_ref || s.public_reference || s.pnr || "";
   const departure = s.departure_date
     ? `${s.departure_date}${s.departure_time ? ` ${s.departure_time}` : ""}`
     : "";
+  const pnrSuffix = s.pnr && s.pnr !== ref ? ` · PNR ${s.pnr}` : "";
   return {
-    value: s.pnr,
-    label: `${s.payer_name} · ${s.pnr}`,
+    value: ref,
+    label: `${s.payer_name} · ${ref}${pnrSuffix}`,
     description: [
       s.flight_number || s.flight_schedule,
       departure,
@@ -41,7 +43,7 @@ export function BookingPnrSearch({
   onClear,
   loading = false,
   loadLabel = "Load",
-  placeholder = "Search payer name, PNR, phone...",
+  placeholder = "Search reservation ref, PNR, payer, phone...",
 }: BookingPnrSearchProps) {
   const [searchText, setSearchText] = useState("");
   const [suggestOptions, setSuggestOptions] = useState<

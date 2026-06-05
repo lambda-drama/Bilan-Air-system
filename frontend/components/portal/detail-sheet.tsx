@@ -12,6 +12,13 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Portaled UI (print menu, etc.) rendered outside the sheet but must remain clickable. */
+const SHEET_PORTAL_OVERLAY_SELECTOR = "[data-print-format-menu], [data-portal-popover]";
+
+function isSheetPortalOverlayTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && !!target.closest(SHEET_PORTAL_OVERLAY_SELECTOR);
+}
+
 interface DetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,6 +45,12 @@ export function DetailSheet({
       <SheetContent
         side="right"
         className="flex h-full w-full max-w-[100vw] flex-col overflow-hidden border-l-2 border-l-gold p-0 sm:max-w-xl md:max-w-2xl"
+        onPointerDownOutside={(e) => {
+          if (isSheetPortalOverlayTarget(e.target)) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (isSheetPortalOverlayTarget(e.target)) e.preventDefault();
+        }}
       >
         <SheetHeader className="bilan-panel-header space-y-0 text-left">
           <div className="flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">

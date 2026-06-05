@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Printer } from "lucide-react";
 import { fetchPrintFormats, openDocumentPrintView } from "@/services/common";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface PrintFormatDropdownProps {
   doctype: string;
@@ -22,9 +29,15 @@ export function PrintFormatDropdown({
   const [open, setOpen] = useState(false);
   const [formats, setFormats] = useState<string[]>(["Standard"]);
   const [loading, setLoading] = useState(false);
-  const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | undefined>();
+
+  useLayoutEffect(() => {
+    const host = containerRef.current?.closest(
+      "[data-slot='sheet-content'], [data-slot='dialog-content']",
+    );
+    setPortalContainer(host instanceof HTMLElement ? host : undefined);
+  }, []);
 
   useEffect(() => {
     if (!open || !doctype) return;
@@ -35,90 +48,65 @@ export function PrintFormatDropdown({
       .finally(() => setLoading(false));
   }, [open, doctype]);
 
-  const updatePosition = () => {
-    const btn = buttonRef.current;
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    setPosition({
-      top: rect.bottom + 4,
-      right: typeof window !== "undefined" ? window.innerWidth - rect.right : 0,
-    });
+  const selectFormat = (format: string) => {
+    openDocumentPrintView(doctype, docName, format);
+    setOpen(false);
   };
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPosition(null);
-      return;
-    }
-    updatePosition();
-    const onScrollOrResize = () => updatePosition();
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!containerRef.current?.contains(target) && !target.closest("[data-print-format-menu]")) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  const menuEl =
-    open && position && typeof document !== "undefined" ? (
-      <div
-        data-print-format-menu
-        className="fixed z-[9999] min-w-[180px] rounded-md border bg-popover py-1 shadow-lg"
-        style={{ top: position.top, right: position.right, left: "auto" }}
-      >
-        <div className="border-b px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          Print format
-        </div>
-        {loading ? (
-          <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
-        ) : (
-          formats.map((format) => (
-            <button
-              key={format}
-              type="button"
-              onClick={() => {
-                openDocumentPrintView(doctype, docName, format);
-                setOpen(false);
-              }}
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-accent"
-            >
-              {format}
-            </button>
-          ))
-        )}
-      </div>
-    ) : null;
 
   const isIcon = variant === "icon";
 
   return (
-    <div className="relative inline-block" ref={containerRef} onClick={(e) => e.stopPropagation()}>
-      <Button
-        ref={buttonRef}
-        type="button"
-        variant={isIcon ? "ghost" : "outline"}
-        size={isIcon ? "icon" : "sm"}
-        onClick={() => setOpen((p) => !p)}
-        className={className}
-        aria-label="Print"
-        title="Print"
-      >
-        <Printer className={isIcon ? "h-4 w-4" : "mr-2 h-4 w-4"} />
-        {!isIcon && "Print"}
-      </Button>
-      {typeof document !== "undefined" && menuEl && createPortal(menuEl, document.body)}
+    <div
+      ref={containerRef}
+      className="relative inline-block"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant={isIcon ? "ghost" : "outline"}
+            size={isIcon ? "icon" : "sm"}
+            className={className}
+            aria-label="Print"
+            title="Print"
+          >
+            <Printer className={isIcon ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+            {!isIcon && "Print"}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuPrimitive.Portal container={portalContainer}>
+          <DropdownMenuPrimitive.Content
+            align="end"
+            side="top"
+            sideOffset={4}
+            className={cn(
+              "bg-popover text-popover-foreground z-200 min-w-[180px] overflow-hidden rounded-md border p-1 shadow-md",
+              "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+            )}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Print format
+            </DropdownMenuLabel>
+            {loading ? (
+              <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
+            ) : (
+              formats.map((format) => (
+                <DropdownMenuItem
+                  key={format}
+                  className="cursor-pointer"
+                  onSelect={() => selectFormat(format)}
+                >
+                  {format}
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuPrimitive.Content>
+        </DropdownMenuPrimitive.Portal>
+      </DropdownMenu>
     </div>
   );
 }

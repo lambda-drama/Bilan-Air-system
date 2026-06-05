@@ -12,15 +12,27 @@
 
 frappe.ui.form.on('Air Booking', {
     onload: function(frm) {
+        configure_reservation_ref_field(frm);
+        configure_passenger_seat_query(frm);
         setup_remote_payment_method_options(frm);
     },
 
     refresh: function(frm) {
+        configure_reservation_ref_field(frm);
+        configure_passenger_seat_query(frm);
         validate_booking_cutoff(frm);
         update_seat_availability_message(frm);
         setup_remote_payment_method_options(frm);
+        if (frm.doc.flight_schedule) {
+            sync_journey_airports_from_schedule(frm, { overwrite: false });
+        }
 
-        if (!frm.is_new() && !frm.doc.pnr && frm.doc.reservation_status === 'Booked') {
+        if (frm.is_new()) {
+            frm.set_intro(
+                __('Reservation reference (e.g. RES-00001) is assigned automatically when you save.'),
+                'blue'
+            );
+        } else if (!frm.doc.pnr && frm.doc.reservation_status === 'Booked') {
             frm.set_intro(
                 __('Reservation {0} is not confirmed yet. PNR (e.g. BA-00001) and ticket numbers are issued only after payment or approved agent credit.', [
                     frm.doc.reservation_ref || frm.doc.name,
@@ -87,11 +99,7 @@ frappe.ui.form.on('Air Booking', {
 
         if (!frm.is_new() && frm.doc.reservation_status === 'Booked') {
             frm.add_custom_button(__('Confirm on Credit (PNR)'), function() {
-                trigger_booking_action(
-                    frm,
-                    'bilan_sky.bilan_air_booking_system.api.air_booking.confirm_booking_on_credit',
-                    __('Confirming on agent credit and issuing PNR...')
-                );
+                confirm_booking_on_credit(frm);
             }, __('Payment'));
         }
 
@@ -109,7 +117,13 @@ frappe.ui.form.on('Air Booking', {
     },
     
     flight_schedule: function(frm) {
+        if (!frm.doc.flight_schedule) {
+            frm.set_value('boarding_airport', null);
+            frm.set_value('deboarding_airport', null);
+            return;
+        }
         validate_booking_cutoff(frm);
+        sync_journey_airports_from_schedule(frm, { overwrite: true });
         get_flight_details(frm);
         update_seat_availability_message(frm);
     },
@@ -195,6 +209,41 @@ function lookup_passenger_by_id(frm, cdt, cdn) {
     });
 }
 
+function configure_reservation_ref_field(frm) {
+    // Assigned automatically on save (RES-#####); never block Desk create.
+    frm.toggle_reqd('reservation_ref', false);
+    frm.set_df_property('reservation_ref', 'reqd', 0);
+}
+
+function configure_passenger_seat_query(frm) {
+    frm.set_query('seat_number', 'passengers', function(doc) {
+        if (!doc.flight_schedule) {
+            return { filters: { name: ['in', []] } };
+        }
+        return {
+            filters: {
+                flight_schedule: doc.flight_schedule,
+                status: ['in', ['Available', 'Hold']],
+            },
+        };
+    });
+}
+
+function show_booking_error(title, err) {
+    let message = __('Something went wrong. Check required fields and try again.');
+    if (err && err.message) {
+        message = err.message;
+    } else if (err && err._server_messages) {
+        try {
+            const msgs = JSON.parse(err._server_messages);
+            message = msgs.map((m) => JSON.parse(m).message).join('<br>');
+        } catch (e) {
+            /* ignore */
+        }
+    }
+    frappe.msgprint({ title: title, message: message, indicator: 'red' });
+}
+
 function setup_remote_payment_method_options(frm) {
     frappe.call({
         method: 'bilan_sky.bilan_air_booking_system.api.remote_accounting.get_remote_accounting_options',
@@ -268,6 +317,49 @@ function validate_seat_availability(frm, row) {
                 });
             }
         }
+    });
+}
+
+function sync_journey_airports_from_schedule(frm, options) {
+    options = options || {};
+    const overwrite = !!options.overwrite;
+
+    if (!frm.doc.flight_schedule) {
+        return;
+    }
+
+    frappe.call({
+        method: 'bilan_sky.bilan_air_booking_system.api.air_booking.get_schedule_journey_defaults',
+        args: { schedule_name: frm.doc.flight_schedule },
+        callback: function(r) {
+            const data = r.message;
+            if (!data) {
+                return;
+            }
+
+            if (overwrite || !frm.doc.boarding_airport) {
+                frm.set_value('boarding_airport', data.boarding_airport || null);
+            }
+            if (overwrite || !frm.doc.deboarding_airport) {
+                frm.set_value('deboarding_airport', data.deboarding_airport || null);
+            }
+
+            const airports = data.schedule_airports || [];
+            const airport_filter = function() {
+                if (!airports.length) {
+                    return {};
+                }
+                return { filters: { name: ['in', airports] } };
+            };
+            frm.set_query('boarding_airport', airport_filter);
+            frm.set_query('deboarding_airport', airport_filter);
+
+            const hint = data.is_multi_segment
+                ? __('Defaults to the full route. Change boarding or deboarding for a partial journey.')
+                : __('Set from the flight route. Change only if needed.');
+            frm.set_df_property('boarding_airport', 'description', hint);
+            frm.set_df_property('deboarding_airport', 'description', hint);
+        },
     });
 }
 
@@ -419,6 +511,82 @@ function generate_ticket_numbers(frm) {
             });
         },
     });
+}
+
+function confirm_booking_on_credit(frm) {
+    const missing = [];
+    if (!(frm.doc.payer_name || '').trim()) missing.push(__('Payer Full Name'));
+    if (!(frm.doc.payer_email || '').trim()) missing.push(__('Payer Email'));
+    if (!(frm.doc.payer_phone || '').trim()) missing.push(__('Payer Phone'));
+    if (!frm.doc.passengers || !frm.doc.passengers.length) {
+        missing.push(__('at least one passenger'));
+    } else {
+        frm.doc.passengers.forEach((row, i) => {
+            if (!row.seat_number) missing.push(__('seat for passenger {0}', [i + 1]));
+        });
+    }
+    if (missing.length) {
+        frappe.msgprint({
+            title: __('Before confirming on credit'),
+            message: __('Please set: {0}', [missing.join(', ')]),
+            indicator: 'orange',
+        });
+        return;
+    }
+
+    frappe.confirm(
+        __('Confirm on agent credit, issue PNR, and deduct the total fare from the agent credit limit?'),
+        function() {
+            const run_confirm = () => {
+                if (!flt(frm.doc.total_fare)) {
+                    frappe.msgprint({
+                        title: __('Total fare is zero'),
+                        message: __(
+                            'Total fare is zero. Pick seats from Seat Inventory for this flight and ensure the route has base fares, then save and try again.'
+                        ),
+                        indicator: 'red',
+                    });
+                    return;
+                }
+                frappe.call({
+                    method: 'bilan_sky.bilan_air_booking_system.api.air_booking.confirm_booking_on_credit',
+                    args: { pnr: frm.doc.name },
+                    freeze: true,
+                    freeze_message: __('Confirming on agent credit and issuing PNR...'),
+                    callback: function(r) {
+                        if (r.exc) {
+                            show_booking_error(__('Confirm on credit failed'), r);
+                            return;
+                        }
+                        const pnr = r.message && r.message.pnr;
+                        frappe.msgprint({
+                            title: __('Confirmed'),
+                            message: pnr
+                                ? __('PNR issued: {0}', [pnr])
+                                : __('Reservation confirmed.'),
+                            indicator: 'green',
+                        });
+                        frm.reload_doc();
+                    },
+                    error: function(r) {
+                        show_booking_error(__('Confirm on credit failed'), r);
+                    },
+                });
+            };
+
+            // Submitted reservations cannot be saved from the form; confirm runs server-side.
+            if (frm.doc.docstatus === 1) {
+                run_confirm();
+                return;
+            }
+
+            frm.save()
+                .then(() => run_confirm())
+                .catch((err) => {
+                    show_booking_error(__('Could not save reservation'), err);
+                });
+        }
+    );
 }
 
 function trigger_booking_action(frm, method, freeze_message) {
