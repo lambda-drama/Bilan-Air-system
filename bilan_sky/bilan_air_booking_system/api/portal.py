@@ -28,9 +28,11 @@ def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modifie
 
 
 @frappe.whitelist()
-def list_flight_schedules(limit=50, offset=0, status=None, search=None):
+def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search=None):
 	filters = {}
-	if status:
+	if frappe.utils.cint(upcoming):
+		filters["status"] = ["in", ["Scheduled", "Boarding", "Delayed"]]
+	elif status:
 		filters["status"] = status
 
 	or_filters = None
@@ -380,10 +382,12 @@ def search_bookings_for_checkin(query=None, limit=15):
 
 
 @frappe.whitelist()
-def list_air_bookings(limit=50, offset=0, status=None, search=None):
+def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, search=None):
 	filters = {}
 	if status:
 		filters["reservation_status"] = status
+	if payment_status:
+		filters["payment_status"] = payment_status
 
 	or_filters = None
 	if search:
