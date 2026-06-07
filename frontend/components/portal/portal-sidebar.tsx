@@ -88,20 +88,20 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-navy-light px-4">
         <Link
           href="/portal"
           prefetch={false}
-          className="flex items-center gap-2"
+          className="flex min-w-0 items-center gap-2 pr-8 lg:pr-0"
           onClick={() => onPortalNavClick(onNavigate)}
         >
-          <Plane className="h-8 w-8 text-gold" />
-          <span className="font-serif text-xl font-bold text-cream">Bilan Air</span>
+          <Plane className="h-8 w-8 shrink-0 text-gold" />
+          <span className="truncate font-serif text-xl font-bold text-cream">Bilan Air</span>
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch]">
         {portalNavItems.map((item) =>
           item.type === "link" ? (
             <Link

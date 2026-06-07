@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Percent, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
-import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { fetchAllRoutes } from "@/services/flightRoute";
 import {
   deleteFareRule,
@@ -236,19 +236,12 @@ export default function PortalFareRulesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            <Percent className="h-7 w-7 text-gold" />
-            Fare rules
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Set price increases by route and booking lead time. When several rules match, the one
-            with the smallest day threshold is used.
-          </p>
-        </div>
-        <PortalAddButton onClick={openCreate}>New fare rule</PortalAddButton>
-      </div>
+      <PortalMasterPageHeader
+        title="Fare rules"
+        description="Set price increases by route and booking lead time. When several rules match, the one with the smallest day threshold is used."
+        addLabel="New fare rule"
+        onAdd={openCreate}
+      />
 
       <ListSearch
         value={search}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { listPassengers, registerPassenger, type PassengerRecord } from "@/services/passenger";
 import { ListSearch } from "@/components/portal/list-search";
@@ -110,9 +111,22 @@ export default function PortalPassengersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-2xl font-semibold">Passengers</h2>
+        <Button
+          type="button"
+          size="icon"
+          className="shrink-0 bg-gold text-navy hover:bg-gold-dark sm:hidden"
+          aria-label="New passenger"
+          onClick={() => {
+            formAlerts.clearAlerts();
+            setOpen(true);
+          }}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
         <PortalAddButton
+          className="hidden sm:inline-flex"
           onClick={() => {
             formAlerts.clearAlerts();
             setOpen(true);

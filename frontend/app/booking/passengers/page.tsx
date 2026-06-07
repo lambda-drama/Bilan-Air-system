@@ -6,9 +6,10 @@ import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, User, Loader2 } from 'lucide-react';
-import { saveBookingDraft, type BookingLegDraft } from '@/lib/booking-store';
+import { User, Loader2 } from 'lucide-react';
+import { loadBookingDraft, saveBookingDraft, type BookingLegDraft } from '@/lib/booking-store';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 import { useAuth } from '@/contexts/auth-context';
 import { SearchableSelect } from '@/components/portal/searchable-select';
 import { parseFlightsSearchParams } from '@/lib/flights-search-url';
@@ -74,6 +75,25 @@ function PassengerDetailsContent() {
   }, [isLoading, isAuthenticated, router, accountPath]);
 
   useEffect(() => {
+    const draft = loadBookingDraft();
+    if (!draft?.passengers?.length) return;
+    setPassengers((prev) =>
+      prev.map((p, i) => {
+        const saved = draft.passengers[i];
+        if (!saved) return p;
+        return {
+          full_name: saved.full_name || p.full_name,
+          id_number: saved.id_number || p.id_number,
+          date_of_birth: saved.date_of_birth || p.date_of_birth,
+          phone_number: saved.phone_number || p.phone_number,
+          email: saved.email || p.email,
+          passenger_type: saved.passenger_type || p.passenger_type,
+        };
+      }),
+    );
+  }, [passengerCount]);
+
+  useEffect(() => {
     if (!user || passengerCount !== 1) return;
 
     let cancelled = false;
@@ -134,9 +154,7 @@ function PassengerDetailsContent() {
     setPassengers(updated);
   };
 
-  const isValid = passengers.every(
-    (p) => p.full_name && p.id_number && p.date_of_birth && p.phone_number && p.email,
-  );
+  const isValid = passengers.every((p) => p.full_name && p.phone_number && p.email);
 
   const handleContinue = async () => {
     if (!isValid || submitting || !isAuthenticated) return;
@@ -208,26 +226,16 @@ function PassengerDetailsContent() {
     <main className="min-h-screen bg-cream">
       <Navbar />
 
-      <div className="bg-navy pt-24 pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4 text-cream/60 text-sm mb-4">
-            <span>Search</span>
-            <ArrowRight className="w-4 h-4" />
-            <span>Seats</span>
-            <ArrowRight className="w-4 h-4" />
-            <span>Account</span>
-            <ArrowRight className="w-4 h-4" />
-            <span className="text-gold">Travelers</span>
-          </div>
-          <h1 className="text-cream font-serif text-3xl">Traveler details</h1>
-          <p className="text-cream/60 mt-2">
-            Signed in as {user?.email}.
-            {passengerCount === 1
-              ? ' Your details are prefilled from your account — confirm or edit below.'
-              : ` Enter details for ${passengerCount} travelers.`}
-          </p>
-        </div>
-      </div>
+      <WebsiteBookingFlowHeader
+        currentStep="travelers"
+        searchParams={searchParams}
+        title="Traveler details"
+        description={`Signed in as ${user?.email}. ${
+          passengerCount === 1
+            ? 'Your details are prefilled from your account — confirm or edit below.'
+            : `Enter details for ${passengerCount} travelers.`
+        }`}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
@@ -255,22 +263,20 @@ function PassengerDetailsContent() {
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">ID / passport</label>
+                    <label className="text-navy/60 text-sm font-medium">ID / passport (optional)</label>
                     <Input
                       value={passenger.id_number}
                       onChange={(e) => updatePassenger(index, 'id_number', e.target.value)}
                       className="mt-1"
-                      required
                     />
                   </div>
                   <div>
-                    <label className="text-navy/60 text-sm font-medium">Date of birth</label>
+                    <label className="text-navy/60 text-sm font-medium">Date of birth (optional)</label>
                     <Input
                       type="date"
                       value={passenger.date_of_birth}
                       onChange={(e) => updatePassenger(index, 'date_of_birth', e.target.value)}
                       className="mt-1"
-                      required
                     />
                   </div>
                   <div>
@@ -315,8 +321,8 @@ function PassengerDetailsContent() {
             <div className="bg-white rounded-xl p-6 border border-navy/10 sticky top-24">
               <h3 className="text-navy font-semibold text-lg mb-4">Next step</h3>
               <p className="text-sm text-navy/60 mb-4">
-                Review your trip and either <strong>reserve with a PNR</strong> (pay within the
-                hold period) or <strong>pay now</strong> to confirm immediately.
+                Review your trip and either <strong>reserve your seats</strong> (pay within the
+                hold period) or <strong>pay now</strong> to receive your PNR immediately.
               </p>
               <p className="text-sm text-navy/60 mb-4">
                 {isMultiLeg
@@ -340,17 +346,19 @@ function PassengerDetailsContent() {
                   ))}
                 </ul>
               )}
-              <Button
-                onClick={handleContinue}
-                disabled={!isValid || submitting}
-                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
-              >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Continue to review'
-                )}
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={handleContinue}
+                  disabled={!isValid || submitting}
+                  className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Continue to review'
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

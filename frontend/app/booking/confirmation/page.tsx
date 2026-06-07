@@ -11,11 +11,16 @@ import { fetchBookingDetails, type BookingDetails } from '@/services/airBooking'
 import { getPublicBookingSettings } from '@/services/websiteAuth';
 import { useCurrency } from '@/contexts/currency-context';
 
+function bookingDisplayRef(item: BookingDetails): string {
+  return (item.pnr || '').trim() || item.reservation_ref;
+}
+
 function ConfirmationContent() {
   const { formatMoney } = useCurrency();
   const searchParams = useSearchParams();
-  const pnr = searchParams.get('pnr') || '';
-  const allPnrs = (searchParams.get('pnrs') || pnr)
+  const ref =
+    searchParams.get('ref') || searchParams.get('pnr') || '';
+  const allRefs = (searchParams.get('refs') || searchParams.get('pnrs') || ref)
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean);
@@ -31,8 +36,8 @@ function ConfirmationContent() {
   }, []);
 
   useEffect(() => {
-    if (allPnrs.length === 0) return;
-    Promise.all(allPnrs.map((ref) => fetchBookingDetails(ref).catch(() => null)))
+    if (allRefs.length === 0) return;
+    Promise.all(allRefs.map((id) => fetchBookingDetails(id).catch(() => null)))
       .then((results) => setBookings(results.filter(Boolean) as BookingDetails[]))
       .finally(() => setLoading(false));
   }, [searchParams]);
@@ -65,18 +70,20 @@ function ConfirmationContent() {
               {isPending ? 'Booking reserved' : 'Booking confirmed'}
             </h1>
             <p className="text-navy/60 text-lg">
-              Your booking reference{allPnrs.length > 1 ? 's' : ''} (PNR)
+              {isPending
+                ? `Your reservation reference${allRefs.length > 1 ? 's' : ''}`
+                : `Your PNR${allRefs.length > 1 ? 's' : ''}`}
             </p>
-            {allPnrs.length > 1 ? (
+            {allRefs.length > 1 ? (
               <div className="mt-2 space-y-1">
-                {allPnrs.map((ref) => (
-                  <p key={ref} className="text-gold text-2xl font-bold">
-                    {ref}
+                {allRefs.map((id) => (
+                  <p key={id} className="text-gold text-2xl font-bold">
+                    {id}
                   </p>
                 ))}
               </div>
             ) : (
-              <p className="text-gold text-3xl font-bold mt-2">{pnr}</p>
+              <p className="text-gold text-3xl font-bold mt-2">{ref}</p>
             )}
             {isPending && (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-6 max-w-lg mx-auto">
@@ -93,7 +100,7 @@ function ConfirmationContent() {
             <div className="space-y-6 mb-8">
               {bookings.map((item) => (
                 <div
-                  key={item.pnr}
+                  key={item.reservation_ref}
                   className="bg-white rounded-2xl border border-navy/10 overflow-hidden"
                 >
                   <div className="bg-navy p-6 flex flex-wrap items-center justify-between gap-2">
@@ -101,7 +108,12 @@ function ConfirmationContent() {
                       <p className="text-gold text-xs tracking-widest mb-1">FLIGHT</p>
                       <p className="text-cream text-2xl font-bold">{item.flight.flight_number}</p>
                     </div>
-                    <p className="text-cream/80 font-mono text-sm">{item.pnr}</p>
+                    <div className="text-right">
+                      <p className="text-gold/80 text-[10px] tracking-widest uppercase">
+                        {item.pnr ? 'PNR' : 'Reservation'}
+                      </p>
+                      <p className="text-cream/80 font-mono text-sm">{bookingDisplayRef(item)}</p>
+                    </div>
                   </div>
                   <div className="p-6 border-b border-navy/10">
                     <div className="flex items-center justify-between">
@@ -149,7 +161,7 @@ function ConfirmationContent() {
               <Link href="/">Back to Home</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/manage-booking?pnr=${encodeURIComponent(allPnrs[0] || pnr)}`}>
+              <Link href={`/manage-booking?pnr=${encodeURIComponent(allRefs[0] || ref)}`}>
                 {isPending ? 'Pay or manage booking' : 'Manage Booking'}
               </Link>
             </Button>

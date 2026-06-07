@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions, type AirportSelectRow } from "@/lib/airport-select";
 import { buildAirportDisplayByLinkName } from "@/lib/format-airport";
@@ -369,15 +369,12 @@ export default function PortalRoutesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Routes</h1>
-          <p className="text-muted-foreground">
-            Flight paths, fares, and multi-stop segments — managed in the portal
-          </p>
-        </div>
-        <PortalAddButton onClick={openCreate}>New route</PortalAddButton>
-      </div>
+      <PortalMasterPageHeader
+        title="Routes"
+        description="Flight paths, fares, and multi-stop segments — managed in the portal"
+        addLabel="New route"
+        onAdd={openCreate}
+      />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search route, origin, destination..." />
 

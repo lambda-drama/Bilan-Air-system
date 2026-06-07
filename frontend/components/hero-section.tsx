@@ -473,13 +473,6 @@ export function HeroSection() {
               >
                 {t.hero.manageBooking}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => router.push('/portal/login')}
-                className="bilan-hero-cta bilan-navy-outline-btn hidden md:inline-flex"
-              >
-                {t.hero.agentLogin}
-              </Button>
             </div>
 
             <div className={`mt-16 inline-flex items-center gap-2 border border-cream/20 rounded-lg px-6 py-4 ${isRtl ? 'flex-row-reverse' : ''}`}>

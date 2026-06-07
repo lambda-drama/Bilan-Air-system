@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Plane } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { MoreHorizontal, Plane, Plus, Repeat } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import {
   amendFlightSchedule,
@@ -82,6 +83,7 @@ const FLIGHT_STATUS_OPTIONS = [
 ];
 
 const ALL_STATUSES_VALUE = "all";
+const UPCOMING_STATUSES_VALUE = "upcoming";
 
 const emptyScheduleForm = {
   route: "",
@@ -121,16 +123,28 @@ function formatEstimateTime(time?: string) {
   return time.length >= 5 ? time.slice(0, 5) : time;
 }
 
-export default function PortalFlightsPage() {
+function PortalFlightsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
+
+  useEffect(() => {
+    if (searchParams.get("view") === "upcoming") {
+      setStatusFilter(UPCOMING_STATUSES_VALUE);
+    }
+  }, [searchParams]);
+
   const fetchSchedules = useCallback(
     async (search: string) => {
       const res = await listSchedules({
         limit: 100,
         search: search.trim() || undefined,
-        status: statusFilter === ALL_STATUSES_VALUE ? undefined : statusFilter,
+        status:
+          statusFilter === ALL_STATUSES_VALUE || statusFilter === UPCOMING_STATUSES_VALUE
+            ? undefined
+            : statusFilter,
+        upcoming: statusFilter === UPCOMING_STATUSES_VALUE,
       });
       return res.data;
     },
@@ -680,16 +694,51 @@ export default function PortalFlightsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Flight schedule</h1>
-          <p className="text-muted-foreground">View, create, and manage departures</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center justify-between gap-3 sm:block">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold">Flight schedule</h1>
+            <p className="hidden text-muted-foreground sm:block">
+              View, create, and manage departures
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            className="shrink-0 bg-gold text-navy hover:bg-gold-dark sm:hidden"
+            aria-label="New schedule"
+            onClick={() => {
+              formAlerts.clearAlerts();
+              setAddOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/portal/flights/recurring">Recurring (daily / weekly / monthly)</Link>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button
+            asChild
+            className="h-10 w-full bg-gold text-navy hover:bg-gold-dark sm:hidden"
+          >
+            <Link
+              href="/portal/flights/recurring"
+              className="inline-flex items-center justify-center"
+            >
+              <Repeat className="mr-2 h-4 w-4 shrink-0" />
+              Recurring
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="hidden h-10 sm:inline-flex">
+            <Link
+              href="/portal/flights/recurring"
+              className="inline-flex items-center justify-center"
+            >
+              <Repeat className="mr-2 h-4 w-4 shrink-0" />
+              Recurring (daily / weekly / monthly)
+            </Link>
           </Button>
           <PortalAddButton
+            className="hidden h-10 sm:inline-flex"
             onClick={() => {
               formAlerts.clearAlerts();
               setAddOpen(true);
@@ -718,6 +767,7 @@ export default function PortalFlightsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
+                    <SelectItem value={UPCOMING_STATUSES_VALUE}>Upcoming</SelectItem>
                     {FLIGHT_STATUS_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
@@ -1444,5 +1494,13 @@ export default function PortalFlightsPage() {
         )}
       </DetailSheet>
     </div>
+  );
+}
+
+export default function PortalFlightsPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground">Loading...</p>}>
+      <PortalFlightsPageContent />
+    </Suspense>
   );
 }

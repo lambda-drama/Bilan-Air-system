@@ -5,7 +5,7 @@ import type { PassengerTicketData } from "@/lib/passenger-ticket";
 
 export interface BookingPassengerInput {
   passenger_name: string;
-  id_number: string;
+  id_number?: string;
   date_of_birth?: string;
   passenger_type?: string;
   seat_number: string;
@@ -27,11 +27,19 @@ export interface CreateBookingData {
 }
 
 export interface CreateBookingResult {
-  pnr: string;
+  reservation_ref: string;
+  /** Issued only after payment or agent credit confirmation. */
+  pnr?: string | null;
   status: string;
+  reservation_status?: string;
   payment_status?: string;
   total_fare: number;
   hold_duration_minutes?: number;
+}
+
+/** Booking identifier for API calls — reservation ref works before PNR is issued. */
+export function bookingLookupRef(result: Pick<CreateBookingResult, "reservation_ref" | "pnr">): string {
+  return (result.pnr || "").trim() || (result.reservation_ref || "").trim();
 }
 
 export interface BookingDetails {

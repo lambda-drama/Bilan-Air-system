@@ -110,20 +110,21 @@ export default function PortalCheckInPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">Check-in</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
           Search by reservation ref, PNR, payer name, phone, or email. Pick a suggestion to load
           the booking.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <p className="text-xs text-muted-foreground">
+      <div className="rounded-lg border bg-card p-3 sm:space-y-3 sm:p-4">
+        <p className="hidden text-xs text-muted-foreground sm:block">
           <strong>Tickets:</strong> issued when payment is confirmed (ticket numbers on each
-          traveler).           <strong>Boarding pass:</strong> printed at check-in for each traveler who is
+          traveler). <strong>Boarding pass:</strong> printed at check-in for each traveler who is
           flying. <strong>Baggage:</strong> enter weight to issue a tag (excess fees apply per BA
           Settings).
         </p>
         <BookingPnrSearch
+          iconOnlyLoadOnMobile
           pnr={pnr}
           onPnrChange={setPnr}
           onLookup={lookupByPnr}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import {
   getAirplane,
   listAirlines,
@@ -200,13 +200,12 @@ export default function PortalAirplanesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Airplanes</h1>
-          <p className="text-muted-foreground">Master data — fleet registration and seat layout</p>
-        </div>
-        <PortalAddButton onClick={openCreate}>New airplane</PortalAddButton>
-      </div>
+      <PortalMasterPageHeader
+        title="Airplanes"
+        description="Master data — fleet registration and seat layout"
+        addLabel="New airplane"
+        onAdd={openCreate}
+      />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search registration, model..." />
 

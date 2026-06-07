@@ -18,7 +18,7 @@ import {
   saveOfficeBookingDraft,
   type OfficeBookingPassengerDraft,
 } from "@/lib/office-booking-store";
-import { createBooking, confirmPaymentAndInvoice } from "@/services/airBooking";
+import { bookingLookupRef, createBooking, confirmPaymentAndInvoice } from "@/services/airBooking";
 import { toast } from "sonner";
 
 const MAX_TRAVELERS = 9;
@@ -126,8 +126,6 @@ export default function OfficeBookingTravelersPage() {
       const n = i + 1;
       if (!p.full_name.trim()) missing.push(`Traveler ${n} name`);
       if (!p.passenger_type) missing.push(`Traveler ${n} passenger type (Adult / Child / Infant)`);
-      if (!p.id_number.trim()) missing.push(`Traveler ${n} ID`);
-      if (!p.date_of_birth) missing.push(`Traveler ${n} date of birth`);
     });
     return missing;
   };
@@ -152,8 +150,8 @@ export default function OfficeBookingTravelersPage() {
         payer_phone: payer.phone.trim(),
         passengers: passengers.map((p, i) => ({
           passenger_name: p.full_name.trim(),
-          id_number: p.id_number.trim(),
-          date_of_birth: p.date_of_birth,
+          id_number: p.id_number.trim() || undefined,
+          date_of_birth: p.date_of_birth || undefined,
           phone_number: p.phone_number.trim() || payer.phone.trim(),
           email: p.email.trim() || payer.email.trim(),
           passenger_type: p.passenger_type,
@@ -162,11 +160,13 @@ export default function OfficeBookingTravelersPage() {
         })),
       });
 
+      let displayRef = result.reservation_ref;
       if (markPaid) {
-        await confirmPaymentAndInvoice(result.pnr);
-        toast.success(`Booking ${result.pnr} created and paid`);
+        const paid = await confirmPaymentAndInvoice(bookingLookupRef(result));
+        displayRef = (paid.pnr as string) || result.reservation_ref;
+        toast.success(`Booking ${displayRef} created and paid`);
       } else {
-        toast.success(`Booking ${result.pnr} created (payment pending)`);
+        toast.success(`Booking ${result.reservation_ref} reserved (payment pending)`);
       }
 
       saveOfficeBookingDraft({
@@ -178,7 +178,7 @@ export default function OfficeBookingTravelersPage() {
       });
 
       router.push(
-        `/portal/booking/new/done?pnr=${encodeURIComponent(result.pnr)}&paid=${markPaid ? "1" : "0"}&total=${result.total_fare}`,
+        `/portal/booking/new/done?ref=${encodeURIComponent(displayRef)}&paid=${markPaid ? "1" : "0"}&total=${result.total_fare}`,
       );
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Booking failed");
@@ -316,13 +316,13 @@ export default function OfficeBookingTravelersPage() {
                 onChange={(e) => updatePassenger(index, "full_name", e.target.value)}
               />
             </FormField>
-            <FormField label="ID number" required>
+            <FormField label="ID number (optional)">
               <Input
                 value={p.id_number}
                 onChange={(e) => updatePassenger(index, "id_number", e.target.value)}
               />
             </FormField>
-            <FormField label="Date of birth" required>
+            <FormField label="Date of birth (optional)">
               <Input
                 type="date"
                 value={p.date_of_birth}
