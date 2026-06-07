@@ -64,7 +64,8 @@ def create_booking(booking_data):
             frappe.throw("Each traveler must have a passenger name.")
 
         passenger_link = pax.get("passenger")
-        id_number = pax.get("id_number")
+        id_number = (pax.get("id_number") or "").strip() or None
+        date_of_birth = (pax.get("date_of_birth") or "").strip() or None
 
         if not passenger_link and id_number:
             passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
@@ -79,20 +80,43 @@ def create_booking(booking_data):
             register_profile = True
 
         if not passenger_link and register_profile:
-            existing = frappe.db.exists("Passenger", {"id_number": id_number}) if id_number else None
-            if existing:
-                passenger_link = existing
-            else:
-                profile = frappe.get_doc({
+            session_user = frappe.session.user if frappe.session.user != "Guest" else None
+            if session_user:
+                passenger_link = frappe.db.get_value("Passenger", {"user": session_user})
+
+            email = (pax.get("email") or booking_data.get("payer_email") or "").strip().lower()
+            if not passenger_link and email:
+                passenger_link = frappe.db.get_value("Passenger", {"email": email})
+
+            if not passenger_link and id_number:
+                passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
+
+            if not passenger_link:
+                profile_id = id_number
+                if not profile_id:
+                    if session_user:
+                        safe = session_user.replace("@", "-at-").replace(".", "-")
+                        profile_id = f"WEB-{safe}"
+                        if frappe.db.exists("Passenger", {"id_number": profile_id}):
+                            profile_id = f"WEB-{frappe.generate_hash(length=10)}"
+                    else:
+                        profile_id = f"WEB-{frappe.generate_hash(length=10)}"
+
+                profile_data = {
                     "doctype": "Passenger",
                     "full_name": passenger_name,
                     "passenger_type": pax.get("passenger_type", "Adult"),
-                    "id_number": id_number,
-                    "date_of_birth": pax.get("date_of_birth"),
                     "phone_number": pax.get("phone_number") or booking_data.get("payer_phone"),
-                    "email": pax.get("email") or booking_data.get("payer_email"),
-                })
-                profile.flags.create_login_user = True
+                    "email": email or booking_data.get("payer_email"),
+                    "id_number": profile_id,
+                }
+                if date_of_birth:
+                    profile_data["date_of_birth"] = date_of_birth
+                if session_user:
+                    profile_data["user"] = session_user
+                profile = frappe.get_doc(profile_data)
+                if not session_user:
+                    profile.flags.create_login_user = True
                 profile.insert(ignore_permissions=True)
                 passenger_link = profile.name
 

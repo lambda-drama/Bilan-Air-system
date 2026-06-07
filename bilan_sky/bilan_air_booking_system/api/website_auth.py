@@ -53,26 +53,24 @@ def _create_or_link_passenger(
 	if frappe.db.exists("Passenger", {"id_number": id_number}):
 		frappe.throw(_("A passenger profile with this ID number already exists."))
 
-	if not date_of_birth:
-		frappe.throw(_("Date of birth is required to create your traveler profile."))
-
 	phone = (mobile_no or "").strip()
 	if not phone:
 		frappe.throw(_("Phone number is required."))
 
-	passenger = frappe.get_doc(
-		{
-			"doctype": "Passenger",
-			"full_name": full_name,
-			"passenger_type": "Adult",
-			"id_number": id_number,
-			"date_of_birth": getdate(date_of_birth),
-			"phone_number": phone,
-			"email": email,
-			"user": user_name,
-			"is_active": 1,
-		}
-	)
+	profile_data = {
+		"doctype": "Passenger",
+		"full_name": full_name,
+		"passenger_type": "Adult",
+		"id_number": id_number,
+		"phone_number": phone,
+		"email": email,
+		"user": user_name,
+		"is_active": 1,
+	}
+	if date_of_birth:
+		profile_data["date_of_birth"] = getdate(date_of_birth)
+
+	passenger = frappe.get_doc(profile_data)
 	passenger.insert(ignore_permissions=True)
 	return passenger.name
 
