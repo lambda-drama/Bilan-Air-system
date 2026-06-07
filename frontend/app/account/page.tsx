@@ -10,9 +10,11 @@ import { TravelerAuthForm } from '@/components/traveler-auth-form';
 import { useAuth } from '@/contexts/auth-context';
 import { getMyAccount, type WebsiteAccountProfile } from '@/services/websiteAuth';
 import { followAuthRedirect, getSafeRedirect } from '@/lib/auth-redirect';
+import { hasPortalAccess } from '@/lib/portal-access';
 import {
   Calendar,
   ClipboardCheck,
+  LayoutDashboard,
   Loader2,
   LogOut,
   Plane,
@@ -73,6 +75,7 @@ function AccountPageContent() {
   };
 
   const isDeskGate = redirectTo === '/app';
+  const showPortalLink = hasPortalAccess(user?.roles);
 
   if (isLoading || (isAuthenticated && redirectTo)) {
     return (
@@ -137,6 +140,17 @@ function AccountPageContent() {
               )}
 
               <div className="grid gap-3 mt-6">
+                {showPortalLink && (
+                  <Button
+                    asChild
+                    className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
+                  >
+                    <Link href="/portal">
+                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      Go to Portal
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   asChild
                   className="w-full bg-navy hover:bg-navy-light text-cream font-semibold"

@@ -17,12 +17,13 @@ import {
   Ticket,
 } from 'lucide-react';
 import { loadBookingDraft, clearBookingDraft } from '@/lib/booking-store';
-import { createBooking, processPayment } from '@/services/airBooking';
+import { bookingLookupRef, createBooking, processPayment } from '@/services/airBooking';
 import { getPublicBookingSettings } from '@/services/websiteAuth';
 import { useCurrency } from '@/contexts/currency-context';
 import { useAuth } from '@/contexts/auth-context';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
 import { clearTripContext } from '@/lib/trip-store';
+import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 
 function PaymentContent() {
   const { formatMoney } = useCurrency();
@@ -78,8 +79,8 @@ function PaymentContent() {
       payer_phone: draft.payer_phone,
       passengers: draft.passengers.map((p, i) => ({
         passenger_name: p.full_name,
-        id_number: p.id_number,
-        date_of_birth: p.date_of_birth,
+        id_number: p.id_number.trim() || undefined,
+        date_of_birth: p.date_of_birth || undefined,
         passenger_type: p.passenger_type,
         seat_number: leg.selectedSeatIds[i],
         phone_number: p.phone_number,
@@ -89,11 +90,11 @@ function PaymentContent() {
     }));
   };
 
-  const finishWithPnrs = (pnrs: string[], paid: boolean) => {
+  const finishWithRefs = (refs: string[], paid: boolean) => {
     clearBookingDraft();
     clearTripContext();
-    const q = new URLSearchParams({ pnr: pnrs[0] });
-    if (pnrs.length > 1) q.set('pnrs', pnrs.join(','));
+    const q = new URLSearchParams({ ref: refs[0] });
+    if (refs.length > 1) q.set('refs', refs.join(','));
     if (!paid) q.set('reserved', '1');
     router.push(`/booking/confirmation?${q.toString()}`);
   };
@@ -108,12 +109,12 @@ function PaymentContent() {
     setProcessing(true);
     setError('');
     try {
-      const pnrs: string[] = [];
+      const refs: string[] = [];
       for (const payload of payloads) {
         const created = await createBooking(payload);
-        pnrs.push(created.pnr);
+        refs.push(created.reservation_ref);
       }
-      finishWithPnrs(pnrs, false);
+      finishWithRefs(refs, false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create booking');
     } finally {
@@ -131,14 +132,18 @@ function PaymentContent() {
     setProcessing(true);
     setError('');
     try {
-      const pnrs: string[] = [];
+      const refs: string[] = [];
       for (const payload of payloads) {
         const created = await createBooking(payload);
         const method = paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
-        await processPayment(created.pnr, method, phoneNumber || undefined);
-        pnrs.push(created.pnr);
+        const paid = await processPayment(
+          bookingLookupRef(created),
+          method,
+          phoneNumber || undefined,
+        );
+        refs.push((paid.pnr as string) || created.reservation_ref);
       }
-      finishWithPnrs(pnrs, true);
+      finishWithRefs(refs, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Payment failed');
     } finally {
@@ -158,15 +163,12 @@ function PaymentContent() {
     <main className="min-h-screen bg-cream">
       <Navbar />
 
-      <div className="bg-navy pt-24 pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-cream font-serif text-3xl">Review & confirm</h1>
-          <p className="text-cream/60 mt-2">
-            Reserve your seats now — pay within {holdLabel}. Booking status stays{' '}
-            <strong>Reserved</strong> until payment is <strong>Paid</strong>.
-          </p>
-        </div>
-      </div>
+      <WebsiteBookingFlowHeader
+        currentStep="review"
+        searchParams={searchParams}
+        title="Review & confirm"
+        description={`Reserve your seats now — pay within ${holdLabel}. Your PNR is issued when payment is confirmed.`}
+      />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {error && (
@@ -181,11 +183,10 @@ function PaymentContent() {
               <div className="flex items-start gap-4">
                 <Ticket className="w-10 h-10 text-gold shrink-0" />
                 <div>
-                  <h3 className="text-navy font-semibold text-lg">Reserve & get your PNR</h3>
+                  <h3 className="text-navy font-semibold text-lg">Reserve your seats</h3>
                   <p className="text-navy/60 text-sm mt-1">
-                    We create your booking immediately. Seats are held for about {holdLabel}{' '}
-                    (from BA Settings). Payment status is <strong>Pending</strong> until you pay
-                    at the counter, via M-Pesa, or on Manage Booking.
+                    We save your reservation and hold seats for about {holdLabel}. You receive a
+                    reservation reference now; your PNR is issued after payment.
                   </p>
                   <Button
                     className="mt-4 bg-gold hover:bg-gold-dark text-navy w-full sm:w-auto"
@@ -197,7 +198,7 @@ function PaymentContent() {
                     ) : (
                       <Ticket className="w-4 h-4 mr-2" />
                     )}
-                    Reserve seats & get PNR
+                    Reserve seat
                   </Button>
                 </div>
               </div>
@@ -249,8 +250,7 @@ function PaymentContent() {
               <CreditCard className="w-5 h-5" /> Pay now
             </h3>
             <p className="text-sm text-navy/60 mb-4">
-              Creates your PNR{legCount > 1 ? 's' : ''} and marks{' '}
-              {legCount > 1 ? 'each booking' : 'the booking'} <strong>Paid</strong> in one step (
+              Confirms payment and issues your PNR{legCount > 1 ? 's' : ''} in one step (
               {passengerCount} traveler{passengerCount > 1 ? 's' : ''}
               {legCount > 1 ? ` · ${legCount} flights` : ''}).
             </p>
@@ -274,7 +274,7 @@ function PaymentContent() {
               <Link href="/manage-booking" className="underline">
                 Manage Booking
               </Link>{' '}
-              — look up your PNR later to pay or view details.
+              — look up your reservation later to pay or view details.
             </p>
           </div>
         </div>

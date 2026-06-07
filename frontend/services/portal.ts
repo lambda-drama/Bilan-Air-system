@@ -47,6 +47,7 @@ export async function listBookings(opts?: {
   limit?: number;
   offset?: number;
   status?: string;
+  payment_status?: string;
   search?: string;
 }) {
   return apiRequest<PaginatedResponse<AirBookingRow>>(methodUrl("portal", "list_air_bookings"), {
@@ -55,6 +56,7 @@ export async function listBookings(opts?: {
       limit: opts?.limit ?? 50,
       offset: opts?.offset ?? 0,
       status: opts?.status ?? null,
+      payment_status: opts?.payment_status ?? null,
       search: opts?.search ?? null,
     }),
   });

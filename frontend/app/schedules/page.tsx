@@ -9,9 +9,11 @@ import {
   Calendar,
   Loader2,
   Plane,
+  Filter,
   RefreshCw,
   Search,
   Users,
+  X,
 } from 'lucide-react';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
@@ -44,10 +46,10 @@ const SEAT_CLASSES: SeatClassFilter[] = ['Economy', 'Business', 'First Class'];
 const STATUS_OPTIONS = ['Scheduled', 'Delayed', 'Boarding', 'Departed', 'Arrived', 'Cancelled'];
 
 const fieldClass =
-  'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
+  'bilan-light-field w-full mt-1 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-gold';
 
 const airportInputClass =
-  'bilan-light-field h-auto min-h-[2.75rem] py-2.5 text-base shadow-none mt-1';
+  'bilan-light-field h-auto min-h-[2.5rem] sm:min-h-[2.75rem] py-2 text-sm shadow-none mt-1';
 
 function formatClock(time: string) {
   if (!time) return '—';
@@ -125,6 +127,7 @@ function SchedulesBrowseContent() {
   const [rangeTo, setRangeTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   useEffect(() => {
     setLoadingRoutes(true);
@@ -235,6 +238,7 @@ function SchedulesBrowseContent() {
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
     syncUrl();
+    setFiltersOpen(false);
   };
 
   const handleClear = () => {
@@ -269,6 +273,65 @@ function SchedulesBrowseContent() {
   const statusLabel = (value: string) =>
     t.schedules.statusLabels[value as keyof typeof t.schedules.statusLabels] ?? value;
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (origin) count++;
+    if (destination) count++;
+    if (route) count++;
+    if (flightNumber.trim()) count++;
+    if (status) count++;
+    if (bookableOnly) count++;
+    if (passengers !== 1) count++;
+    if (seatClass !== 'Economy') count++;
+    if (useSingleDate) {
+      if (date && date !== today) count++;
+    } else if (dateFrom !== today || dateTo) {
+      count++;
+    }
+    return count;
+  }, [
+    origin,
+    destination,
+    route,
+    flightNumber,
+    status,
+    bookableOnly,
+    passengers,
+    seatClass,
+    useSingleDate,
+    date,
+    dateFrom,
+    dateTo,
+    today,
+  ]);
+
+  const toggleFilters = () => setFiltersOpen((open) => !open);
+
+  const filterIconToggle = (
+    <Button
+      type="button"
+      size="icon"
+      variant={filtersOpen ? 'default' : 'outline'}
+      className={cn(
+        'lg:hidden shrink-0 relative h-10 w-10',
+        filtersOpen
+          ? 'bg-navy text-cream hover:bg-navy/90'
+          : 'border-navy/20 text-navy hover:bg-navy/5',
+      )}
+      onClick={toggleFilters}
+      aria-expanded={filtersOpen}
+      aria-controls="schedules-filters-panel"
+      aria-label={filtersOpen ? t.schedules.hideFilters : t.schedules.filters}
+    >
+      {filtersOpen ? <X className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+      {activeFilterCount > 0 && !filtersOpen && (
+        <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-navy">
+          {activeFilterCount}
+        </span>
+      )}
+    </Button>
+  );
+
   return (
     <main className="min-h-screen bg-cream">
       <Navbar />
@@ -278,19 +341,27 @@ function SchedulesBrowseContent() {
           <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">
             {t.schedules.eyebrow}
           </p>
-          <h1 className="text-cream font-serif text-3xl md:text-4xl">{t.schedules.title}</h1>
-          <p className="text-cream/60 mt-3 max-w-2xl">{t.schedules.subtitle}</p>
+          <div className="min-w-0">
+            <h1 className="text-cream font-serif text-3xl md:text-4xl">{t.schedules.title}</h1>
+            <p className="text-cream/60 mt-3 max-w-2xl">{t.schedules.subtitle}</p>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid lg:grid-cols-[320px_1fr] gap-8 items-start">
-          <aside className="lg:sticky lg:top-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="grid lg:grid-cols-[minmax(0,280px)_1fr] gap-4 lg:gap-8 items-start">
+          <aside
+            id="schedules-filters-panel"
+            className={cn(
+              'order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-24',
+              filtersOpen ? 'block' : 'hidden lg:block',
+            )}
+          >
             <form
               onSubmit={handleApply}
-              className="rounded-2xl border border-navy/10 bg-white shadow-sm p-6 space-y-4"
+              className="rounded-xl lg:rounded-2xl border border-navy/10 bg-white shadow-sm p-4 sm:p-5 lg:p-6 space-y-3 max-lg:max-h-[min(70vh,28rem)] max-lg:overflow-y-auto"
             >
-              <h2 className="text-lg font-serif text-navy">{t.schedules.filters}</h2>
+              <h2 className="text-base sm:text-lg font-serif text-navy">{t.schedules.filters}</h2>
 
               <div>
                 <label className="text-navy/60 text-xs font-semibold tracking-wider">
@@ -393,7 +464,7 @@ function SchedulesBrowseContent() {
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-navy/60 text-xs font-semibold tracking-wider">
                       {t.schedules.dateFrom}
@@ -498,40 +569,54 @@ function SchedulesBrowseContent() {
                 {t.schedules.bookableOnly}
               </label>
 
-              <div className={cn('flex flex-wrap gap-2', isRtl && 'flex-row-reverse')}>
-                <Button type="submit" className="bg-gold hover:bg-gold-dark text-navy gap-2">
+              <div
+                className={cn(
+                  'flex flex-col sm:flex-row gap-2 pt-1',
+                  isRtl && 'sm:flex-row-reverse',
+                )}
+              >
+                <Button
+                  type="submit"
+                  className="w-full sm:w-auto bg-gold hover:bg-gold-dark text-navy gap-2"
+                >
                   <Search className="w-4 h-4" />
                   {t.schedules.applyFilters}
                 </Button>
-                <Button type="button" variant="outline" onClick={handleClear}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={handleClear}>
                   {t.schedules.clearFilters}
                 </Button>
               </div>
             </form>
           </aside>
 
-          <section className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-serif text-navy">{t.schedules.results}</h2>
-                <p className="text-navy/60 text-sm mt-1">
-                  {t.schedules.resultsCount.replace('{count}', String(visibleFlights.length))}
-                  {rangeFrom && rangeTo
-                    ? ` · ${t.schedules.dateRange
-                        .replace('{from}', formatDisplayDate(rangeFrom, locale))
-                        .replace('{to}', formatDisplayDate(rangeTo, locale))}`
-                    : ''}
-                </p>
+          <div className="contents lg:flex lg:flex-col lg:col-start-2 lg:gap-4 min-w-0">
+            <div className="order-1 lg:order-none min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div className="flex items-start justify-between gap-3 w-full sm:w-auto min-w-0">
+                  <div className="min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-serif text-navy">{t.schedules.results}</h2>
+                    <p className="text-navy/60 text-sm mt-1">
+                      {t.schedules.resultsCount.replace('{count}', String(visibleFlights.length))}
+                      {rangeFrom && rangeTo
+                        ? ` · ${t.schedules.dateRange
+                            .replace('{from}', formatDisplayDate(rangeFrom, locale))
+                            .replace('{to}', formatDisplayDate(rangeTo, locale))}`
+                        : ''}
+                    </p>
+                  </div>
+                  {filterIconToggle}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadSchedules(parseSchedulesBrowseParams(searchParams))}
+                  className="inline-flex items-center gap-2 text-sm text-navy/60 hover:text-navy shrink-0"
+                >
+                  <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => loadSchedules(parseSchedulesBrowseParams(searchParams))}
-                className="inline-flex items-center gap-2 text-sm text-navy/60 hover:text-navy"
-              >
-                <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-              </button>
             </div>
 
+            <section className="order-3 lg:order-none min-w-0 space-y-4">
             {error && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -646,7 +731,8 @@ function SchedulesBrowseContent() {
                 </div>
               </div>
             )}
-          </section>
+            </section>
+          </div>
         </div>
       </div>
 

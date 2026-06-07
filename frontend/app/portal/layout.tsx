@@ -21,11 +21,45 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
 const AUTH_ROUTES = ["/portal/login", "/portal/forgot-password"]
+
+const NOTIFICATION_COUNT = 3
+
+const PORTAL_NOTIFICATIONS = [
+  {
+    title: "New booking received",
+    detail: "Booking #BL2024001 - MGQ to JIB",
+  },
+  {
+    title: "Flight schedule updated",
+    detail: "BA101 departure time changed",
+  },
+  {
+    title: "Payment confirmed",
+    detail: "$450 received for booking #BL2024002",
+  },
+] as const
+
+function PortalNotificationItems() {
+  return (
+    <>
+      {PORTAL_NOTIFICATIONS.map((notification) => (
+        <DropdownMenuItem
+          key={notification.title}
+          className="flex flex-col items-start gap-1 p-3"
+        >
+          <span className="font-medium">{notification.title}</span>
+          <span className="text-xs text-muted-foreground">{notification.detail}</span>
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
+}
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return <PortalLayoutInner>{children}</PortalLayoutInner>
@@ -81,7 +115,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="flex h-svh overflow-hidden bg-muted/30">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -90,17 +124,17 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar — navy matches public site; gold reserved for buttons/active states */}
+      {/* Mobile drawer — fixed slide-in panel */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-full w-64 transform bg-navy text-cream transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 h-svh w-64 overflow-hidden transform bg-navy text-cream transition-transform duration-300 lg:hidden ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="relative flex h-full flex-col">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="absolute right-3 top-4 z-10 lg:hidden"
+            className="absolute right-3 top-4 z-10"
             aria-label="Close menu"
           >
             <X className="h-5 w-5 text-cream" />
@@ -109,27 +143,44 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content area */}
-      <div className="lg:pl-64">
+      {/* Desktop sidebar — pinned in flex shell, never scrolls with main content */}
+      <aside className="hidden h-full min-h-0 w-64 shrink-0 overflow-hidden bg-navy text-cream lg:flex lg:flex-col">
+        <PortalSidebar />
+      </aside>
+
+      {/* Main content area — only this column scrolls */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top navbar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
-          <div className="flex items-center gap-4">
+        <header className="z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background px-4 lg:gap-4 lg:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4">
             <button
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden"
+              className="shrink-0 lg:hidden"
+              aria-label="Open menu"
             >
               <Menu className="h-6 w-6" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">
-              Welcome back, {firstName}
+            <h1 className="flex min-w-0 items-baseline gap-1.5 truncate">
+              <span className="shrink-0 font-serif text-xs font-normal tracking-wide text-muted-foreground lg:hidden">
+                Welcome back,
+              </span>
+              <span className="truncate text-base font-semibold text-foreground lg:hidden">
+                {firstName}
+              </span>
+              <span className="hidden truncate text-lg font-semibold text-foreground lg:inline">
+                Welcome back, {firstName}
+              </span>
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Profile — before notifications; bell stays rightmost */}
+          <div className="flex shrink-0 items-center gap-2 lg:gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  className="relative flex h-9 items-center gap-2 px-1 lg:h-10 lg:px-2"
+                >
                   {user ? (
                     <UserAvatar user={user} />
                   ) : (
@@ -137,13 +188,21 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                       <span className="text-sm font-semibold">?</span>
                     </div>
                   )}
-                  <span className="hidden max-w-[140px] truncate text-sm font-medium md:inline">
+                  <span className="hidden max-w-[140px] truncate text-sm font-medium lg:inline">
                     {user?.full_name || "Account"}
                   </span>
-                  <ChevronDown className="h-4 w-4 shrink-0" />
+                  <ChevronDown className="hidden h-4 w-4 shrink-0 lg:inline" />
+                  {NOTIFICATION_COUNT > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-navy lg:hidden">
+                      {NOTIFICATION_COUNT}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent
+                align="end"
+                className="w-[min(20rem,calc(100vw-2rem))] lg:w-56"
+              >
                 {user && (
                   <div className="border-b px-3 py-2">
                     <p className="truncate text-sm font-medium">{user.full_name}</p>
@@ -151,6 +210,19 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                     <p className="text-xs text-muted-foreground">{formatRoleLabel(user.roles)}</p>
                   </div>
                 )}
+                <div className="lg:hidden">
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                    {NOTIFICATION_COUNT > 0 && (
+                      <span className="rounded-full bg-gold px-1.5 py-0.5 text-[10px] font-bold text-navy">
+                        {NOTIFICATION_COUNT}
+                      </span>
+                    )}
+                  </DropdownMenuLabel>
+                  <PortalNotificationItems />
+                  <DropdownMenuSeparator />
+                </div>
                 <DropdownMenuItem asChild>
                   <Link href="/portal/profile" prefetch={false} onClick={signalPortalNavStart}>
                     Profile
@@ -171,14 +243,16 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Notifications — always last in header */}
+            {/* Desktop only — bell stays rightmost */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="ghost" size="icon" className="relative hidden lg:inline-flex">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-navy">
-                    3
-                  </span>
+                  {NOTIFICATION_COUNT > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-navy">
+                      {NOTIFICATION_COUNT}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
@@ -186,31 +260,20 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                   <h3 className="font-semibold">Notifications</h3>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-                  <span className="font-medium">New booking received</span>
-                  <span className="text-xs text-muted-foreground">
-                    Booking #BL2024001 - MGQ to JIB
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-                  <span className="font-medium">Flight schedule updated</span>
-                  <span className="text-xs text-muted-foreground">
-                    BA101 departure time changed
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-                  <span className="font-medium">Payment confirmed</span>
-                  <span className="text-xs text-muted-foreground">
-                    $450 received for booking #BL2024002
-                  </span>
-                </DropdownMenuItem>
+                <PortalNotificationItems />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-6">{children}</main>
+        <main
+          className={`flex-1 overflow-y-auto p-4 lg:p-6${
+            sidebarOpen ? " max-lg:overflow-hidden" : ""
+          }`}
+        >
+          {children}
+        </main>
       </div>
     </div>
   )

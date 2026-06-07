@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
-import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
@@ -112,13 +112,12 @@ export default function PortalAirlinesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Airlines</h1>
-          <p className="text-muted-foreground">Master data — carriers for routes and aircraft</p>
-        </div>
-        <PortalAddButton onClick={openCreate}>New airline</PortalAddButton>
-      </div>
+      <PortalMasterPageHeader
+        title="Airlines"
+        description="Master data — carriers for routes and aircraft"
+        addLabel="New airline"
+        onAdd={openCreate}
+      />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search name, IATA, ICAO..." />
 

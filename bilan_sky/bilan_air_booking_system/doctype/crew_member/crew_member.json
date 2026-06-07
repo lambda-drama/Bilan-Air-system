@@ -62,8 +62,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Email",
-   "options": "Email",
-   "reqd": 1
+   "options": "Email"
   },
   {
    "fieldname": "date_of_hire",
@@ -129,7 +128,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 12:25:52.802238",
+ "modified": "2026-06-08 00:22:30.827028",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Crew Member",

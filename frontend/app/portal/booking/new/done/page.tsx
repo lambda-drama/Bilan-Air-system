@@ -12,7 +12,7 @@ import { useCurrency } from "@/contexts/currency-context";
 function DoneContent() {
   const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
-  const pnr = searchParams.get("pnr") || "";
+  const ref = searchParams.get("ref") || searchParams.get("pnr") || "";
   const paid = searchParams.get("paid") === "1";
   const total = searchParams.get("total");
 
@@ -24,8 +24,10 @@ function DoneContent() {
     <BookingFlowLayout title="Booking complete" description="The reservation has been saved.">
       <div className="flex flex-col items-center py-6 text-center">
         <CheckCircle2 className="mb-4 h-14 w-14 text-gold" />
-        <p className="text-sm text-muted-foreground">PNR</p>
-        <p className="text-2xl font-semibold">{pnr || "—"}</p>
+        <p className="text-sm text-muted-foreground">
+          {paid ? "PNR" : "Reservation reference"}
+        </p>
+        <p className="text-2xl font-semibold">{ref || "—"}</p>
         {total && (
           <p className="mt-3 text-sm">
             <span className="text-muted-foreground">Total: </span>

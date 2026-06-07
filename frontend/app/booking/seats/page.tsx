@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { fetchSeatMap, type SeatMapEntry } from '@/services/flightSchedule';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 import { parseFlightsSearchParams } from '@/lib/flights-search-url';
 import {
   getLegSelection,
@@ -76,10 +77,14 @@ function SeatSelectionContent() {
     date: searchParams.get('date') || '',
   };
   const legTitle = tripLegLabel(activeLeg, leg, searchLegs.length || 1);
+  const seatsParam = searchParams.get('seats') || '';
 
   useEffect(() => {
     if (!flightId) return;
-    setSelectedSeats([]);
+    const savedSeatIds =
+      legSelection?.selectedSeatIds ||
+      seatsParam.split(',').filter(Boolean);
+    setSelectedSeats(savedSeatIds);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setLoading(true);
     fetchSeatMap(flightId)
@@ -99,7 +104,7 @@ function SeatSelectionContent() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [flightId]);
+  }, [flightId, leg, legSelection?.selectedSeatIds, seatsParam]);
 
   const visibleSeats = seats.filter((s) => s.seat_class === seatClass);
 
@@ -191,17 +196,12 @@ function SeatSelectionContent() {
     <main className="min-h-screen bg-cream">
       <Navbar />
 
-      <div className="bg-navy pt-24 pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-cream font-serif text-3xl">Select Your Seats</h1>
-          <p className="text-cream/60 mt-2">
-            {isMultiLeg && `${legTitle} · `}
-            {activeLeg.origin} → {activeLeg.destination} · {seatClass} · Select {passengers} seat
-            {passengers > 1 ? 's' : ''}
-            {legSelection?.flightNumber ? ` · ${legSelection.flightNumber}` : ''}
-          </p>
-        </div>
-      </div>
+      <WebsiteBookingFlowHeader
+        currentStep="seats"
+        searchParams={searchParams}
+        title="Select your seats"
+        description={`${isMultiLeg ? `${legTitle} · ` : ''}${activeLeg.origin} → ${activeLeg.destination} · ${seatClass} · Select ${passengers} seat${passengers > 1 ? 's' : ''}${legSelection?.flightNumber ? ` · ${legSelection.flightNumber}` : ''}`}
+      />
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         {loading ? (

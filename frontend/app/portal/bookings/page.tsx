@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { MoreHorizontal, Ticket } from "lucide-react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { MoreHorizontal, Plus, Ticket } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
 import {
   cancelBooking,
@@ -53,6 +54,7 @@ import {
 } from "@/components/ui/select";
 
 const ALL_STATUSES_VALUE = "__all__";
+const ALL_PAYMENTS_VALUE = "__all__";
 
 const RESERVATION_STATUS_OPTIONS = [
   { value: "Booked", label: "Booked" },
@@ -61,23 +63,40 @@ const RESERVATION_STATUS_OPTIONS = [
   { value: "Flight Taken", label: "Flight Taken" },
 ] as const;
 
-export default function PortalBookingsPage() {
+const PAYMENT_STATUS_OPTIONS = [
+  { value: "Pending", label: "Pending" },
+  { value: "Paid", label: "Paid" },
+  { value: "Refunded", label: "Refunded" },
+] as const;
+
+function PortalBookingsPageContent() {
+  const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
+  const [paymentFilter, setPaymentFilter] = useState(ALL_PAYMENTS_VALUE);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment) {
+      setPaymentFilter(payment);
+    }
+  }, [searchParams]);
+
   const fetchBookings = useCallback(
     async (search: string) => {
       const res = await listBookings({
         search: search.trim() || undefined,
         status: statusFilter === ALL_STATUSES_VALUE ? undefined : statusFilter,
+        payment_status: paymentFilter === ALL_PAYMENTS_VALUE ? undefined : paymentFilter,
         limit: 100,
       });
       return res.data;
     },
-    [statusFilter],
+    [statusFilter, paymentFilter],
   );
   const { search, setSearch, rows, loading, error, refresh } = useLiveListQuery<AirBookingRow>(
     fetchBookings,
-    { reloadKey: statusFilter },
+    { reloadKey: `${statusFilter}:${paymentFilter}` },
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -166,21 +185,35 @@ export default function PortalBookingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">Bookings</h2>
-          <p className="text-sm text-muted-foreground">
-            In-office bookings — click reservation ref for details and actions
-          </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center justify-between gap-3 sm:block">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-semibold">Bookings</h2>
+            <p className="hidden text-sm text-muted-foreground sm:block">
+              In-office bookings — click reservation ref for details and actions
+            </p>
+          </div>
+          <Button
+            asChild
+            size="icon"
+            className="shrink-0 bg-gold text-navy hover:bg-gold-dark sm:hidden"
+          >
+            <Link href="/portal/booking/new" aria-label="Office booking">
+              <Plus className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/portal/bookings/tickets">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button variant="outline" asChild className="h-10 w-full sm:w-auto">
+            <Link
+              href="/portal/bookings/tickets"
+              className="inline-flex items-center justify-center"
+            >
               <Ticket className="mr-2 h-4 w-4 shrink-0" />
               All tickets
             </Link>
           </Button>
-          <BookingStartLink>Office booking</BookingStartLink>
+          <BookingStartLink className="hidden sm:inline-flex">Office booking</BookingStartLink>
         </div>
       </div>
 
@@ -191,7 +224,7 @@ export default function PortalBookingsPage() {
           placeholder="Search reservation ref, PNR, payer, phone..."
           className="w-full sm:max-w-md"
         />
-        <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
           <label
             htmlFor="booking-status-filter"
             className="text-sm font-medium text-muted-foreground shrink-0"
@@ -205,6 +238,25 @@ export default function PortalBookingsPage() {
             <SelectContent>
               <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
               {RESERVATION_STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <label
+            htmlFor="booking-payment-filter"
+            className="text-sm font-medium text-muted-foreground shrink-0"
+          >
+            Payment
+          </label>
+          <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+            <SelectTrigger id="booking-payment-filter" className="w-full sm:w-[180px]">
+              <SelectValue placeholder="All payments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_PAYMENTS_VALUE}>All payments</SelectItem>
+              {PAYMENT_STATUS_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>
@@ -237,7 +289,9 @@ export default function PortalBookingsPage() {
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    {search.trim() || statusFilter !== ALL_STATUSES_VALUE
+                    {search.trim() ||
+                    statusFilter !== ALL_STATUSES_VALUE ||
+                    paymentFilter !== ALL_PAYMENTS_VALUE
                       ? "No bookings match your filters."
                       : "No bookings yet."}
                   </TableCell>
@@ -454,5 +508,13 @@ export default function PortalBookingsPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function PortalBookingsPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground">Loading...</p>}>
+      <PortalBookingsPageContent />
+    </Suspense>
   );
 }

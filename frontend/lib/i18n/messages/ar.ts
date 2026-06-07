@@ -101,6 +101,7 @@ export const ar: MessageTree = {
     title: "تصفح كل الجداول",
     subtitle: "استكشف الرحلات القادمة عبر المسارات والتواريخ. صفِّ النتائج بالفلاتر ثم احجز عندما تكون جاهزاً.",
     filters: "الفلاتر",
+    hideFilters: "إخفاء الفلاتر",
     applyFilters: "تطبيق الفلاتر",
     clearFilters: "مسح الكل",
     from: "من",

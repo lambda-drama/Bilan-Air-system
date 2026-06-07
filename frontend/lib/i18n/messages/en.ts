@@ -101,6 +101,7 @@ export const en = {
     title: "Browse all schedules",
     subtitle: "Explore upcoming departures across routes and dates. Refine with filters, then book when you are ready.",
     filters: "Filters",
+    hideFilters: "Hide filters",
     applyFilters: "Apply filters",
     clearFilters: "Clear all",
     from: "From",

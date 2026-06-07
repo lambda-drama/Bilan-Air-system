@@ -6,6 +6,7 @@ import { normalizeBookingLookup } from "@/lib/booking-reference";
 import { searchBookingsForCheckin, type CheckInBookingSuggestion } from "@/services/portal";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function bookingSuggestionToOption(s: CheckInBookingSuggestion) {
   const ref = s.reservation_ref || s.public_reference || s.pnr || "";
@@ -35,6 +36,7 @@ export interface BookingPnrSearchProps {
   loading?: boolean;
   loadLabel?: string;
   placeholder?: string;
+  iconOnlyLoadOnMobile?: boolean;
 }
 
 export function BookingPnrSearch({
@@ -45,6 +47,7 @@ export function BookingPnrSearch({
   loading = false,
   loadLabel = "Load",
   placeholder = "Search reservation ref, PNR, payer, phone...",
+  iconOnlyLoadOnMobile = false,
 }: BookingPnrSearchProps) {
   const [searchText, setSearchText] = useState("");
   const [suggestOptions, setSuggestOptions] = useState<
@@ -92,7 +95,14 @@ export function BookingPnrSearch({
   };
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+    <div
+      className={cn(
+        "flex gap-2",
+        iconOnlyLoadOnMobile
+          ? "flex-row items-start"
+          : "flex-col sm:flex-row sm:items-start",
+      )}
+    >
       <div className="min-w-0 flex-1">
         <SearchableSelect
           options={suggestOptions}
@@ -112,16 +122,26 @@ export function BookingPnrSearch({
       </div>
       <Button
         type="button"
-        className="bg-gold text-navy hover:bg-gold-dark shrink-0"
+        size={iconOnlyLoadOnMobile ? "icon" : "default"}
+        className={
+          iconOnlyLoadOnMobile
+            ? "bg-gold text-navy hover:bg-gold-dark shrink-0 sm:h-9 sm:w-auto sm:px-4"
+            : "bg-gold text-navy hover:bg-gold-dark shrink-0"
+        }
+        aria-label={loadLabel}
         onClick={() => handleDirectLookup(lookupCode())}
         disabled={loading || !lookupCode()}
       >
         {loading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Loader2 className={iconOnlyLoadOnMobile ? "h-4 w-4 animate-spin" : "mr-2 h-4 w-4 animate-spin"} />
         ) : (
-          <Search className="mr-2 h-4 w-4" />
+          <Search className={iconOnlyLoadOnMobile ? "h-4 w-4" : "mr-2 h-4 w-4"} />
         )}
-        {loadLabel}
+        {iconOnlyLoadOnMobile ? (
+          <span className="hidden sm:inline">{loadLabel}</span>
+        ) : (
+          loadLabel
+        )}
       </Button>
     </div>
   );

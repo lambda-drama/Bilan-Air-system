@@ -7,7 +7,6 @@ import {
   Ticket,
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Calendar,
   Clock,
   ArrowRight,
@@ -43,10 +42,30 @@ export default function PortalDashboard() {
   }, [])
 
   const statCards = [
-    { title: "Total Bookings", value: String(stats.total_bookings), icon: Ticket },
-    { title: "Upcoming Flights", value: String(stats.upcoming_flights), icon: Plane },
-    { title: "Pending Payments", value: String(stats.pending_payments), icon: DollarSign },
-    { title: "Available Seats", value: String(stats.available_seats), icon: Users },
+    {
+      title: "Total Bookings",
+      value: String(stats.total_bookings),
+      icon: Ticket,
+      href: "/portal/bookings",
+    },
+    {
+      title: "Upcoming Flights",
+      value: String(stats.upcoming_flights),
+      icon: Plane,
+      href: "/portal/flights?view=upcoming",
+    },
+    {
+      title: "Pending Payments",
+      value: String(stats.pending_payments),
+      icon: DollarSign,
+      href: "/portal/bookings?payment=Pending",
+    },
+    {
+      title: "Available Seats",
+      value: String(stats.available_seats),
+      icon: Users,
+      href: "/portal/seat-inventory",
+    },
   ]
 
   return (
@@ -69,17 +88,23 @@ export default function PortalDashboard() {
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-5 w-5 text-gold" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
+          <Link key={stat.title} href={stat.href} className="group block">
+            <Card className="h-full transition-shadow group-hover:shadow-md group-hover:border-gold/40">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className="h-5 w-5 text-gold" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="mt-2 flex items-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                  View listing
+                  <ArrowRight className="ml-1 h-3 w-3" />
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

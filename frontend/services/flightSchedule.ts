@@ -65,6 +65,7 @@ export async function listSchedules(opts?: {
   limit?: number;
   offset?: number;
   status?: string;
+  upcoming?: boolean;
   search?: string;
 }) {
   return apiRequest<PaginatedResponse<FlightScheduleRow>>(
@@ -75,6 +76,7 @@ export async function listSchedules(opts?: {
         limit: opts?.limit ?? 50,
         offset: opts?.offset ?? 0,
         status: opts?.status ?? null,
+        upcoming: opts?.upcoming ? 1 : 0,
         search: opts?.search ?? null,
       }),
     },

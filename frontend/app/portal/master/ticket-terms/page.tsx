@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
-import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
@@ -126,15 +126,12 @@ export default function PortalTicketTermsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Ticket terms</h1>
-          <p className="text-muted-foreground">
-            Master data — terms and conditions shown on tickets (print formats)
-          </p>
-        </div>
-        <PortalAddButton onClick={openCreate}>New ticket terms</PortalAddButton>
-      </div>
+      <PortalMasterPageHeader
+        title="Ticket terms"
+        description="Master data — terms and conditions shown on tickets (print formats)"
+        addLabel="New ticket terms"
+        onAdd={openCreate}
+      />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search title..." />
 
