@@ -254,14 +254,45 @@ def list_currencies():
 
 
 @frappe.whitelist()
-def list_seat_classes():
+def list_seat_classes(active_only=1):
 	require_portal_staff()
+	filters = {"is_active": 1} if cint(active_only) else {}
 	return frappe.get_all(
 		"Seat Class",
-		filters={"is_active": 1},
-		fields=["name", "class_name"],
+		filters=filters,
+		fields=[
+			"name",
+			"class_name",
+			"price_multiplier",
+			"color_code",
+			"is_active",
+			"checked_baggage_kg",
+			"checked_baggage_pieces",
+			"carry_on_kg",
+			"carry_on_pieces",
+			"excess_baggage_fee_per_kg",
+			"description",
+		],
 		order_by="class_name asc",
+		ignore_permissions=True,
 	)
+
+
+@frappe.whitelist()
+def save_seat_class(data):
+	require_portal_staff()
+	data = _parse_data(data)
+	name = data.get("name")
+	payload = {k: v for k, v in data.items() if k != "name"}
+	if name:
+		doc = frappe.get_doc("Seat Class", name, ignore_permissions=True)
+		doc.update(payload)
+		doc.save(ignore_permissions=True)
+	else:
+		doc = frappe.get_doc({"doctype": "Seat Class", **payload})
+		doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return doc.as_dict()
 
 
 @frappe.whitelist()

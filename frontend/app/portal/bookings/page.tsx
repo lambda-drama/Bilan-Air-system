@@ -29,6 +29,11 @@ import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { bookingReference } from "@/lib/booking-reference";
 import { isPassengerTicketPrintable } from "@/lib/passenger-ticket";
 import { PassengerTicketPrintButton } from "@/components/portal/passenger-ticket-print-button";
+import { StatusBadge } from "@/components/portal/status-badge";
+import {
+  paymentStatusStyle,
+  reservationStatusStyle,
+} from "@/lib/portal-status-styles";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -79,6 +84,10 @@ function PortalBookingsPageContent() {
     const payment = searchParams.get("payment");
     if (payment) {
       setPaymentFilter(payment);
+    }
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
     }
   }, [searchParams]);
 
@@ -309,8 +318,20 @@ function PortalBookingsPageContent() {
                     <TableCell className="text-muted-foreground">{b.pnr || "—"}</TableCell>
                     <TableCell>{b.flight_schedule}</TableCell>
                     <TableCell>{b.payer_name}</TableCell>
-                    <TableCell>{reservationStatus(b)}</TableCell>
-                    <TableCell>{b.payment_status}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={reservationStatus(b)}
+                        kind="reservation"
+                        onFilter={(value) => setStatusFilter(value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={b.payment_status}
+                        kind="payment"
+                        onFilter={(value) => setPaymentFilter(value)}
+                      />
+                    </TableCell>
                     <TableCell>{formatMoney(b.total_fare)}</TableCell>
                     <TableCell className="text-right">
                       <ListRowActions doctype="Air Booking" docName={b.name}>
@@ -371,7 +392,14 @@ function PortalBookingsPageContent() {
         subtitle={selectedRow?.payer_name}
         badge={
           selectedRow
-            ? { label: reservationStatus(selectedRow), variant: "outline" }
+            ? (() => {
+                const style = reservationStatusStyle(reservationStatus(selectedRow));
+                return {
+                  label: style.label,
+                  variant: "outline" as const,
+                  className: style.className,
+                };
+              })()
             : undefined
         }
         isLoading={detailLoading}
@@ -402,8 +430,32 @@ function PortalBookingsPageContent() {
             <DetailSection title="Booking">
               <DetailRow label="Reservation" value={detail.reservation_ref} />
               <DetailRow label="PNR" value={detail.pnr || "—"} />
-              <DetailRow label="Status" value={detail.status} />
-              <DetailRow label="Payment" value={detail.payment_status} />
+              <DetailRow
+                label="Status"
+                value={
+                  <StatusBadge
+                    status={detail.status}
+                    kind="reservation"
+                    onFilter={(value) => {
+                      setStatusFilter(value);
+                      closeDetails();
+                    }}
+                  />
+                }
+              />
+              <DetailRow
+                label="Payment"
+                value={
+                  <StatusBadge
+                    status={detail.payment_status}
+                    kind="payment"
+                    onFilter={(value) => {
+                      setPaymentFilter(value);
+                      closeDetails();
+                    }}
+                  />
+                }
+              />
               <DetailRow label="Total fare" value={formatMoney(detail.total_fare)} />
               {detail.reason_for_cancel && (
                 <DetailRow label="Cancel reason" value={detail.reason_for_cancel} />
@@ -451,7 +503,11 @@ function PortalBookingsPageContent() {
             <div className="pt-2">
               <BookingBaggagePanel
                 bookingRef={bookingReference(detail)}
-                travelers={detail.passengers.map((p) => ({ name: p.name }))}
+                travelers={detail.passengers.map((p) => ({
+                  name: p.name,
+                  seat_class: p.seat_class,
+                  baggage_policy: p.baggage_policy,
+                }))}
                 baggage={detail.baggage || []}
                 policy={detail.baggage_policy}
                 baggageFeesTotal={detail.baggage_fees_total}

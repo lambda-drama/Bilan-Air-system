@@ -11,6 +11,8 @@ import {
   loadOfficeBookingDraft,
   saveOfficeBookingDraft,
 } from "@/lib/office-booking-store";
+import { useBookingSettings } from "@/hooks/use-booking-settings";
+import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import { ensureScheduleSeats, fetchSeatMap } from "@/services/flightSchedule";
 import { getScheduleForOfficeBooking } from "@/services/search";
 
@@ -26,6 +28,7 @@ type SeatRow = {
 function SeatsStepContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { enableSeatSelection, loading: settingsLoading } = useBookingSettings();
   const [draft, setDraft] = useState(loadOfficeBookingDraft());
   const [seatRows, setSeatRows] = useState<SeatRow[]>([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
@@ -43,6 +46,20 @@ function SeatsStepContent() {
   );
 
   useEffect(() => {
+    if (settingsLoading) return;
+    if (!enableSeatSelection) {
+      const scheduleId = scheduleFromUrl || loadOfficeBookingDraft()?.scheduleId;
+      router.replace(
+        scheduleId
+          ? officeBookingAfterFlightPath(scheduleId, false)
+          : "/portal/booking/new",
+      );
+      return;
+    }
+  }, [settingsLoading, enableSeatSelection, scheduleFromUrl, router]);
+
+  useEffect(() => {
+    if (settingsLoading || !enableSeatSelection) return;
     let cancelled = false;
 
     async function init() {
@@ -109,7 +126,7 @@ function SeatsStepContent() {
     return () => {
       cancelled = true;
     };
-  }, [router, scheduleFromUrl, searchParams]);
+  }, [router, scheduleFromUrl, searchParams, settingsLoading, enableSeatSelection]);
 
   const visibleSeats = seatRows.filter((s) => s.seat_class === seatClass);
 

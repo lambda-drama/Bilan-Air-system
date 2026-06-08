@@ -33,6 +33,8 @@ export interface BookingDraft {
   payer_name: string;
   payer_email: string;
   payer_phone: string;
+  /** When true, Traveler 1 contact fields mirror payer / account. */
+  payerIsTraveling?: boolean;
   totalFare?: number;
   origin?: string;
   destination?: string;

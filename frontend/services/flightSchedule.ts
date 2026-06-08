@@ -55,6 +55,7 @@ export async function getFlightSchedule(schedule_name: string) {
     route_base_fares?: { adult: number; child: number; infant: number };
     base_fares_override?: Partial<{ adult: number; child: number; infant: number }> | null;
     docstatus: number;
+    fare_history?: FlightScheduleFareHistoryRow[];
   }>(methodUrl("portal", "get_flight_schedule"), {
     method: "POST",
     body: JSON.stringify({ schedule_name }),
@@ -131,6 +132,21 @@ export async function cancelFlightSchedule(schedule_name: string, cancel_reason:
       body: JSON.stringify({ schedule_name, cancel_reason: cancel_reason.trim() }),
     },
   );
+}
+
+export async function deleteFlightSchedule(schedule_name: string) {
+  return apiRequest<{ deleted: string }>(methodUrl("portal", "delete_flight_schedule"), {
+    method: "POST",
+    body: JSON.stringify({ schedule_name }),
+  });
+}
+
+export interface FlightScheduleFareHistoryRow {
+  changed_at?: string | null;
+  changed_by?: string;
+  previous_adult?: number;
+  previous_child?: number;
+  previous_infant?: number;
 }
 
 export async function amendFlightSchedule(

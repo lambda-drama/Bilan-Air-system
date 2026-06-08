@@ -10,13 +10,17 @@ import { buildFlightsSearchUrl, parseFlightsSearchParams } from '@/lib/flights-s
 
 export type WebsiteBookingStep = 'seats' | 'account' | 'travelers' | 'review';
 
-const STEPS: { id: WebsiteBookingStep | 'search'; label: string }[] = [
+const ALL_STEPS: { id: WebsiteBookingStep | 'search'; label: string }[] = [
   { id: 'search', label: 'Search' },
   { id: 'seats', label: 'Seats' },
   { id: 'account', label: 'Account' },
   { id: 'travelers', label: 'Travelers' },
   { id: 'review', label: 'Review' },
 ];
+
+function visibleSteps(enableSeatSelection: boolean) {
+  return enableSeatSelection ? ALL_STEPS : ALL_STEPS.filter((s) => s.id !== 'seats');
+}
 
 function flightsSearchHref(searchParams: URLSearchParams): string {
   const { tripType, passengers, origin, destination, date, returnDate, searchLegs } =
@@ -65,14 +69,19 @@ function stepHref(
 function defaultBackLink(
   current: WebsiteBookingStep,
   searchParams: URLSearchParams,
+  enableSeatSelection: boolean,
 ): { href: string; label: string } {
   switch (current) {
     case 'seats':
       return { href: flightsSearchHref(searchParams), label: 'Back to flight selection' };
     case 'account':
-      return { href: seatsStepHref(searchParams), label: 'Back to seat selection' };
+      return enableSeatSelection
+        ? { href: seatsStepHref(searchParams), label: 'Back to seat selection' }
+        : { href: flightsSearchHref(searchParams), label: 'Back to flight selection' };
     case 'travelers':
-      return { href: seatsStepHref(searchParams), label: 'Back to seat selection' };
+      return enableSeatSelection
+        ? { href: seatsStepHref(searchParams), label: 'Back to seat selection' }
+        : { href: bookingFlowPath('/booking/account', searchParams), label: 'Back to account' };
     case 'review':
       return {
         href: bookingFlowPath('/booking/passengers', searchParams),
@@ -86,20 +95,23 @@ export function WebsiteBookingFlowHeader({
   searchParams,
   title,
   description,
+  enableSeatSelection = true,
 }: {
   currentStep: WebsiteBookingStep;
   searchParams: URLSearchParams;
   title: string;
   description?: string;
+  enableSeatSelection?: boolean;
 }) {
-  const currentIndex = STEPS.findIndex((s) => s.id === currentStep);
-  const back = defaultBackLink(currentStep, searchParams);
+  const steps = visibleSteps(enableSeatSelection);
+  const currentIndex = steps.findIndex((s) => s.id === currentStep);
+  const back = defaultBackLink(currentStep, searchParams, enableSeatSelection);
 
   return (
     <div className="bg-navy pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav aria-label="Booking progress" className="flex flex-wrap items-center gap-2 sm:gap-4 text-cream/60 text-sm mb-4">
-          {STEPS.map((step, index) => {
+          {steps.map((step, index) => {
             const isCurrent = step.id === currentStep;
             const isPast = index < currentIndex;
             const href = isPast ? stepHref(step.id, searchParams) : null;

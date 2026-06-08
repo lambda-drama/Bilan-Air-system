@@ -1,0 +1,69 @@
+{
+ "actions": [],
+ "creation": "2026-06-07 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "changed_at",
+  "changed_by",
+  "column_break_1",
+  "previous_adult",
+  "previous_child",
+  "previous_infant"
+ ],
+ "fields": [
+  {
+   "allow_on_submit": 1,
+   "fieldname": "changed_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Changed At",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "changed_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Changed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "previous_adult",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Previous Adult Fare",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "previous_child",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Previous Child Fare",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "previous_infant",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Previous Infant Fare",
+   "options": "currency",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "module": "Bilan Air Booking System",
+ "name": "Flight Schedule Fare History",
+ "permissions": []
+}

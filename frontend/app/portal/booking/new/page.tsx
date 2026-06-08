@@ -19,6 +19,7 @@ import {
   saveOfficeBookingDraft,
 } from "@/lib/office-booking-store";
 import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
+import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import {
   findFlights,
   fetchAllRoutes,
@@ -55,11 +56,20 @@ function OfficeBookingSearchContent() {
   const [searchError, setSearchError] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
+  const [enableSeatSelection, setEnableSeatSelection] = useState(false);
 
   useEffect(() => {
     const schedule = searchParams.get("schedule");
     if (schedule) {
-      router.replace(`/portal/booking/new/seats?schedule=${encodeURIComponent(schedule)}`);
+      getBookingSearchDefaults()
+        .then((defaults) => {
+          router.replace(
+            officeBookingAfterFlightPath(schedule, !!defaults.enable_seat_selection),
+          );
+        })
+        .catch(() => {
+          router.replace(officeBookingAfterFlightPath(schedule, false));
+        });
       return;
     }
 
@@ -108,6 +118,7 @@ function OfficeBookingSearchContent() {
           }
         }
 
+        setEnableSeatSelection(!!defaults.enable_seat_selection);
         setSeatClass(nextSeatClass);
         setPassengerCount(nextPassengers);
         setOrigin(nextOrigin);
@@ -251,7 +262,7 @@ function OfficeBookingSearchContent() {
       markPaid: existing?.markPaid,
     });
     setActiveScheduleId(flight.schedule_id);
-    router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(flight.schedule_id)}`);
+    router.push(officeBookingAfterFlightPath(flight.schedule_id, enableSeatSelection));
   };
 
   if (initializing) {

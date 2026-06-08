@@ -14,7 +14,9 @@ import { useCurrency } from '@/contexts/currency-context';
 import { parseFlightsSearchParams, buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import { buildSchedulesBrowseUrl } from '@/lib/schedules-browse-url';
 import { useLocale, useTranslations } from '@/contexts/locale-context';
+import { websiteBookingAfterFlightPath } from '@/lib/booking-seat-step';
 import { initTripContext, upsertLegSelection, getLegSelection } from '@/lib/trip-store';
+import { getBookingSearchDefaults } from '@/services/search';
 import { tripLegLabel, type TripSearchLeg } from '@/lib/trip-types';
 import { RevealItem, RevealStagger } from '@/components/motion/reveal';
 import { cn } from '@/lib/utils';
@@ -109,6 +111,7 @@ function FlightSearchContent() {
 
   const [legResults, setLegResults] = useState<Record<number, LegResults>>({});
   const [selectedByLeg, setSelectedByLeg] = useState<Record<number, string>>({});
+  const [enableSeatSelection, setEnableSeatSelection] = useState(false);
 
   const tripInit = { tripType, passengers, searchLegs };
 
@@ -124,6 +127,12 @@ function FlightSearchContent() {
     fetchAllRoutes()
       .then((routes) => setIataLabels(buildIataLabelMapFromRoutes(routes)))
       .catch(() => setIataLabels(new Map()));
+  }, []);
+
+  useEffect(() => {
+    getBookingSearchDefaults()
+      .then((defaults) => setEnableSeatSelection(!!defaults.enable_seat_selection))
+      .catch(() => setEnableSeatSelection(false));
   }, []);
 
   useEffect(() => {
@@ -210,7 +219,7 @@ function FlightSearchContent() {
     return flight.base_fare || 0;
   };
 
-  const goToSeatSelection = () => {
+  const goToNextBookingStep = () => {
     initTripContext(tripType, passengers, searchLegs);
 
     if (isReturnCombined && (!getLegSelection(0) || !getLegSelection(1))) {
@@ -232,7 +241,14 @@ function FlightSearchContent() {
         params.set('returnDate', returnDate);
       }
     }
-    router.push(`/booking/seats?${params.toString()}`);
+    if (!enableSeatSelection) {
+      const firstLeg = getLegSelection(0);
+      if (firstLeg) {
+        params.set('flight', firstLeg.flightScheduleId);
+        params.set('class', firstLeg.seatClass);
+      }
+    }
+    router.push(websiteBookingAfterFlightPath(params, enableSeatSelection));
   };
 
   const handleSelectFlight = (flight: FlightSchedule, legIndex: number, legInfo: TripSearchLeg) => {
@@ -260,7 +276,7 @@ function FlightSearchContent() {
       const outboundId = legIndex === 0 ? flight.name : nextSelected[0];
       const returnId = legIndex === 1 ? flight.name : nextSelected[1];
       if (outboundId && returnId) {
-        goToSeatSelection();
+        goToNextBookingStep();
       }
       return;
     }
@@ -282,7 +298,7 @@ function FlightSearchContent() {
       return;
     }
 
-    goToSeatSelection();
+    goToNextBookingStep();
   };
 
   const outboundSelection = getLegSelection(0);
@@ -590,7 +606,7 @@ function FlightSearchContent() {
                 : t.flights.selectBothFlights}
             </p>
             <Button
-              onClick={goToSeatSelection}
+              onClick={goToNextBookingStep}
               disabled={!selectedByLeg[0] || !selectedByLeg[1]}
               className="bg-gold hover:bg-gold-dark text-navy font-semibold disabled:opacity-50"
             >

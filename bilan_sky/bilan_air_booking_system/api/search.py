@@ -462,6 +462,9 @@ def fetch_all_available_routes():
 @frappe.whitelist(allow_guest=True)
 def get_booking_search_defaults():
 	"""Suggested origin/destination/date for portal 'New booking' link."""
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+
+	enable_seat_selection = is_seat_selection_enabled()
 	routes = _public_get_all(
 		"Flight Route",
 		filters={"is_active": 1},
@@ -484,6 +487,7 @@ def get_booking_search_defaults():
 			"destination_iata": destination_iata,
 			"suggested_date": add_days(nowdate(), 1),
 			"route": None,
+			"enable_seat_selection": enable_seat_selection,
 		}
 
 	route = routes[0]
@@ -514,6 +518,7 @@ def get_booking_search_defaults():
 		"destination_iata": destination_iata,
 		"suggested_date": suggested_date,
 		"route": route.name,
+		"enable_seat_selection": enable_seat_selection,
 	}
 
 

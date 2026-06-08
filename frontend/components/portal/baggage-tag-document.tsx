@@ -1,6 +1,7 @@
 "use client";
 
-import { Luggage, Plane, Scissors } from "lucide-react";
+import { Plane, Scissors } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import {
   formatBaggageClock,
@@ -13,7 +14,7 @@ export function BaggageTagDocument({ baggage }: { baggage: BaggagePrintData }) {
     <div className="baggage-print-sheet mx-auto w-full max-w-[340px] bg-white text-navy shadow-lg print:shadow-none">
       <div className="flex items-center justify-between border-b-2 border-navy bg-navy px-4 py-2 text-cream">
         <div className="flex items-center gap-2">
-          <Luggage className="h-4 w-4 text-gold" />
+          <BrandLogo className="h-6 w-6 shrink-0 rounded-full" alt={baggage.airline_name} />
           <span className="text-xs font-bold tracking-wider">{baggage.airline_name}</span>
         </div>
         <div className="flex items-center gap-1 text-xs font-semibold">

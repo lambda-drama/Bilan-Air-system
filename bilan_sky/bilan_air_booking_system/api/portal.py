@@ -9,6 +9,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	format_route_label,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.reservation_status import VOID
 
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
@@ -107,7 +108,47 @@ def get_flight_schedule(schedule_name):
 		"docstatus": doc.docstatus,
 	}
 	result.update(schedule_fare_override_for_api(doc))
+	result["fare_history"] = [
+		{
+			"changed_at": str(row.changed_at) if row.changed_at else None,
+			"changed_by": row.changed_by,
+			"previous_adult": row.previous_adult,
+			"previous_child": row.previous_child,
+			"previous_infant": row.previous_infant,
+		}
+		for row in sorted(
+			doc.get("fare_history") or [],
+			key=lambda r: r.changed_at or "",
+			reverse=True,
+		)
+	]
 	return result
+
+
+@frappe.whitelist()
+def delete_flight_schedule(schedule_name):
+	"""Permanently delete a cancelled flight schedule."""
+	require_portal_staff()
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	doc.check_permission("delete")
+
+	if doc.status != "Cancelled":
+		frappe.throw(_("Only cancelled flight schedules can be deleted."))
+
+	if doc.docstatus == 1:
+		frappe.throw(_("Cancel the flight schedule before deleting it."))
+
+	active = _schedule_active_booking_count(schedule_name)
+	if active:
+		frappe.throw(
+			_(
+				"Cannot delete: {0} active booking(s) are linked to this schedule. Cancel those bookings first."
+			).format(active)
+		)
+
+	frappe.delete_doc("Flight Schedule", schedule_name, force=True)
+	frappe.db.commit()
+	return {"deleted": schedule_name}
 
 
 @frappe.whitelist()
@@ -127,7 +168,8 @@ def save_flight_schedule(data, submit=1):
 	name = data.get("name")
 	if name:
 		doc = frappe.get_doc("Flight Schedule", name)
-		updates = {k: v for k, v in data.items() if k != "name"}
+		# Fare history is system-managed on save; never accept client rows.
+		updates = {k: v for k, v in data.items() if k not in ("name", "fare_history")}
 		pop_and_apply_schedule_overrides(doc, updates)
 		normalize_schedule_override_payload(updates)
 		doc.update(updates)
@@ -1103,6 +1145,215 @@ def get_dashboard_stats():
 			{"status": ["in", ["Scheduled", "Boarding", "Delayed"]]},
 		),
 		"available_seats": frappe.db.count("Seat Inventory", {"status": "Available"}),
+	}
+
+
+_MONTH_LABELS = (
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+)
+
+
+def _booking_year_filters(year):
+	from frappe.utils import getdate
+
+	year = cint(year) or getdate().year
+	year_start = f"{year}-01-01"
+	year_end = f"{year + 1}-01-01"
+	return {
+		"year": year,
+		"year_start": year_start,
+		"year_end": year_end,
+		"void": VOID,
+	}
+
+
+def _yoy_pct(current, prior):
+	from frappe.utils import flt
+
+	current = flt(current)
+	prior = flt(prior)
+	if not prior:
+		return None
+	return round((current - prior) / prior * 100, 1)
+
+
+def _reports_summary_for_year(year):
+	from frappe.utils import flt
+
+	params = _booking_year_filters(year)
+	booking_where = """
+		docstatus < 2
+		AND IFNULL(reservation_status, '') != %(void)s
+		AND booking_date >= %(year_start)s
+		AND booking_date < %(year_end)s
+	"""
+	stats = frappe.db.sql(
+		f"""
+		SELECT
+			COUNT(*) AS total_bookings,
+			COALESCE(SUM(total_fare), 0) AS total_revenue
+		FROM `tabAir Booking`
+		WHERE {booking_where}
+		""",
+		params,
+		as_dict=True,
+	)[0]
+	total_passengers = frappe.db.sql(
+		f"""
+		SELECT COUNT(p.name) AS total
+		FROM `tabAir Booking Passenger` p
+		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
+		WHERE ab.docstatus < 2
+			AND IFNULL(ab.reservation_status, '') != %(void)s
+			AND ab.booking_date >= %(year_start)s
+			AND ab.booking_date < %(year_end)s
+		""",
+		params,
+	)[0][0]
+	flights_operated = frappe.db.count(
+		"Flight Schedule",
+		{
+			"status": ["in", ["Departed", "Arrived"]],
+			"departure_date": ["between", [params["year_start"], f"{params['year']}-12-31"]],
+		},
+	)
+	return {
+		"total_bookings": cint(stats.total_bookings),
+		"total_revenue": flt(stats.total_revenue),
+		"total_passengers": cint(total_passengers),
+		"flights_operated": cint(flights_operated),
+	}
+
+
+@frappe.whitelist()
+def get_portal_reports(year=None):
+	"""Year-scoped aggregates for the portal reports page."""
+	from frappe.utils import flt, getdate
+
+	require_portal_staff()
+	params = _booking_year_filters(year)
+	year = params["year"]
+	booking_where = """
+		docstatus < 2
+		AND IFNULL(reservation_status, '') != %(void)s
+		AND booking_date >= %(year_start)s
+		AND booking_date < %(year_end)s
+	"""
+
+	available_years = [
+		cint(row.y)
+		for row in frappe.db.sql(
+			"""
+			SELECT DISTINCT YEAR(booking_date) AS y
+			FROM `tabAir Booking`
+			WHERE booking_date IS NOT NULL AND docstatus < 2
+			ORDER BY y DESC
+			""",
+			as_dict=True,
+		)
+		if row.y
+	]
+	if year not in available_years:
+		available_years = sorted(set(available_years + [year]), reverse=True)
+
+	summary = _reports_summary_for_year(year)
+	prior = _reports_summary_for_year(year - 1)
+	yoy = {
+		"total_revenue": _yoy_pct(summary["total_revenue"], prior["total_revenue"]),
+		"total_bookings": _yoy_pct(summary["total_bookings"], prior["total_bookings"]),
+		"total_passengers": _yoy_pct(summary["total_passengers"], prior["total_passengers"]),
+		"flights_operated": _yoy_pct(summary["flights_operated"], prior["flights_operated"]),
+	}
+
+	monthly_rows = {
+		row.month_num: row
+		for row in frappe.db.sql(
+			f"""
+			SELECT
+				MONTH(booking_date) AS month_num,
+				COUNT(*) AS bookings,
+				COALESCE(SUM(total_fare), 0) AS revenue
+			FROM `tabAir Booking`
+			WHERE {booking_where}
+			GROUP BY MONTH(booking_date)
+			""",
+			params,
+			as_dict=True,
+		)
+	}
+	monthly = [
+		{
+			"month": _MONTH_LABELS[month_num - 1],
+			"month_num": month_num,
+			"bookings": cint(monthly_rows[month_num].bookings) if month_num in monthly_rows else 0,
+			"revenue": flt(monthly_rows[month_num].revenue) if month_num in monthly_rows else 0,
+		}
+		for month_num in range(1, 13)
+	]
+
+	ab_booking_where = """
+		ab.docstatus < 2
+		AND IFNULL(ab.reservation_status, '') != %(void)s
+		AND ab.booking_date >= %(year_start)s
+		AND ab.booking_date < %(year_end)s
+	"""
+	top_routes = []
+	for row in frappe.db.sql(
+		f"""
+		SELECT
+			fs.route,
+			COUNT(ab.name) AS bookings,
+			COALESCE(SUM(ab.total_fare), 0) AS revenue
+		FROM `tabAir Booking` ab
+		INNER JOIN `tabFlight Schedule` fs ON fs.name = ab.flight_schedule
+		WHERE {ab_booking_where}
+			AND IFNULL(fs.route, '') != ''
+		GROUP BY fs.route
+		ORDER BY revenue DESC
+		LIMIT 5
+		""",
+		params,
+		as_dict=True,
+	):
+		route_doc = frappe.db.get_value(
+			"Flight Route",
+			row.route,
+			["route_name", "origin_airport", "destination_airport"],
+			as_dict=True,
+		)
+		if route_doc:
+			route_label = route_doc.route_name or format_route_label(
+				route_doc.origin_airport,
+				route_doc.destination_airport,
+			)
+		else:
+			route_label = row.route
+		top_routes.append(
+			{
+				"route": route_label,
+				"bookings": cint(row.bookings),
+				"revenue": flt(row.revenue),
+			}
+		)
+
+	return {
+		"year": year,
+		"available_years": available_years,
+		"summary": summary,
+		"yoy": yoy,
+		"monthly": monthly,
+		"top_routes": top_routes,
 	}
 
 

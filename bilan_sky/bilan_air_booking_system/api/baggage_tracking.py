@@ -6,26 +6,17 @@ from frappe.utils import format_datetime, get_datetime
 
 
 @frappe.whitelist()
-def get_baggage_policy():
+def get_baggage_policy(seat_class=None, seat_inventory_name=None):
 	"""Allowance and excess fee for portal UI."""
-	settings = frappe.get_single("BA Settings")
-	return {
-		"max_baggage_kg": settings.max_baggage_kg,
-		"excess_baggage_fee_per_kg": settings.excess_baggage_fee,
-	}
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import get_baggage_allowance
+
+	return get_baggage_allowance(seat_class, seat_inventory_name)
 
 
-def preview_baggage_fee(weight_kg):
-	settings = frappe.get_single("BA Settings")
-	weight_kg = float(weight_kg or 0)
-	if weight_kg <= 0:
-		return {"weight_kg": 0, "is_excess": False, "fee": 0}
-	is_excess = weight_kg > settings.max_baggage_kg
-	fee = 0
-	if is_excess:
-		excess = weight_kg - settings.max_baggage_kg
-		fee = excess * settings.excess_baggage_fee
-	return {"weight_kg": weight_kg, "is_excess": is_excess, "fee": fee}
+def preview_baggage_fee(weight_kg, seat_class=None, seat_inventory_name=None):
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import calculate_excess_fee
+
+	return calculate_excess_fee(weight_kg, seat_class, seat_inventory_name)
 
 
 @frappe.whitelist()
@@ -34,26 +25,26 @@ def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenge
 
     from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
 
+    from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import calculate_excess_fee
+
     booking_name = resolve_air_booking(pnr)
     booking = frappe.get_doc("Air Booking", booking_name)
-    settings = frappe.get_single("BA Settings")
+    passenger_row = None
 
     if passenger_index is not None:
-        row = booking.passengers[int(passenger_index)]
-        passenger_name = row.passenger_name
-        passenger_id = row.passenger
+        passenger_row = booking.passengers[int(passenger_index)]
+        passenger_name = passenger_row.passenger_name
+        passenger_id = passenger_row.passenger
     elif passenger_id and not passenger_name:
         passenger_name = frappe.db.get_value("Passenger", passenger_id, "full_name")
 
     if not passenger_name:
         frappe.throw("Traveler name is required for baggage tracking.")
-    
-    is_excess = weight_kg > settings.max_baggage_kg
-    fee = 0
-    
-    if is_excess:
-        excess = weight_kg - settings.max_baggage_kg
-        fee = excess * settings.excess_baggage_fee
+
+    seat_inventory_name = passenger_row.seat_number if passenger_row else None
+    excess_result = calculate_excess_fee(weight_kg, seat_inventory_name=seat_inventory_name)
+    is_excess = excess_result["is_excess"]
+    fee = excess_result["fee"]
     
     baggage = frappe.get_doc({
         "doctype": "Baggage Tracking",
@@ -97,16 +88,27 @@ def _passenger_last_name(name):
 	return parts[-1].upper() if parts else (name or "").upper()
 
 
+def _passenger_row_for_baggage(booking, baggage):
+	for pax in booking.passengers or []:
+		if baggage.passenger_name and pax.passenger_name == baggage.passenger_name:
+			return pax
+		if baggage.passenger and pax.passenger == baggage.passenger:
+			return pax
+	return None
+
+
 def _build_baggage_print_payload(baggage):
 	from bilan_sky.bilan_air_booking_system.utils.airports import (
 		airport_display_label,
 		get_airport_iata,
 	)
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import get_baggage_allowance
 
 	booking = frappe.get_doc("Air Booking", baggage.air_booking, ignore_permissions=True)
 	flight = frappe.get_doc("Flight Schedule", baggage.flight_schedule, ignore_permissions=True)
 	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
-	settings = frappe.get_single("BA Settings")
+	pax = _passenger_row_for_baggage(booking, baggage)
+	allowance = get_baggage_allowance(seat_inventory_name=pax.seat_number if pax else None)
 
 	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
 	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
@@ -145,7 +147,7 @@ def _build_baggage_print_payload(baggage):
 		"weight_kg": baggage.weight_kg,
 		"baggage_fee": baggage.baggage_fee,
 		"is_excess": bool(baggage.is_excess),
-		"allowance_kg": settings.max_baggage_kg,
+		"allowance_kg": allowance["checked_kg"],
 		"status": baggage.status,
 		"checked_in_at": checked_in_at,
 		"sequence_no": sequence_no,

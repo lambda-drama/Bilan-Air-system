@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Loader2, Luggage } from "lucide-react";
-import { addBaggage, estimateExcessFee, type BaggagePolicy, type BaggageRecord } from "@/services/baggage";
+import {
+  addBaggage,
+  checkedAllowanceKg,
+  estimateExcessFee,
+  type BaggagePolicy,
+  type BaggageRecord,
+} from "@/services/baggage";
 import { useCurrency } from "@/contexts/currency-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +25,8 @@ import { BaggagePrintButton } from "@/components/portal/baggage-print-button";
 
 interface Traveler {
   name: string;
+  seat_class?: string;
+  baggage_policy?: BaggagePolicy;
 }
 
 interface BookingBaggagePanelProps {
@@ -51,8 +59,8 @@ export function BookingBaggagePanel({
   const [addingIndex, setAddingIndex] = useState<number | null>(null);
 
   const allowanceLabel = policy
-    ? `Included allowance: ${policy.max_baggage_kg} kg per bag · excess ${formatMoney(policy.excess_baggage_fee_per_kg)}/kg`
-    : "Configure allowance in BA Settings (Desk).";
+    ? `Default checked ${checkedAllowanceKg(policy)} kg · cabin ${policy.carry_on_kg ?? "—"} kg · excess ${formatMoney(policy.excess_baggage_fee_per_kg)}/kg (per seat class when set)`
+    : "Configure defaults in BA Settings and per-class limits in Seat Classes.";
 
   const tagsByTraveler = useMemo(() => {
     const map = new Map<string, BaggageRecord[]>();
@@ -156,9 +164,15 @@ export function BookingBaggagePanel({
         {travelers.map((t, index) => {
           const weightStr = addWeights[index] ?? "";
           const weight = weightStr ? parseFloat(weightStr) : 0;
+          const travelerPolicy = t.baggage_policy ?? policy;
           const preview =
-            policy && weight > 0 ? estimateExcessFee(weight, policy) : { isExcess: false, fee: 0 };
+            travelerPolicy && weight > 0
+              ? estimateExcessFee(weight, travelerPolicy)
+              : { isExcess: false, fee: 0 };
           const existing = tagsByTraveler.get(t.name) || [];
+          const allowanceText = travelerPolicy
+            ? `${t.seat_class || travelerPolicy.seat_class || "Class"}: checked ${checkedAllowanceKg(travelerPolicy)} kg · cabin ${travelerPolicy.carry_on_kg ?? "—"} kg`
+            : null;
 
           return (
             <div
@@ -167,6 +181,9 @@ export function BookingBaggagePanel({
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{t.name}</p>
+                {allowanceText && (
+                  <p className="text-xs text-muted-foreground">{allowanceText}</p>
+                )}
                 {existing.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     Tags: {existing.map((x) => x.tracking_number).join(", ")}

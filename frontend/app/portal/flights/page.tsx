@@ -7,6 +7,7 @@ import { PortalAddButton } from "@/components/portal/portal-add-button";
 import {
   amendFlightSchedule,
   cancelFlightSchedule,
+  deleteFlightSchedule,
   estimateArrivalFromRoute,
   fetchFlightDetails,
   getFlightSchedule,
@@ -15,6 +16,9 @@ import {
   saveSchedule,
   type FlightScheduleRow,
 } from "@/services/flightSchedule";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
+import { StatusBadge } from "@/components/portal/status-badge";
+import { flightScheduleStatusStyle } from "@/lib/portal-status-styles";
 import { toast } from "sonner";
 import { fetchAllRoutes } from "@/services/flightRoute";
 import { fetchAllAirplanes } from "@/services/airplane";
@@ -110,6 +114,10 @@ function canAmendFlight(status: string) {
   return status === "Cancelled";
 }
 
+function canDeleteFlight(status: string) {
+  return status === "Cancelled";
+}
+
 function canRescheduleFlight(status: string) {
   return ["Scheduled", "Delayed"].includes(status);
 }
@@ -132,6 +140,10 @@ function PortalFlightsPageContent() {
   useEffect(() => {
     if (searchParams.get("view") === "upcoming") {
       setStatusFilter(UPCOMING_STATUSES_VALUE);
+    }
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
     }
   }, [searchParams]);
 
@@ -200,7 +212,12 @@ function PortalFlightsPageContent() {
   const [firstOfficers, setFirstOfficers] = useState<CrewOption[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, string> | null>(null);
+  const [scheduleSummary, setScheduleSummary] = useState<Awaited<
+    ReturnType<typeof getFlightSchedule>
+  > | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<FlightScheduleRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<FlightScheduleRow | null>(null);
   const [rescheduleForm, setRescheduleForm] = useState({
     reschedule_reason: "",
@@ -257,6 +274,22 @@ function PortalFlightsPageContent() {
     cancelAlerts.clearAlerts();
     setCancelReason("");
     setCancelTarget(s);
+  };
+
+  const submitDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteFlightSchedule(deleteTarget.name);
+      toast.success(`Flight schedule ${deleteTarget.name} deleted`);
+      if (selectedId === deleteTarget.name) setSelectedId(null);
+      setDeleteTarget(null);
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete flight schedule");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const submitCancel = async () => {
@@ -558,12 +591,19 @@ function PortalFlightsPageContent() {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setScheduleSummary(null);
       return;
     }
     setDetailLoading(true);
-    fetchFlightDetails(selectedId)
-      .then(setDetail)
-      .catch(() => setDetail(null))
+    Promise.all([fetchFlightDetails(selectedId), getFlightSchedule(selectedId)])
+      .then(([routeDetail, summary]) => {
+        setDetail(routeDetail);
+        setScheduleSummary(summary);
+      })
+      .catch(() => {
+        setDetail(null);
+        setScheduleSummary(null);
+      })
       .finally(() => setDetailLoading(false));
   }, [selectedId]);
 
@@ -828,7 +868,13 @@ function PortalFlightsPageContent() {
                         {s.departure_date} {s.departure_time}
                       </TableCell>
                       <TableCell>{s.airplane}</TableCell>
-                      <TableCell>{s.status}</TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          status={s.status}
+                          kind="flight_schedule"
+                          onFilter={(value) => setStatusFilter(value)}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">
                         <ListRowActions doctype="Flight Schedule" docName={s.name}>
                           <DropdownMenu>
@@ -868,6 +914,14 @@ function PortalFlightsPageContent() {
                               {canAmendFlight(s.status) && (
                                 <DropdownMenuItem onClick={() => openAmend(s)}>
                                   Amend schedule
+                                </DropdownMenuItem>
+                              )}
+                              {canDeleteFlight(s.status) && (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => setDeleteTarget(s)}
+                                >
+                                  Delete schedule
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
@@ -1404,18 +1458,37 @@ function PortalFlightsPageContent() {
         onOpenChange={(open) => !open && setSelectedId(null)}
         title={selectedRow?.flight_number || selectedId || ""}
         subtitle={selectedId || undefined}
-        badge={selectedRow ? { label: selectedRow.status } : undefined}
+        badge={
+          selectedRow
+            ? {
+                label: flightScheduleStatusStyle(selectedRow.status).label,
+                variant: "outline",
+                className: flightScheduleStatusStyle(selectedRow.status).className,
+              }
+            : undefined
+        }
         isLoading={detailLoading}
         footer={
           selectedRow ? (
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
               {canAmendFlight(selectedRow.status) ? (
-                <Button
-                  className="bg-gold text-navy hover:bg-gold-dark flex-1 min-w-[140px]"
-                  onClick={() => openAmend(selectedRow)}
-                >
-                  Amend schedule
-                </Button>
+                <>
+                  <Button
+                    className="bg-gold text-navy hover:bg-gold-dark flex-1 min-w-[140px]"
+                    onClick={() => openAmend(selectedRow)}
+                  >
+                    Amend schedule
+                  </Button>
+                  {canDeleteFlight(selectedRow.status) && (
+                    <Button
+                      variant="outline"
+                      className="flex-1 min-w-[140px] border-red-300 text-red-700 hover:bg-red-50"
+                      onClick={() => setDeleteTarget(selectedRow)}
+                    >
+                      Delete schedule
+                    </Button>
+                  )}
+                </>
               ) : (
                 <>
                   {canEditPrices(selectedRow.status) && (
@@ -1490,9 +1563,50 @@ function PortalFlightsPageContent() {
                 <DetailRow label="Model" value={detail.aircraft_model} />
               </DetailSection>
             )}
+            {scheduleSummary?.base_fares && (
+              <DetailSection title="Current fares (economy)">
+                <DetailRow
+                  label="Adult / Child / Infant"
+                  value={formatFaresSummary(scheduleSummary.base_fares)}
+                />
+              </DetailSection>
+            )}
+            {scheduleSummary?.fare_history && scheduleSummary.fare_history.length > 0 && (
+              <DetailSection title="Fare change history">
+                <div className="space-y-2 text-sm">
+                  {scheduleSummary.fare_history.map((row, index) => (
+                    <div
+                      key={`${row.changed_at}-${index}`}
+                      className="rounded-md border border-border/60 px-3 py-2"
+                    >
+                      <p className="text-xs text-muted-foreground">
+                        {row.changed_at || "—"}
+                        {row.changed_by ? ` · ${row.changed_by}` : ""}
+                      </p>
+                      <p className="mt-1 font-medium">
+                        Was: Adult {formatMoney(row.previous_adult ?? 0)} · Child{" "}
+                        {formatMoney(row.previous_child ?? 0)} · Infant{" "}
+                        {formatMoney(row.previous_infant ?? 0)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </DetailSection>
+            )}
           </>
         )}
       </DetailSheet>
+
+      <ConfirmActionDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.flight_number ?? "flight schedule"}?`}
+        description="This permanently removes the cancelled schedule. This cannot be undone."
+        confirmLabel="Delete schedule"
+        tone="destructive"
+        loading={deleting}
+        onConfirm={submitDelete}
+      />
     </div>
   );
 }

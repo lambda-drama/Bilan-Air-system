@@ -12,12 +12,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useBookingSettings } from "@/hooks/use-booking-settings";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
+import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import {
   loadOfficeBookingDraft,
   saveOfficeBookingDraft,
   type OfficeBookingPassengerDraft,
 } from "@/lib/office-booking-store";
+import { PayerIsTravelingToggle } from "@/components/booking/payer-is-traveling-toggle";
+import {
+  applyPayerToFirstTraveler,
+  travelerMatchesPayer,
+} from "@/lib/payer-traveler-sync";
 import { bookingLookupRef, createBooking, confirmPaymentAndInvoice } from "@/services/airBooking";
 import { toast } from "sonner";
 
@@ -44,6 +51,7 @@ function passengerTypeLabel(type: string) {
 
 export default function OfficeBookingTravelersPage() {
   const router = useRouter();
+  const { enableSeatSelection, loading: settingsLoading } = useBookingSettings();
   const { validationErrors, submitError, clearAlerts, showValidation, setSubmitError } =
     useFormDialogAlerts();
 
@@ -51,31 +59,52 @@ export default function OfficeBookingTravelersPage() {
   const [payer, setPayer] = useState({ name: "", email: "", phone: "" });
   const [passengers, setPassengers] = useState<OfficeBookingPassengerDraft[]>([emptyPassenger()]);
   const [markPaid, setMarkPaid] = useState(true);
+  const [payerIsTraveling, setPayerIsTraveling] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const seatCount = draft?.selectedSeatIds?.length ?? 0;
-  const needsMoreSeats = passengers.length > seatCount;
+  const needsMoreSeats = enableSeatSelection && passengers.length > seatCount;
 
   useEffect(() => {
+    if (settingsLoading) return;
     const d = loadOfficeBookingDraft();
-    if (!d?.scheduleId || !d.selectedSeatIds?.length) {
+    if (!d?.scheduleId) {
       router.replace("/portal/booking/new");
+      return;
+    }
+    if (enableSeatSelection && !d.selectedSeatIds?.length) {
+      router.replace(
+        officeBookingAfterFlightPath(d.scheduleId, true),
+      );
       return;
     }
     setDraft(d);
     setMarkPaid(d.markPaid ?? true);
-    if (d.payer) setPayer(d.payer);
+    const nextPayer = d.payer ?? { name: "", email: "", phone: "" };
+    if (d.payer) setPayer(nextPayer);
 
-    const count = Math.max(d.selectedSeatIds.length, d.passengers?.length ?? 0, 1);
-    setPassengers(
-      Array.from({ length: count }, (_, i) => d.passengers?.[i] || emptyPassenger()),
+    const count = enableSeatSelection
+      ? Math.max(d.selectedSeatIds?.length ?? 0, d.passengers?.length ?? 0, 1)
+      : Math.max(d.passengerCount ?? 1, d.passengers?.length ?? 0, 1);
+    let nextPassengers = Array.from(
+      { length: count },
+      (_, i) => d.passengers?.[i] || emptyPassenger(),
     );
-  }, [router]);
+    const traveling =
+      d.payerIsTraveling ??
+      (count === 1 || travelerMatchesPayer(nextPassengers[0], nextPayer));
+    setPayerIsTraveling(traveling);
+    if (traveling && nextPayer.name.trim()) {
+      nextPassengers = applyPayerToFirstTraveler(nextPassengers, nextPayer);
+    }
+    setPassengers(nextPassengers);
+  }, [router, enableSeatSelection, settingsLoading]);
 
   const persistDraft = (
     nextPassengers: OfficeBookingPassengerDraft[],
     nextPayer = payer,
     nextMarkPaid = markPaid,
+    nextPayerIsTraveling = payerIsTraveling,
   ) => {
     if (!draft) return;
     saveOfficeBookingDraft({
@@ -84,7 +113,30 @@ export default function OfficeBookingTravelersPage() {
       passengers: nextPassengers,
       passengerCount: nextPassengers.length,
       markPaid: nextMarkPaid,
+      payerIsTraveling: nextPayerIsTraveling,
     });
+  };
+
+  const setPayerIsTravelingState = (active: boolean) => {
+    setPayerIsTraveling(active);
+    if (active) {
+      const synced = applyPayerToFirstTraveler(passengers, payer);
+      setPassengers(synced);
+      persistDraft(synced, payer, markPaid, active);
+      return;
+    }
+    persistDraft(passengers, payer, markPaid, active);
+  };
+
+  const updatePayer = (next: { name: string; email: string; phone: string }) => {
+    setPayer(next);
+    if (payerIsTraveling) {
+      const synced = applyPayerToFirstTraveler(passengers, next);
+      setPassengers(synced);
+      persistDraft(synced, next, markPaid, payerIsTraveling);
+      return;
+    }
+    persistDraft(passengers, next, markPaid, payerIsTraveling);
   };
 
   const updatePassenger = (index: number, field: keyof OfficeBookingPassengerDraft, value: string) => {
@@ -116,7 +168,7 @@ export default function OfficeBookingTravelersPage() {
     if (!payer.phone.trim()) missing.push("Payer phone");
     if (!payer.email.trim()) missing.push("Payer email");
 
-    if (passengers.length !== seatCount) {
+    if (enableSeatSelection && passengers.length !== seatCount) {
       missing.push(
         `${passengers.length} traveler(s) but ${seatCount} seat(s) — add seats or remove travelers`,
       );
@@ -155,7 +207,7 @@ export default function OfficeBookingTravelersPage() {
           phone_number: p.phone_number.trim() || payer.phone.trim(),
           email: p.email.trim() || payer.email.trim(),
           passenger_type: p.passenger_type,
-          seat_number: draft.selectedSeatIds[i],
+          seat_number: enableSeatSelection ? draft.selectedSeatIds[i] : undefined,
           register_profile: false,
         })),
       });
@@ -175,6 +227,7 @@ export default function OfficeBookingTravelersPage() {
         passengers,
         passengerCount: passengers.length,
         markPaid,
+        payerIsTraveling,
       });
 
       router.push(
@@ -198,7 +251,11 @@ export default function OfficeBookingTravelersPage() {
   return (
     <BookingFlowLayout
       title="Traveler details"
-      description={`One form per traveler (${passengers.length} traveler${passengers.length === 1 ? "" : "s"}, ${seatCount} seat${seatCount === 1 ? "" : "s"} selected). Only the payer is saved as an ERPNext customer — travelers are not given website logins.`}
+      description={
+        enableSeatSelection
+          ? `One form per traveler (${passengers.length} traveler${passengers.length === 1 ? "" : "s"}, ${seatCount} seat${seatCount === 1 ? "" : "s"} selected). Only the payer is saved as an ERPNext customer — travelers are not given website logins.`
+          : `One form per traveler (${passengers.length} traveler${passengers.length === 1 ? "" : "s"}). Seats can be assigned later at check-in. Only the payer is saved as an ERPNext customer.`
+      }
     >
       <FormAlerts
         validationErrors={validationErrors}
@@ -207,7 +264,7 @@ export default function OfficeBookingTravelersPage() {
         className="mb-4"
       />
 
-      {needsMoreSeats && (
+      {enableSeatSelection && needsMoreSeats && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
           <p className="font-medium text-foreground">
             {passengers.length - seatCount} traveler(s) still need a seat
@@ -226,35 +283,30 @@ export default function OfficeBookingTravelersPage() {
           <FormField label="Full name" required fullWidth>
             <Input
               value={payer.name}
-              onChange={(e) => {
-                const next = { ...payer, name: e.target.value };
-                setPayer(next);
-                persistDraft(passengers, next);
-              }}
+              onChange={(e) => updatePayer({ ...payer, name: e.target.value })}
             />
           </FormField>
           <FormField label="Phone" required>
             <Input
               value={payer.phone}
-              onChange={(e) => {
-                const next = { ...payer, phone: e.target.value };
-                setPayer(next);
-                persistDraft(passengers, next);
-              }}
+              onChange={(e) => updatePayer({ ...payer, phone: e.target.value })}
             />
           </FormField>
           <FormField label="Email" required>
             <Input
               type="email"
               value={payer.email}
-              onChange={(e) => {
-                const next = { ...payer, email: e.target.value };
-                setPayer(next);
-                persistDraft(passengers, next);
-              }}
+              onChange={(e) => updatePayer({ ...payer, email: e.target.value })}
             />
           </FormField>
         </FormGrid>
+        <div className="mt-3">
+          <PayerIsTravelingToggle
+            active={payerIsTraveling}
+            onToggle={setPayerIsTravelingState}
+            label="Payer is also Traveler 1"
+          />
+        </div>
       </FormSection>
 
       <div className="mt-6 flex items-center justify-between gap-4">
@@ -310,12 +362,20 @@ export default function OfficeBookingTravelersPage() {
                 Selected: {passengerTypeLabel(p.passenger_type)}
               </p>
             )}
-            <FormField label="Full name" required fullWidth>
-              <Input
-                value={p.full_name}
-                onChange={(e) => updatePassenger(index, "full_name", e.target.value)}
-              />
-            </FormField>
+            {index === 0 && payerIsTraveling ? (
+              <p className="col-span-full rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                Name, phone, and email are taken from the payer above. Add ID or date of birth
+                below if needed.
+              </p>
+            ) : null}
+            {!(index === 0 && payerIsTraveling) && (
+              <FormField label="Full name" required fullWidth>
+                <Input
+                  value={p.full_name}
+                  onChange={(e) => updatePassenger(index, "full_name", e.target.value)}
+                />
+              </FormField>
+            )}
             <FormField label="ID number (optional)">
               <Input
                 value={p.id_number}
@@ -329,19 +389,23 @@ export default function OfficeBookingTravelersPage() {
                 onChange={(e) => updatePassenger(index, "date_of_birth", e.target.value)}
               />
             </FormField>
-            <FormField label="Phone (optional)">
-              <Input
-                value={p.phone_number}
-                onChange={(e) => updatePassenger(index, "phone_number", e.target.value)}
-              />
-            </FormField>
-            <FormField label="Email (optional)">
-              <Input
-                type="email"
-                value={p.email}
-                onChange={(e) => updatePassenger(index, "email", e.target.value)}
-              />
-            </FormField>
+            {!(index === 0 && payerIsTraveling) && (
+              <>
+                <FormField label="Phone (optional)">
+                  <Input
+                    value={p.phone_number}
+                    onChange={(e) => updatePassenger(index, "phone_number", e.target.value)}
+                  />
+                </FormField>
+                <FormField label="Email (optional)">
+                  <Input
+                    type="email"
+                    value={p.email}
+                    onChange={(e) => updatePassenger(index, "email", e.target.value)}
+                  />
+                </FormField>
+              </>
+            )}
           </FormGrid>
         </FormSection>
       ))}
@@ -363,7 +427,16 @@ export default function OfficeBookingTravelersPage() {
       </div>
 
       <div className="mt-8 flex justify-between gap-3 border-t pt-6">
-        <Button variant="outline" onClick={() => router.push("/portal/booking/new/seats")}>
+        <Button
+          variant="outline"
+          onClick={() =>
+            router.push(
+              enableSeatSelection && draft?.scheduleId
+                ? `/portal/booking/new/seats?schedule=${encodeURIComponent(draft.scheduleId)}`
+                : "/portal/booking/new",
+            )
+          }
+        >
           Back
         </Button>
         <Button

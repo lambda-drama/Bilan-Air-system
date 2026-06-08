@@ -90,7 +90,8 @@ export async function getBookingSearchDefaults(): Promise<{
   origin_iata: string;
   destination_iata: string;
   suggested_date: string;
-  route?: string;
+  route?: string | null;
+  enable_seat_selection?: boolean;
 }> {
   return apiRequest(methodUrl("search", "get_booking_search_defaults"), {
     method: "POST",

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { fetchSeatMap, type SeatMapEntry } from '@/services/flightSchedule';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { useBookingSettings } from '@/hooks/use-booking-settings';
+import { websiteBookingAfterFlightPath } from '@/lib/booking-seat-step';
 import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 import { parseFlightsSearchParams } from '@/lib/flights-search-url';
 import {
@@ -29,6 +31,7 @@ interface SeatRow {
 function SeatSelectionContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { enableSeatSelection, loading: settingsLoading } = useBookingSettings();
   const [seats, setSeats] = useState<SeatRow[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,11 @@ function SeatSelectionContent() {
   useLayoutEffect(() => {
     initTripContext(tripType, passengers, searchLegs);
   }, [tripType, passengers, searchLegsKey, searchLegs]);
+
+  useEffect(() => {
+    if (settingsLoading || enableSeatSelection) return;
+    router.replace(websiteBookingAfterFlightPath(searchParams, false));
+  }, [settingsLoading, enableSeatSelection, router, searchParams]);
 
   const tripCtx = loadTripContext();
   const legSelection = getLegSelection(leg);
@@ -199,6 +207,7 @@ function SeatSelectionContent() {
       <WebsiteBookingFlowHeader
         currentStep="seats"
         searchParams={searchParams}
+        enableSeatSelection={enableSeatSelection}
         title="Select your seats"
         description={`${isMultiLeg ? `${legTitle} · ` : ''}${activeLeg.origin} → ${activeLeg.destination} · ${seatClass} · Select ${passengers} seat${passengers > 1 ? 's' : ''}${legSelection?.flightNumber ? ` · ${legSelection.flightNumber}` : ''}`}
       />

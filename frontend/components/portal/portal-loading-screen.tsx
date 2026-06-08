@@ -1,6 +1,6 @@
 "use client";
 
-import { Plane } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ export function PortalLoadingScreen({
           className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-gold border-r-gold/60"
           aria-hidden
         />
-        <Plane className="relative h-9 w-9 text-gold" aria-hidden />
+        <BrandLogo className="relative h-9 w-9 rounded-full" />
       </div>
 
       <p className="mt-8 text-sm font-medium text-foreground">{message}</p>

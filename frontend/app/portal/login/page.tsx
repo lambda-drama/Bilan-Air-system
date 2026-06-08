@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plane, Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { useAuth } from '@/contexts/auth-context';
 import { hasPortalAccess } from '@/lib/portal-access';
 import { getCurrentUserProfile } from '@/services/auth';
@@ -59,7 +60,7 @@ function PortalLoginContent() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <Plane className="h-10 w-10 text-gold" />
+            <BrandLogo className="h-10 w-10 rounded-full" />
             <span className="text-2xl font-serif text-white">Bilan Air</span>
           </Link>
           <p className="text-white/60 mt-2">Agent & Staff Portal</p>

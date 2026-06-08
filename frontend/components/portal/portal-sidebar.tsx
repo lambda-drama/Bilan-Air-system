@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Plane } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -96,7 +97,7 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
           className="flex min-w-0 items-center gap-2 pr-8 lg:pr-0"
           onClick={() => onPortalNavClick(onNavigate)}
         >
-          <Plane className="h-8 w-8 shrink-0 text-gold" />
+          <BrandLogo className="h-8 w-8 rounded-full" />
           <span className="truncate font-serif text-xl font-bold text-cream">Bilan Air</span>
         </Link>
       </div>

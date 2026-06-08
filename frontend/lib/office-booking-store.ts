@@ -27,6 +27,8 @@ export interface OfficeBookingDraft {
   };
   passengers?: OfficeBookingPassengerDraft[];
   markPaid?: boolean;
+  /** When true, Traveler 1 name/phone/email mirror the payer. */
+  payerIsTraveling?: boolean;
 }
 
 const KEY = "bilan_office_booking_draft";

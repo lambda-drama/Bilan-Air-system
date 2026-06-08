@@ -188,3 +188,45 @@ export async function getDashboardStats() {
     body: JSON.stringify({}),
   });
 }
+
+export interface PortalReportsMonthlyRow {
+  month: string;
+  month_num: number;
+  bookings: number;
+  revenue: number;
+}
+
+export interface PortalReportsTopRoute {
+  route: string;
+  bookings: number;
+  revenue: number;
+}
+
+export interface PortalReportsData {
+  year: number;
+  available_years: number[];
+  summary: {
+    total_revenue: number;
+    total_bookings: number;
+    total_passengers: number;
+    flights_operated: number;
+  };
+  yoy: {
+    total_revenue: number | null;
+    total_bookings: number | null;
+    total_passengers: number | null;
+    flights_operated: number | null;
+  };
+  monthly: PortalReportsMonthlyRow[];
+  top_routes: PortalReportsTopRoute[];
+}
+
+export async function getPortalReports(year?: number) {
+  return apiRequest<PortalReportsData>(
+    methodUrl("portal", "get_portal_reports"),
+    {
+      method: "POST",
+      body: JSON.stringify({ year: year ?? null }),
+    },
+  );
+}

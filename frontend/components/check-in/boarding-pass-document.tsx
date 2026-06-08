@@ -1,6 +1,7 @@
 "use client";
 
 import { Plane } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import {
   formatBoardingClock,
@@ -13,9 +14,10 @@ export function BoardingPassDocument({ pass }: { pass: BoardingPassData }) {
     <div className="boarding-pass-sheet mx-auto w-full max-w-[820px] overflow-hidden bg-white text-navy shadow-lg print:shadow-none">
       <div className="flex items-center justify-between border-b-2 border-navy bg-navy px-5 py-3 text-cream">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold text-navy">
-            <Plane className="h-5 w-5" />
-          </div>
+          <BrandLogo
+            className="h-10 w-10 shrink-0 rounded-full"
+            alt={pass.airline_name}
+          />
           <div>
             <p className="text-xs font-bold tracking-[0.2em]">{pass.airline_name}</p>
             <p className="text-[10px] text-cream/70">{pass.airline_tagline}</p>

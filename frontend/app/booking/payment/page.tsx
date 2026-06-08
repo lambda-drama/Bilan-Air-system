@@ -23,6 +23,7 @@ import { useCurrency } from '@/contexts/currency-context';
 import { useAuth } from '@/contexts/auth-context';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
 import { clearTripContext } from '@/lib/trip-store';
+import { useBookingSettings } from '@/hooks/use-booking-settings';
 import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 
 function PaymentContent() {
@@ -30,6 +31,7 @@ function PaymentContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+  const { enableSeatSelection } = useBookingSettings();
 
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'cash'>('cash');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -74,6 +76,7 @@ function PaymentContent() {
     return legs.map((leg) => ({
       booking_source: 'online' as const,
       flight_schedule: leg.flightScheduleId,
+      seat_class: leg.seatClass,
       payer_name: draft.payer_name,
       payer_email: draft.payer_email,
       payer_phone: draft.payer_phone,
@@ -82,7 +85,7 @@ function PaymentContent() {
         id_number: p.id_number.trim() || undefined,
         date_of_birth: p.date_of_birth || undefined,
         passenger_type: p.passenger_type,
-        seat_number: leg.selectedSeatIds[i],
+        seat_number: enableSeatSelection ? leg.selectedSeatIds[i] : undefined,
         phone_number: p.phone_number,
         email: p.email,
         register_profile: true,
@@ -166,6 +169,7 @@ function PaymentContent() {
       <WebsiteBookingFlowHeader
         currentStep="review"
         searchParams={searchParams}
+        enableSeatSelection={enableSeatSelection}
         title="Review & confirm"
         description={`Reserve your seats now — pay within ${holdLabel}. Your PNR is issued when payment is confirmed.`}
       />

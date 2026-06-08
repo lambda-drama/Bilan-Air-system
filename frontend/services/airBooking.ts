@@ -8,7 +8,7 @@ export interface BookingPassengerInput {
   id_number?: string;
   date_of_birth?: string;
   passenger_type?: string;
-  seat_number: string;
+  seat_number?: string;
   phone_number?: string;
   email?: string;
   register_profile?: boolean;
@@ -62,6 +62,8 @@ export interface BookingDetails {
     type: string;
     seat: string;
     seat_label?: string;
+    seat_class?: string;
+    baggage_policy?: import("./baggage").BaggagePolicy;
     ticket_number?: string;
     check_in_status?: string;
     can_print_ticket?: boolean;

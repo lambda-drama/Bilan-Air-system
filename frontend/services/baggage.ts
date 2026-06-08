@@ -3,7 +3,12 @@ import type { BaggagePrintData } from "@/lib/baggage-print";
 
 export interface BaggagePolicy {
   max_baggage_kg: number;
+  checked_kg?: number;
+  carry_on_kg?: number;
+  checked_pieces?: number;
+  carry_on_pieces?: number;
   excess_baggage_fee_per_kg: number;
+  seat_class?: string;
 }
 
 export interface BaggageRecord {
@@ -70,12 +75,17 @@ export async function traceBaggage(tracking_number: string): Promise<BaggageTrac
   });
 }
 
+export function checkedAllowanceKg(policy?: BaggagePolicy): number {
+  if (!policy) return 0;
+  return policy.checked_kg ?? policy.max_baggage_kg ?? 0;
+}
+
 export function estimateExcessFee(
   weightKg: number,
   policy: BaggagePolicy,
 ): { isExcess: boolean; fee: number } {
   if (!weightKg || weightKg <= 0) return { isExcess: false, fee: 0 };
-  const max = policy.max_baggage_kg ?? 0;
+  const max = checkedAllowanceKg(policy);
   if (weightKg <= max) return { isExcess: false, fee: 0 };
   const fee = (weightKg - max) * (policy.excess_baggage_fee_per_kg ?? 0);
   return { isExcess: true, fee };

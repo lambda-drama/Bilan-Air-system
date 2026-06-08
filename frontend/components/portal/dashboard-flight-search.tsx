@@ -12,6 +12,7 @@ import { FormField, FormGrid } from "@/components/portal/form-dialog";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { useCurrency } from "@/contexts/currency-context";
 import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
+import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import {
   draftFromFlight,
   loadOfficeBookingDraft,
@@ -43,6 +44,7 @@ export function DashboardFlightSearch() {
   const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
   const [initializing, setInitializing] = useState(true);
+  const [enableSeatSelection, setEnableSeatSelection] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +64,7 @@ export function DashboardFlightSearch() {
             label: formatAirportDisplay({ city, iata: value }),
           })),
         );
+        setEnableSeatSelection(!!defaults.enable_seat_selection);
         setOrigin(defaults.origin_iata || "");
         setDestination(defaults.destination_iata || "");
         setDepartureDate(defaults.suggested_date || "");
@@ -160,7 +163,7 @@ export function DashboardFlightSearch() {
       passengers: existing?.passengers,
       markPaid: existing?.markPaid,
     });
-    router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(flight.schedule_id)}`);
+    router.push(officeBookingAfterFlightPath(flight.schedule_id, enableSeatSelection));
   };
 
   return (

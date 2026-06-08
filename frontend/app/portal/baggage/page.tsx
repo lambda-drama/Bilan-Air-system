@@ -118,7 +118,11 @@ export default function PortalBaggagePage() {
             </p>
             <BookingBaggagePanel
               bookingRef={bookingReference(booking)}
-              travelers={booking.passengers.map((p) => ({ name: p.name }))}
+              travelers={booking.passengers.map((p) => ({
+                name: p.name,
+                seat_class: p.seat_class,
+                baggage_policy: p.baggage_policy,
+              }))}
               baggage={booking.baggage || []}
               policy={booking.baggage_policy}
               baggageFeesTotal={booking.baggage_fees_total}
