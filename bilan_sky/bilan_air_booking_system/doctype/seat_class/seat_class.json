@@ -11,7 +11,14 @@
   "color_code",
   "is_active",
   "column_break_omfe",
-  "description"
+  "description",
+  "baggage_section",
+  "checked_baggage_kg",
+  "checked_baggage_pieces",
+  "column_break_baggage",
+  "carry_on_kg",
+  "carry_on_pieces",
+  "excess_baggage_fee_per_kg"
  ],
  "fields": [
   {
@@ -50,6 +57,49 @@
   {
    "fieldname": "column_break_omfe",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "baggage_section",
+   "fieldtype": "Section Break",
+   "label": "Baggage Allowance"
+  },
+  {
+   "description": "Checked baggage weight per passenger. Leave 0 to use BA Settings default.",
+   "fieldname": "checked_baggage_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Checked Baggage (kg)"
+  },
+  {
+   "default": "1",
+   "fieldname": "checked_baggage_pieces",
+   "fieldtype": "Int",
+   "label": "Checked Bags (pieces)"
+  },
+  {
+   "fieldname": "column_break_baggage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Cabin carry-on weight per passenger. Leave 0 to use BA Settings default.",
+   "fieldname": "carry_on_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Cabin Baggage (kg)"
+  },
+  {
+   "default": "1",
+   "fieldname": "carry_on_pieces",
+   "fieldtype": "Int",
+   "label": "Cabin Bags (pieces)"
+  },
+  {
+   "description": "Charge per kg above checked allowance. Leave 0 to use BA Settings default.",
+   "fieldname": "excess_baggage_fee_per_kg",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Excess Baggage Fee per KG",
+   "options": "currency"
   }
  ],
  "grid_page_length": 50,
@@ -72,6 +122,20 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Pricing Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
    "write": 1
   }
  ],

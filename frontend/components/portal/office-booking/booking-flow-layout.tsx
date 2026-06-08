@@ -6,23 +6,35 @@ import { ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadOfficeBookingDraft } from "@/lib/office-booking-store";
 import { Button } from "@/components/ui/button";
+import { useBookingSettings } from "@/hooks/use-booking-settings";
 
-const STEPS = [
+const ALL_STEPS = [
   { id: "search", label: "Find flight", path: "/portal/booking/new" },
   { id: "seats", label: "Select seats", path: "/portal/booking/new/seats" },
   { id: "travelers", label: "Travelers", path: "/portal/booking/new/travelers" },
   { id: "done", label: "Complete", path: "/portal/booking/new/done" },
 ] as const;
 
-function stepIndex(pathname: string | null): number {
+function visibleSteps(enableSeatSelection: boolean) {
+  return enableSeatSelection
+    ? ALL_STEPS
+    : ALL_STEPS.filter((s) => s.id !== "seats");
+}
+
+function stepIndex(pathname: string | null, enableSeatSelection: boolean): number {
   if (!pathname) return 0;
-  if (pathname.includes("/done")) return 3;
-  if (pathname.includes("/travelers")) return 2;
+  if (pathname.includes("/done")) return enableSeatSelection ? 3 : 2;
+  if (pathname.includes("/travelers")) return enableSeatSelection ? 2 : 1;
   if (pathname.includes("/seats")) return 1;
   return 0;
 }
 
-function hrefForStep(step: (typeof STEPS)[number], index: number, current: number): string | null {
+function hrefForStep(
+  step: (typeof ALL_STEPS)[number],
+  index: number,
+  current: number,
+  enableSeatSelection: boolean,
+): string | null {
   if (index >= current) return null;
   if (step.id === "seats") {
     const draft = loadOfficeBookingDraft();
@@ -32,7 +44,11 @@ function hrefForStep(step: (typeof STEPS)[number], index: number, current: numbe
   }
   if (step.id === "travelers") {
     const draft = loadOfficeBookingDraft();
-    if (!draft?.scheduleId || !draft.selectedSeatIds?.length) return null;
+    if (!draft?.scheduleId) return null;
+    if (enableSeatSelection && !draft.selectedSeatIds?.length) return null;
+    if (draft.scheduleId) {
+      return `${step.path}?schedule=${encodeURIComponent(draft.scheduleId)}`;
+    }
   }
   return step.path;
 }
@@ -47,7 +63,9 @@ export function BookingFlowLayout({
   description?: string;
 }) {
   const pathname = usePathname();
-  const current = stepIndex(pathname);
+  const { enableSeatSelection } = useBookingSettings();
+  const steps = visibleSteps(enableSeatSelection);
+  const current = stepIndex(pathname, enableSeatSelection);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -66,10 +84,10 @@ export function BookingFlowLayout({
 
       <nav aria-label="Booking progress" className="rounded-lg border bg-card p-4">
         <ol className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          {STEPS.map((step, index) => {
+          {steps.map((step, index) => {
             const done = index < current;
             const active = index === current;
-            const backHref = hrefForStep(step, index, current);
+            const backHref = hrefForStep(step, index, current, enableSeatSelection);
             const stepContent = (
               <>
                 <span
@@ -105,7 +123,7 @@ export function BookingFlowLayout({
                 ) : (
                   stepContent
                 )}
-                {index < STEPS.length - 1 && (
+                {index < steps.length - 1 && (
                   <span className="hidden flex-1 border-t border-dashed sm:mx-2 sm:block" />
                 )}
               </li>

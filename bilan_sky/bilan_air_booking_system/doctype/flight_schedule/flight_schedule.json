@@ -34,6 +34,8 @@
   "base_fare_adult_override",
   "base_fare_child_override",
   "base_fare_infant_override",
+  "fare_history_section",
+  "fare_history",
   "cutoff_datetime",
   "amended_from"
  ],
@@ -176,7 +178,7 @@
    "label": "Flight segments (multi-stop)"
   },
   {
-   "description": "Copied from route; used for segment seat sales (e.g. MGQ→NBO→MBA).",
+   "description": "Copied from route; used for segment seat sales (e.g. MGQ\u2192NBO\u2192MBA).",
    "fieldname": "segments",
    "fieldtype": "Table",
    "label": "Segments",
@@ -208,6 +210,19 @@
    "fieldtype": "Currency",
    "label": "Base Fare Override (Infant)",
    "options": "currency"
+  },
+  {
+   "fieldname": "fare_history_section",
+   "fieldtype": "Section Break",
+   "label": "Fare change history"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
+   "fieldname": "fare_history",
+   "fieldtype": "Table",
+   "label": "Fare History",
+   "options": "Flight Schedule Fare History"
   },
   {
    "fieldname": "cutoff_datetime",
@@ -250,13 +265,14 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-27 20:24:46.856680",
+ "modified": "2026-06-09 02:13:12.917692",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Schedule",
  "owner": "Administrator",
  "permissions": [
   {
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -267,10 +283,10 @@
    "role": "System Manager",
    "share": 1,
    "submit": 1,
-   "cancel": 1,
    "write": 1
   },
   {
+   "cancel": 1,
    "create": 1,
    "email": 1,
    "export": 1,
@@ -280,7 +296,6 @@
    "role": "Booking Agent",
    "share": 1,
    "submit": 1,
-   "cancel": 1,
    "write": 1
   }
  ],

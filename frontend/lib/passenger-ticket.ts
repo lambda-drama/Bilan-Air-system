@@ -25,6 +25,8 @@ export interface PassengerTicketData {
   baggage_policy: {
     checked_kg?: number;
     carry_on_kg?: number;
+    checked_pieces?: number;
+    carry_on_pieces?: number;
     excess_fee_per_kg?: number;
   };
   ticket_terms: {

@@ -54,8 +54,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Seat",
-   "options": "Seat Inventory",
-   "reqd": 1
+   "options": "Seat Inventory"
   },
   {
    "allow_on_submit": 1,

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProviders } from '@/components/app-providers'
-import { staticAsset } from '@/lib/static-asset'
+import { BRAND_LOGO_URL } from '@/lib/brand'
 import './globals.css'
 
 const geistSans = Geist({
@@ -27,9 +27,9 @@ export const metadata: Metadata = {
   keywords: ['airline', 'flights', 'Somalia', 'Kenya', 'East Africa', 'Nairobi', 'Mogadishu', 'booking'],
   generator: 'v0.app',
   icons: {
-    icon: [{ url: staticAsset('/favicon.svg'), type: 'image/svg+xml' }],
-    shortcut: staticAsset('/favicon.svg'),
-    apple: staticAsset('/favicon.svg'),
+    icon: [{ url: BRAND_LOGO_URL, type: 'image/jpeg' }],
+    shortcut: BRAND_LOGO_URL,
+    apple: BRAND_LOGO_URL,
   },
 }
 

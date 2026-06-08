@@ -1,6 +1,7 @@
 "use client";
 
-import { Luggage, Plane } from "lucide-react";
+import { Plane } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import { useCurrency } from "@/contexts/currency-context";
 import {
@@ -16,12 +17,10 @@ export function BaggageReceiptDocument({ baggage }: { baggage: BaggagePrintData 
     <div className="baggage-print-sheet mx-auto w-full max-w-[820px] bg-white text-navy shadow-lg print:shadow-none">
       <div className="relative flex items-start justify-between gap-4 border-b border-navy/10 px-6 py-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-28 items-center justify-center rounded-br-[2.5rem] bg-navy text-cream">
-            <div className="text-center">
-              <Luggage className="mx-auto mb-1 h-5 w-5 text-gold" />
-              <p className="text-[10px] font-bold tracking-wider">{baggage.airline_name}</p>
-            </div>
-          </div>
+          <BrandLogo
+            className="h-14 w-14 shrink-0 rounded-full"
+            alt={baggage.airline_name}
+          />
           <div>
             <p className="text-[10px] uppercase tracking-[0.25em] text-navy/50">Baggage receipt</p>
             <p className="text-xs text-navy/60">{baggage.airline_tagline}</p>

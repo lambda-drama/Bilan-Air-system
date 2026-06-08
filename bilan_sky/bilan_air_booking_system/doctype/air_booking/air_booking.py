@@ -138,9 +138,13 @@ class AirBooking(Document):
         if not self.passengers:
             frappe.throw("Add at least one passenger.")
 
+        from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+
         for idx, row in enumerate(self.passengers, start=1):
             if not (row.passenger_name or "").strip():
                 frappe.throw(f"Passenger name is required for traveler {idx}.")
+            if is_seat_selection_enabled() and not (row.seat_number or "").strip():
+                frappe.throw(f"Select a seat for traveler {idx} (seat selection is required).")
 
     def validate_seat_availability(self):
         """Check if selected seats are still available for this flight and booking."""
@@ -188,6 +192,12 @@ class AirBooking(Document):
                     f"Seat {seat.seat_number} is no longer available ({seat.status})"
                 )
     
+    def _cabin_class_multiplier(self, cabin_class_name):
+        seat_class_name = frappe.db.get_value("Seat Class", {"class_name": cabin_class_name}, "name")
+        if not seat_class_name:
+            return 1.0
+        return flt(frappe.db.get_value("Seat Class", seat_class_name, "price_multiplier")) or 1.0
+
     # =========================================================
     # FARE CALCULATION
     # =========================================================
@@ -214,36 +224,35 @@ class AirBooking(Document):
         )
 
         for passenger in self.passengers:
-            if not passenger.seat_number:
-                continue
-
-            seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
-            if not seat_name:
-                continue
-
-            passenger.seat_number = seat_name
-
             base_fare = base_fare_for_passenger(
                 flight,
                 route,
                 self._get_passenger_type(passenger),
             )
+            class_multiplier = 1.0
 
-            seat = frappe.get_doc("Seat Inventory", seat_name)
-            seat_class = frappe.get_doc("Seat Class", seat.seat_class)
-            class_multiplier = flt(seat_class.price_multiplier) or 1.0
+            if passenger.seat_number:
+                seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
+                if seat_name:
+                    passenger.seat_number = seat_name
+                    seat = frappe.get_doc("Seat Inventory", seat_name)
+                    seat_class = frappe.get_doc("Seat Class", seat.seat_class)
+                    class_multiplier = flt(seat_class.price_multiplier) or 1.0
+            elif self.cabin_class:
+                class_multiplier = self._cabin_class_multiplier(self.cabin_class)
 
-            final_fare = base_fare * class_multiplier * fare_multiplier
-            passenger.fare_paid = round(final_fare, 2)
+            passenger.fare_paid = round(base_fare * class_multiplier * fare_multiplier, 2)
 
         # Calculate total
         self.total_fare = sum([flt(p.fare_paid) for p in self.passengers])
 
         if self.passengers and flt(self.total_fare) <= 0:
-            has_seat = any((p.seat_number or "").strip() for p in self.passengers)
-            if has_seat:
+            has_pricing_context = any((p.seat_number or "").strip() for p in self.passengers) or bool(
+                (self.cabin_class or "").strip()
+            )
+            if has_pricing_context:
                 frappe.throw(
-                    "Total fare is zero. Pick seats from Seat Inventory for this flight and set base fares on the route."
+                    "Total fare is zero. Set base fares on the route (or schedule overrides) and cabin/seat class multipliers."
                 )
     
     # =========================================================
@@ -318,12 +327,15 @@ class AirBooking(Document):
         passengers = self.passengers or []
         if not passengers:
             frappe.throw("Add at least one passenger before confirming on credit.")
-        without_seat = [p.passenger_name or p.name for p in passengers if not p.seat_number]
-        if without_seat:
-            frappe.throw(
-                "Assign a seat to each passenger before confirming on credit. "
-                f"Missing seat for: {', '.join(without_seat)}"
-            )
+        from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+
+        if is_seat_selection_enabled():
+            without_seat = [p.passenger_name or p.name for p in passengers if not p.seat_number]
+            if without_seat:
+                frappe.throw(
+                    "Assign a seat to each passenger before confirming on credit. "
+                    f"Missing seat for: {', '.join(without_seat)}"
+                )
         frappe.throw(
             "Total fare is zero. Set base fares on the flight route (or schedule overrides) and save, then try again."
         )
@@ -424,12 +436,14 @@ class AirBooking(Document):
         
         # Create baggage record if weight > 0
         if baggage_weight > 0:
-            settings = frappe.get_single("BA Settings")
-            is_excess = baggage_weight > settings.max_baggage_kg
-            fee = 0
-            if is_excess:
-                excess = baggage_weight - settings.max_baggage_kg
-                fee = excess * settings.excess_baggage_fee
+            from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import calculate_excess_fee
+
+            excess_result = calculate_excess_fee(
+                baggage_weight,
+                seat_inventory_name=passenger.seat_number,
+            )
+            is_excess = excess_result["is_excess"]
+            fee = excess_result["fee"]
             
             baggage = frappe.get_doc({
                 "doctype": "Baggage Tracking",

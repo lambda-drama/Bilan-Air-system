@@ -46,7 +46,7 @@ fixtures = [
 add_to_apps_screen = [
 	{
 		"name": "bilan_sky",
-		"logo": "/assets/bilan_sky/image/logo_1.jpg",
+		"logo": "/assets/bilan_sky/image/logo.jpeg",
 		"title": "Bilan Air",
 		"route": app_home,
 	},

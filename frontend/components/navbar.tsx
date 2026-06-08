@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Menu, User, X } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useLocale, useTranslations } from '@/contexts/locale-context';
+import { BrandLogo } from '@/components/brand-logo';
 import { TravelerProfileMenu } from '@/components/traveler-profile-menu';
 import { cn } from '@/lib/utils';
 
@@ -67,9 +68,7 @@ export function Navbar() {
           className={`flex items-center justify-between h-20 ${isRtl ? 'flex-row-reverse' : ''}`}
         >
           <Link href="/" className={`flex items-center gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-            <div className="w-12 h-12 rounded-full border-2 border-gold flex items-center justify-center">
-              <span className="text-gold font-bold text-sm">BA</span>
-            </div>
+            <BrandLogo className="h-12 w-12 rounded-full border-2 border-gold bg-white/5 p-0.5" />
             <div className={`flex flex-col ${isRtl ? 'items-end' : ''}`}>
               <span className="text-cream font-bold text-lg tracking-wide">{t.brand.name}</span>
               <span className="text-gold text-xs tracking-widest">{t.brand.tagline}</span>

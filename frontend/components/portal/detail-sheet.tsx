@@ -24,7 +24,11 @@ interface DetailSheetProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   subtitle?: string;
-  badge?: { label: string; variant?: "default" | "secondary" | "destructive" | "outline" };
+  badge?: {
+    label: string;
+    variant?: "default" | "secondary" | "destructive" | "outline";
+    className?: string;
+  };
   isLoading?: boolean;
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -58,7 +62,10 @@ export function DetailSheet({
               <div className="flex flex-wrap items-center gap-2">
                 <SheetTitle className="text-lg">{title}</SheetTitle>
                 {badge && (
-                  <Badge variant={badge.variant || "secondary"} className="bg-gold text-navy border-gold">
+                  <Badge
+                    variant={badge.variant || "outline"}
+                    className={badge.className || "bg-gold text-navy border-gold"}
+                  >
                     {badge.label}
                   </Badge>
                 )}

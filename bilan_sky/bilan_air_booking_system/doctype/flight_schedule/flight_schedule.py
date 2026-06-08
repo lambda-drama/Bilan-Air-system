@@ -20,6 +20,23 @@ class FlightSchedule(Document):
         if self.flight_number and self.departure_date:
             self.name = schedule_document_name(self.flight_number, self.departure_date)
 
+    def before_save(self):
+        self._capture_fare_history_for_save()
+
+    def before_update_after_submit(self):
+        # Submitted schedule edits (e.g. portal price change) use this hook, not before_save.
+        self._capture_fare_history_for_save()
+
+    def _capture_fare_history_for_save(self):
+        self._pending_fare_history_entry = None
+        entry = self._build_fare_history_entry_if_changed()
+        if not entry:
+            return
+        if self.docstatus == 0:
+            self.append("fare_history", entry)
+        else:
+            self._pending_fare_history_entry = entry
+
     def validate(self):
         from bilan_sky.bilan_air_booking_system.utils.crew_filters import validate_flight_crew_pilots
         validate_flight_crew_pilots(self)
@@ -82,6 +99,52 @@ class FlightSchedule(Document):
         if estimate.get("arrival_time"):
             self.arrival_time = estimate["arrival_time"]
 
+    def _build_fare_history_entry_if_changed(self):
+        if self.is_new() or not self.route:
+            return None
+
+        from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
+            SCHEDULE_OVERRIDE_FIELDS,
+            resolve_base_fares,
+        )
+
+        if not any(self.has_value_changed(field) for field in SCHEDULE_OVERRIDE_FIELDS.values()):
+            return None
+
+        old_doc = self.get_doc_before_save()
+        if not old_doc:
+            return None
+
+        route = frappe.get_doc("Flight Route", self.route, ignore_permissions=True)
+        old_fares = resolve_base_fares(old_doc, route)
+        new_fares = resolve_base_fares(self, route)
+
+        if old_fares == new_fares:
+            return None
+
+        now = frappe.utils.now()
+        return {
+            "changed_at": now,
+            "changed_by": frappe.session.user,
+            "previous_adult": old_fares["adult"],
+            "previous_child": old_fares["child"],
+            "previous_infant": old_fares["infant"],
+        }
+
+    def _insert_fare_history_row(self, entry):
+        next_idx = frappe.db.count("Flight Schedule Fare History", {"parent": self.name}) + 1
+        child = frappe.get_doc(
+            {
+                "doctype": "Flight Schedule Fare History",
+                "parent": self.name,
+                "parenttype": self.doctype,
+                "parentfield": "fare_history",
+                "idx": next_idx,
+                **entry,
+            }
+        )
+        child.insert(ignore_permissions=True)
+
     def after_insert(self):
         self._ensure_seat_inventory()
 
@@ -89,6 +152,16 @@ class FlightSchedule(Document):
         self._ensure_seat_inventory()
         if self.has_value_changed("status") and self.status == "Departed":
             mark_flight_taken_for_schedule(self.name)
+        pending = getattr(self, "_pending_fare_history_entry", None)
+        if pending:
+            self._insert_fare_history_row(pending)
+            self._pending_fare_history_entry = None
+
+    def on_update_after_submit(self):
+        pending = getattr(self, "_pending_fare_history_entry", None)
+        if pending:
+            self._insert_fare_history_row(pending)
+            self._pending_fare_history_entry = None
 
     def _ensure_seat_inventory(self):
         expected = self._expected_seat_count()

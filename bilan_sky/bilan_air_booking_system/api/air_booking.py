@@ -129,13 +129,18 @@ def create_booking(booking_data):
             "fare_paid": 0,
         })
 
+    from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+
     expected_cabin = (booking_data.get("seat_class") or "").strip()
+    seat_selection_required = is_seat_selection_enabled()
 
     for row in passenger_links:
         if row.get("seat_number"):
             prepare_seat_for_new_booking(row["seat_number"])
             if expected_cabin:
                 _validate_seat_matches_cabin(row["seat_number"], expected_cabin)
+        elif seat_selection_required:
+            frappe.throw(_("Select a seat for each passenger."))
 
     schedule_name = booking_data.get("flight_schedule")
     boarding = booking_data.get("boarding_airport")
@@ -161,6 +166,7 @@ def create_booking(booking_data):
         "flight_schedule": schedule_name,
         "boarding_airport": boarding,
         "deboarding_airport": deboarding,
+        "cabin_class": expected_cabin or None,
         "payer_name": booking_data.get("payer_name"),
         "payer_email": booking_data.get("payer_email"),
         "payer_phone": booking_data.get("payer_phone"),
@@ -183,6 +189,8 @@ def create_booking(booking_data):
     from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
 
     for passenger in booking.passengers:
+        if not passenger.seat_number:
+            continue
         result = reserve_seat_for_booking(
             passenger.seat_number,
             booking.name,
@@ -271,13 +279,15 @@ def _booking_baggage_rows(booking):
 	return rows
 
 
-def _baggage_policy():
-	settings = frappe.get_single("BA Settings")
-	return {
-		"max_baggage_kg": settings.max_baggage_kg,
-		"excess_baggage_fee_per_kg": settings.excess_baggage_fee,
-		"carry_on_kg": 7,
-	}
+def _baggage_policy(seat_class=None, seat_inventory_name=None):
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import (
+		get_baggage_allowance,
+		get_default_baggage_policy,
+	)
+
+	if seat_class or seat_inventory_name:
+		return get_baggage_allowance(seat_class, seat_inventory_name)
+	return get_default_baggage_policy()
 
 
 def _last_name(name):
@@ -353,6 +363,8 @@ def _serialize_booking_details(booking):
 			"type": passenger_type,
 			"seat": pax.seat_number,
 			"seat_label": seat_label,
+			"seat_class": _seat_class_label(pax.seat_number),
+			"baggage_policy": _baggage_policy(seat_inventory_name=pax.seat_number),
 			"ticket_number": pax.ticket_number,
 			"check_in_status": pax.check_in_status,
 			"can_print_ticket": _passenger_can_print_ticket(booking, pax),
@@ -473,8 +485,7 @@ def _build_passenger_ticket_payload(booking, pax, sequence_no):
 	if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
 		seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
 
-	policy = _baggage_policy()
-	settings = frappe.get_single("BA Settings")
+	policy = _baggage_policy(seat_inventory_name=pax.seat_number)
 
 	return {
 		"airline_name": "BILAN AIR",
@@ -499,9 +510,11 @@ def _build_passenger_ticket_payload(booking, pax, sequence_no):
 		"zone": str(sequence_no),
 		"passenger_type": pax.passenger_type or "Adult",
 		"baggage_policy": {
-			"checked_kg": policy.get("max_baggage_kg"),
+			"checked_kg": policy.get("checked_kg"),
 			"carry_on_kg": policy.get("carry_on_kg"),
-			"excess_fee_per_kg": settings.excess_baggage_fee,
+			"checked_pieces": policy.get("checked_pieces"),
+			"carry_on_pieces": policy.get("carry_on_pieces"),
+			"excess_fee_per_kg": policy.get("excess_baggage_fee_per_kg"),
 		},
 		"ticket_terms": _default_ticket_terms(),
 		"barcode_data": f"{booking.pnr or booking.name}|{pax.ticket_number}|{origin_iata}|{dest_iata}|{flight.flight_number}",

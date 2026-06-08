@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { TravelerAuthForm } from '@/components/traveler-auth-form';
 import { bookingFlowPath } from '@/lib/booking-flow-params';
+import { useBookingSettings } from '@/hooks/use-booking-settings';
 import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-header';
 import { toast } from 'sonner';
 
@@ -15,6 +16,7 @@ function AccountGateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading, refreshUser } = useAuth();
+  const { enableSeatSelection } = useBookingSettings();
 
   const continuePath = bookingFlowPath('/booking/passengers', searchParams);
 
@@ -39,8 +41,13 @@ function AccountGateContent() {
       <WebsiteBookingFlowHeader
         currentStep="account"
         searchParams={searchParams}
+        enableSeatSelection={enableSeatSelection}
         title="Sign in to continue"
-        description="Log in or create an account before entering traveler details. You can pay now or reserve your seats and pay later using your reservation reference."
+        description={
+          enableSeatSelection
+            ? 'Log in or create an account before entering traveler details. You can pay now or reserve your seats and pay later using your reservation reference.'
+            : 'Log in or create an account before entering traveler details. You can pay now or reserve your booking and pay later using your reservation reference.'
+        }
       />
 
       <div className="max-w-md mx-auto px-4 -mt-6 pb-16">

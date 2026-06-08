@@ -8,16 +8,20 @@
   "reservation_naming_series",
   "pnr_naming_series",
   "default_agent_credit_limit",
-  "send_booking_agent_activation_email",
   "column_break_naming",
   "hold_duration",
   "booking_cutoff_hours",
   "max_baggage_kg",
+  "default_carry_on_kg",
   "excess_baggage_fee",
   "column_break_ysvj",
   "default_currency",
   "infant_fare_percentage",
   "child_fare_percentage",
+  "setup_section",
+  "send_booking_agent_activation_email",
+  "column_break_npnp",
+  "enable_seat_selection",
   "sb_accounting",
   "default_mode_of_payment",
   "default_cash_account",
@@ -57,7 +61,6 @@
   },
   {
    "default": "1",
-   "description": "When enabled, new booking agents receive a welcome email to set their own password. When disabled, staff must set the portal password when creating the agent in the portal.",
    "fieldname": "send_booking_agent_activation_email",
    "fieldtype": "Check",
    "label": "Send Booking Agent Activation Email"
@@ -84,10 +87,19 @@
   },
   {
    "default": "30",
+   "description": "Default checked baggage (kg) when a Seat Class has no override.",
    "fieldname": "max_baggage_kg",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Max Baggage Weight (kg)",
+   "label": "Default Checked Baggage (kg)",
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "description": "Default cabin carry-on (kg) when a Seat Class has no override.",
+   "fieldname": "default_carry_on_kg",
+   "fieldtype": "Float",
+   "label": "Default Cabin Baggage (kg)",
    "reqd": 1
   },
   {
@@ -183,8 +195,7 @@
    "description": "Company on the remote site. Accounts and modes of payment are filtered to this company.",
    "fieldname": "company",
    "fieldtype": "Data",
-   "label": "Company",
-   "reqd": 0
+   "label": "Company"
   },
   {
    "fieldname": "api_key",
@@ -199,13 +210,28 @@
   {
    "fieldname": "column_break_wfws",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "setup_section",
+   "fieldtype": "Section Break",
+   "label": "Setup"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_seat_selection",
+   "fieldtype": "Check",
+   "label": "Enable Seat Selection"
+  },
+  {
+   "fieldname": "column_break_npnp",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-02 22:18:49.011182",
+ "modified": "2026-06-09 01:18:01.046965",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",
