@@ -115,10 +115,34 @@ export async function getPassengerTicketPrintData(params: {
   });
 }
 
-export async function cancelBooking(pnr: string, reason_for_cancel: string) {
-  return apiRequest(methodUrl("air_booking", "cancel_booking"), {
+export async function cancelBooking(
+  pnr: string,
+  reason_for_cancel: string,
+  opts?: {
+    refund_type?: "full" | "partial";
+    refund_amount?: number;
+  },
+) {
+  return apiRequest<{
+    success: boolean;
+    reservation_ref: string;
+    pnr?: string | null;
+    status: string;
+    refund?: {
+      return_invoice: string;
+      return_invoice_number: string;
+      refund_payment_entry?: string;
+      refund_type: string;
+      refund_amount?: number | null;
+    } | null;
+  }>(methodUrl("air_booking", "cancel_booking"), {
     method: "POST",
-    body: JSON.stringify({ pnr, reason_for_cancel: reason_for_cancel.trim() }),
+    body: JSON.stringify({
+      pnr,
+      reason_for_cancel: reason_for_cancel.trim(),
+      refund_type: opts?.refund_type ?? null,
+      refund_amount: opts?.refund_amount ?? null,
+    }),
   });
 }
 

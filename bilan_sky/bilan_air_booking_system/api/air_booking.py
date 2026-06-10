@@ -645,18 +645,35 @@ def fetch_booking_details(pnr):
     return _serialize_booking_details(booking)
 
 @frappe.whitelist(allow_guest=True)
-def cancel_booking(pnr, reason_for_cancel=None):
-    """Cancel a booking"""
-    
-    booking = _load_booking(pnr, ignore_permissions=True)
-    booking.cancel_booking(reason_for_cancel=reason_for_cancel)
-    
-    return {
-        "success": True,
-        "reservation_ref": booking.name,
-        "pnr": booking.pnr,
-        "status": booking.reservation_status,
-    }
+def cancel_booking(pnr, reason_for_cancel=None, refund_type=None, refund_amount=None):
+	"""Cancel a booking; paid bookings may receive a full or partial return invoice first."""
+	from frappe.utils import flt
+
+	booking = _load_booking(pnr, ignore_permissions=True)
+	if frappe.session.user != "Guest":
+		booking.check_permission("write")
+
+	refund_result = None
+	if booking.payment_status == "Paid":
+		refund_type = (refund_type or "").strip().lower()
+		if refund_type not in ("full", "partial"):
+			frappe.throw(_("Choose full or partial refund for this paid booking."))
+		if refund_type == "partial" and flt(refund_amount) <= 0:
+			frappe.throw(_("Enter a refund amount for partial refund."))
+		refund_result = booking.process_refund(
+			refund_type=refund_type,
+			refund_amount=refund_amount,
+		)
+
+	booking.cancel_booking(reason_for_cancel=reason_for_cancel)
+
+	return {
+		"success": True,
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr,
+		"status": booking.reservation_status,
+		"refund": refund_result,
+	}
 
 
 @frappe.whitelist(allow_guest=True)

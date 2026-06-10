@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, cint, now
+from frappe.utils import add_to_date, cint, flt, now
 
 from bilan_sky.bilan_air_booking_system.utils.airports import (
 	enrich_route_airport_labels,
@@ -204,9 +204,43 @@ def _schedule_active_booking_count(schedule_name):
 	)
 
 
+def _active_bookings_for_schedule(schedule_name):
+	return frappe.get_all(
+		"Air Booking",
+		filters={
+			"flight_schedule": schedule_name,
+			"reservation_status": ["!=", "Void"],
+			"docstatus": ["<", 2],
+		},
+		fields=["name", "pnr", "payment_status", "total_fare", "payer_name"],
+		order_by="modified desc",
+	)
+
+
 @frappe.whitelist()
-def cancel_flight_schedule(schedule_name, cancel_reason=None):
-	"""Cancel a flight schedule (Frappe cancel + status Cancelled)."""
+def get_schedule_cancellation_preview(schedule_name):
+	"""Paid/unpaid bookings on a schedule before cancellation."""
+	require_portal_staff()
+	rows = _active_bookings_for_schedule(schedule_name)
+	paid = [row for row in rows if row.payment_status == "Paid"]
+	unpaid = [row for row in rows if row.payment_status != "Paid"]
+	return {
+		"active_bookings_count": len(rows),
+		"paid_bookings_count": len(paid),
+		"unpaid_bookings_count": len(unpaid),
+		"paid_bookings": paid,
+		"total_paid_fare": sum(flt(row.total_fare) for row in paid),
+	}
+
+
+@frappe.whitelist()
+def cancel_flight_schedule(
+	schedule_name,
+	cancel_reason=None,
+	refund_type=None,
+	refund_amount=None,
+):
+	"""Cancel a flight schedule, void linked bookings, and refund paid ones."""
 	require_portal_staff()
 	reason = (cancel_reason or "").strip()
 	if not reason:
@@ -221,13 +255,41 @@ def cancel_flight_schedule(schedule_name, cancel_reason=None):
 	if doc.status in ("Departed", "Arrived"):
 		frappe.throw(_("Cannot cancel a flight that has already departed or arrived."))
 
-	active = _schedule_active_booking_count(schedule_name)
-	if active:
-		frappe.throw(
-			_(
-				"Cannot cancel: {0} active booking(s) are linked to this schedule. Cancel those bookings first."
-			).format(active)
+	active_rows = _active_bookings_for_schedule(schedule_name)
+	paid_rows = [row for row in active_rows if row.payment_status == "Paid"]
+	unpaid_rows = [row for row in active_rows if row.payment_status != "Paid"]
+
+	if paid_rows:
+		refund_type = (refund_type or "").strip().lower()
+		if refund_type not in ("full", "partial"):
+			frappe.throw(
+				_("Choose full or partial refund for {0} paid booking(s).").format(len(paid_rows))
+			)
+		if refund_type == "partial" and flt(refund_amount) <= 0:
+			frappe.throw(_("Enter a refund amount per booking for a partial refund."))
+
+	refunds = []
+	for row in paid_rows:
+		booking = frappe.get_doc("Air Booking", row.name)
+		booking.check_permission("write")
+		refund_result = booking.process_refund(
+			refund_type=refund_type,
+			refund_amount=refund_amount,
 		)
+		if refund_result:
+			refunds.append(
+				{
+					"booking": booking.name,
+					"pnr": booking.pnr,
+					**refund_result,
+				}
+			)
+		booking.cancel_booking(reason_for_cancel=reason)
+
+	for row in unpaid_rows:
+		booking = frappe.get_doc("Air Booking", row.name)
+		booking.check_permission("write")
+		booking.cancel_booking(reason_for_cancel=reason)
 
 	if doc.docstatus == 1:
 		doc.cancel()
@@ -250,6 +312,8 @@ def cancel_flight_schedule(schedule_name, cancel_reason=None):
 		"status": "Cancelled",
 		"docstatus": frappe.db.get_value("Flight Schedule", schedule_name, "docstatus"),
 		"cancel_reason": reason,
+		"bookings_cancelled": len(active_rows),
+		"refunds": refunds,
 	}
 
 
@@ -1433,6 +1497,7 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 		f"""
 		SELECT
 			link.invoice AS name,
+			link.invoice_number,
 			link.invoice_type,
 			link.parent AS booking_pnr,
 			ab.payer_name,
@@ -1460,6 +1525,7 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 			if remote:
 				row.update(
 					{
+						"invoice_number": row.get("invoice_number") or remote.get("invoice_number"),
 						"customer": remote.get("customer"),
 						"posting_date": remote.get("posting_date"),
 						"due_date": remote.get("due_date"),
@@ -1521,7 +1587,7 @@ def get_booking_invoice_detail(invoice_name):
 	link = frappe.db.get_value(
 		"Air Booking Invoice Link",
 		{"invoice": invoice_name},
-		["parent", "invoice_type"],
+		["parent", "invoice_type", "invoice_number"],
 		as_dict=True,
 	)
 
@@ -1546,6 +1612,9 @@ def get_booking_invoice_detail(invoice_name):
 
 	return {
 		"name": invoice.get("name"),
+		"invoice_number": (link.invoice_number if link else None)
+		or invoice.get("invoice_number")
+		or invoice.get("name"),
 		"invoice_type": link.invoice_type if link else None,
 		"booking_pnr": link.parent if link else None,
 		"customer": invoice.get("customer"),

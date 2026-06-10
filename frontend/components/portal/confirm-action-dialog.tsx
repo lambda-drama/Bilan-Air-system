@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock";
 
 export type ConfirmActionDialogProps = {
   open: boolean;
@@ -41,7 +42,9 @@ export function ConfirmActionDialog({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
-        if (!loading) onOpenChange(next);
+        if (loading) return;
+        if (!next) clearPortalPointerLocks();
+        onOpenChange(next);
       }}
     >
       <AlertDialogContent className="sm:max-w-md">

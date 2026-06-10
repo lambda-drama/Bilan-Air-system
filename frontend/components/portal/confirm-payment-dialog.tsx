@@ -24,6 +24,7 @@ import {
   getPaymentConfirmationOptions,
   type PaymentConfirmationOptions,
 } from '@/services/airBooking';
+import { clearPortalPointerLocks } from '@/lib/portal-pointer-lock';
 
 type ConfirmPaymentDialogProps = {
   open: boolean;
@@ -87,8 +88,13 @@ export function ConfirmPaymentDialog({
     }
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next) clearPortalPointerLocks();
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Confirm payment &amp; invoice</DialogTitle>

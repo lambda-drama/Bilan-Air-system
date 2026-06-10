@@ -6,11 +6,13 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_qytw"
+  "invoice",
+  "invoice_number",
+  "invoice_type"
  ],
 "fields": [
   {
-   "description": "Sales Invoice name on the local or remote accounting site.",
+   "description": "Sales Invoice document name on the local or remote accounting site.",
    "fieldname": "invoice",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -18,11 +20,19 @@
    "reqd": 1
   },
   {
+   "description": "Human-readable invoice number (e.g. custom_invoice_no on the accounting site).",
+   "fieldname": "invoice_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Invoice Number",
+   "read_only": 1
+  },
+  {
    "fieldname": "invoice_type",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Invoice Type",
-   "options": "Main Fare\nExcess Baggage\nChange Fee\nOther",
+   "options": "Main Fare\nExcess Baggage\nChange Fee\nReturn\nOther",
    "default": "Main Fare"
   }
  ],
