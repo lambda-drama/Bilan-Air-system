@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -43,14 +43,12 @@ export function ConfirmPaymentDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [modeOfPayment, setModeOfPayment] = useState('');
-  const [paidAccount, setPaidAccount] = useState('');
 
   useEffect(() => {
     if (!open) {
       setOptions(null);
       setError('');
       setModeOfPayment('');
-      setPaidAccount('');
       return;
     }
 
@@ -63,13 +61,6 @@ export function ConfirmPaymentDialog({
           data.modes_of_payment[0]?.name ||
           'Cash';
         setModeOfPayment(defaultMode);
-        const modeRow = data.modes_of_payment.find((m) => m.name === defaultMode);
-        const account =
-          modeRow?.default_account ||
-          data.default_cash_account ||
-          data.accounts[0]?.name ||
-          '';
-        setPaidAccount(account);
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : 'Could not load payment options');
@@ -77,43 +68,16 @@ export function ConfirmPaymentDialog({
       .finally(() => setLoadingOptions(false));
   }, [open]);
 
-  const accountChoices = useMemo(() => {
-    if (!options) return [];
-    const names = new Set<string>();
-    for (const a of options.accounts) {
-      if (a.name) names.add(a.name);
-    }
-    for (const m of options.modes_of_payment) {
-      if (m.default_account) names.add(m.default_account);
-    }
-    if (options.default_cash_account) names.add(options.default_cash_account);
-    if (options.default_mpesa_account) names.add(options.default_mpesa_account);
-    return Array.from(names).sort();
-  }, [options]);
-
-  const handleModeChange = (value: string) => {
-    setModeOfPayment(value);
-    if (!options) return;
-    const modeRow = options.modes_of_payment.find((m) => m.name === value);
-    if (modeRow?.default_account) {
-      setPaidAccount(modeRow.default_account);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!pnr || !modeOfPayment) {
       setError('Select a mode of payment.');
-      return;
-    }
-    if (!paidAccount) {
-      setError('Select a bank/cash account.');
       return;
     }
 
     setSubmitting(true);
     setError('');
     try {
-      await confirmPaymentAndInvoice(pnr, modeOfPayment, paidAccount);
+      await confirmPaymentAndInvoice(pnr, modeOfPayment);
       onOpenChange(false);
       onSuccess?.(pnr);
     } catch (e) {
@@ -133,9 +97,8 @@ export function ConfirmPaymentDialog({
               <>
                 Booking <span className="font-mono font-medium text-foreground">{pnr}</span>
                 {options?.company ? (
-                  <> — accounting company <strong>{options.company}</strong></>
+                  <> — company <strong>{options.company}</strong></>
                 ) : null}
-                {options?.remote ? ' (remote accounting site)' : null}
               </>
             ) : (
               'Creates a sales invoice and payment entry, then marks the booking as paid.'
@@ -146,13 +109,13 @@ export function ConfirmPaymentDialog({
         {loadingOptions ? (
           <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading accounting options…
+            Loading payment modes…
           </div>
         ) : (
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="confirm-payment-mode">Mode of payment</Label>
-              <Select value={modeOfPayment} onValueChange={handleModeChange}>
+              <Select value={modeOfPayment} onValueChange={setModeOfPayment}>
                 <SelectTrigger id="confirm-payment-mode" className="w-full">
                   <SelectValue placeholder="Select mode of payment" />
                 </SelectTrigger>
@@ -160,29 +123,12 @@ export function ConfirmPaymentDialog({
                   {(options?.modes_of_payment || []).map((m) => (
                     <SelectItem key={m.name} value={m.name}>
                       {m.name}
-                      {m.default_account ? ` → ${m.default_account}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirm-payment-account">Paid to account</Label>
-              <Select value={paidAccount} onValueChange={setPaidAccount}>
-                <SelectTrigger id="confirm-payment-account" className="w-full">
-                  <SelectValue placeholder="Select bank/cash account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accountChoices.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Account used on the payment entry for the selected company.
+                Paid-to account and price list come from BA Settings defaults.
               </p>
             </div>
 
@@ -196,7 +142,7 @@ export function ConfirmPaymentDialog({
           </Button>
           <Button
             className="bg-gold text-navy hover:bg-gold-dark"
-            disabled={submitting || loadingOptions || !modeOfPayment || !paidAccount}
+            disabled={submitting || loadingOptions || !modeOfPayment}
             onClick={handleSubmit}
           >
             {submitting ? (
