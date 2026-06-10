@@ -600,6 +600,11 @@ class AirBooking(Document):
         if not company:
             frappe.throw("Set Default Company in Global Defaults.")
 
+        from bilan_sky.bilan_air_booking_system.utils.billing import (
+            apply_sales_invoice_defaults_from_settings,
+            sales_invoice_item_row,
+        )
+
         invoice = frappe.new_doc("Sales Invoice")
         invoice.customer = customer
         invoice.company = company
@@ -607,29 +612,30 @@ class AirBooking(Document):
         invoice.due_date = add_days(invoice.posting_date, 7)
         invoice.currency = settings.default_currency or None
         invoice.remarks = f"Air Booking {self.name}"
+        apply_sales_invoice_defaults_from_settings(invoice, settings)
 
         fare_amount = flt(self.total_fare)
         if fare_amount > 0:
             invoice.append(
                 "items",
-                {
-                    "item_code": settings.fare_item,
-                    "qty": 1,
-                    "rate": fare_amount,
-                    "description": f"Main Fare for booking {self.name}",
-                },
+                sales_invoice_item_row(
+                    settings.fare_item,
+                    fare_amount,
+                    f"Main Fare for booking {self.name}",
+                    settings,
+                ),
             )
 
         baggage_amount = self._get_baggage_total_fee()
         if baggage_amount > 0:
             invoice.append(
                 "items",
-                {
-                    "item_code": settings.baggage_fee,
-                    "qty": 1,
-                    "rate": baggage_amount,
-                    "description": f"Excess baggage charges for booking {self.name}",
-                },
+                sales_invoice_item_row(
+                    settings.baggage_fee,
+                    baggage_amount,
+                    f"Excess baggage charges for booking {self.name}",
+                    settings,
+                ),
             )
 
         if not invoice.items:

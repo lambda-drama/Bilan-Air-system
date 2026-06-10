@@ -25,11 +25,13 @@
   "sb_accounting",
   "default_mode_of_payment",
   "default_cash_account",
-  "column_break_hqlf",
   "default_mpesa_account",
+  "column_break_hqlf",
+  "default_expense_account",
   "more_info_tab",
   "fare_item",
   "baggage_fee",
+  "default_price_list",
   "access_key_tab",
   "site_url",
   "company",
@@ -140,20 +142,23 @@
   {
    "description": "Used when creating Payment Entries on the accounting site (company-specific account name).",
    "fieldname": "default_mode_of_payment",
-   "fieldtype": "Data",
-   "label": "Default Mode of Payment"
+   "fieldtype": "Link",
+   "label": "Default Mode of Payment",
+   "options": "Mode of Payment"
   },
   {
    "description": "Bank/Cash account name on the accounting site for this company.",
    "fieldname": "default_cash_account",
-   "fieldtype": "Data",
-   "label": "Default Cash Account"
+   "fieldtype": "Link",
+   "label": "Default Cash Account",
+   "options": "BA Account"
   },
   {
    "description": "M-Pesa (or mobile money) account name on the accounting site for this company.",
    "fieldname": "default_mpesa_account",
-   "fieldtype": "Data",
-   "label": "Default M-Pesa Account"
+   "fieldtype": "Link",
+   "label": "Default M-Pesa Account",
+   "options": "BA Account"
   },
   {
    "fieldname": "column_break_ysvj",
@@ -225,13 +230,25 @@
   {
    "fieldname": "column_break_npnp",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_price_list",
+   "fieldtype": "Link",
+   "label": "Default Price List",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "default_expense_account",
+   "fieldtype": "Link",
+   "label": "Default Expense Account",
+   "options": "BA Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-09 01:18:01.046965",
+ "modified": "2026-06-10 23:31:59.591082",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",

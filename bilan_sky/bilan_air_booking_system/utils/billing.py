@@ -2,7 +2,60 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting_from_doc
 from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
+
+
+def list_enabled_modes_of_payment() -> list[dict]:
+	"""Enabled Mode of Payment rows from this site (not the remote accounting API)."""
+	company = frappe.db.get_single_value("Global Defaults", "default_company")
+	modes = []
+	for row in frappe.get_all(
+		"Mode of Payment",
+		filters={"enabled": 1},
+		fields=["name"],
+		order_by="name asc",
+	):
+		default_account = None
+		if company:
+			default_account = frappe.db.get_value(
+				"Mode of Payment Account",
+				{"parent": row.name, "company": company},
+				"default_account",
+			)
+		modes.append({"name": row.name, "default_account": default_account})
+	return modes
+
+
+def apply_sales_invoice_defaults_from_settings(invoice, settings=None):
+	"""Apply default price list and income account from BA Settings."""
+	settings = settings or frappe.get_single("BA Settings")
+	price_list = get_ba_setting_from_doc(settings, "default_price_list")
+	if price_list:
+		invoice.selling_price_list = price_list
+
+	income_account = get_ba_setting_from_doc(settings, "default_expense_account")
+	return income_account
+
+
+def sales_invoice_item_row(
+	item_code: str,
+	rate: float,
+	description: str,
+	settings=None,
+) -> dict:
+	"""Build a Sales Invoice item row using BA Settings income account when set."""
+	row = {
+		"item_code": item_code,
+		"qty": 1,
+		"rate": flt(rate),
+		"description": description,
+	}
+	settings = settings or frappe.get_single("BA Settings")
+	income_account = get_ba_setting_from_doc(settings, "default_expense_account")
+	if income_account:
+		row["income_account"] = income_account
+	return row
 
 
 def resolve_paid_to_account(settings, mode_of_payment=None, company=None):

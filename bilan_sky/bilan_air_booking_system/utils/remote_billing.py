@@ -10,6 +10,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, flt, nowdate
 
+from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting_from_doc
 from bilan_sky.bilan_air_booking_system.utils.remote_erp import (
 	get_remote_client,
 	is_remote_accounting_enabled,
@@ -149,7 +150,9 @@ def ensure_remote_item(
 	if details.get("description"):
 		item_doc["description"] = details["description"]
 
-	income_account = _remote_company_income_account(client, company)
+	income_account = get_ba_setting_from_doc(client.settings, "default_expense_account")
+	if not income_account:
+		income_account = _remote_company_income_account(client, company)
 	if income_account:
 		item_doc["item_defaults"] = [
 			{
@@ -362,6 +365,9 @@ def create_remote_sales_invoice(booking, *, submit: bool = False) -> str:
 	posting_date = nowdate()
 	due_date = add_days(posting_date, 7)
 
+	price_list = get_ba_setting_from_doc(settings, "default_price_list")
+	income_account = get_ba_setting_from_doc(settings, "default_expense_account")
+
 	invoice = {
 		"doctype": "Sales Invoice",
 		"customer": customer,
@@ -373,27 +379,38 @@ def create_remote_sales_invoice(booking, *, submit: bool = False) -> str:
 		"remarks": f"Air Booking {booking.name}",
 		"items": [],
 	}
+	if price_list:
+		invoice["selling_price_list"] = price_list
+
+	def _remote_item_row(item_code: str, rate: float, description: str) -> dict:
+		row = {
+			"item_code": item_code,
+			"qty": 1,
+			"rate": rate,
+			"description": description,
+		}
+		if income_account:
+			row["income_account"] = income_account
+		return row
 
 	fare_amount = flt(booking.total_fare)
 	if fare_amount > 0:
 		invoice["items"].append(
-			{
-				"item_code": fare_item,
-				"qty": 1,
-				"rate": fare_amount,
-				"description": f"Main Fare for booking {booking.name}",
-			}
+			_remote_item_row(
+				fare_item,
+				fare_amount,
+				f"Main Fare for booking {booking.name}",
+			)
 		)
 
 	baggage_amount = flt(booking._get_baggage_total_fee())
 	if baggage_amount > 0:
 		invoice["items"].append(
-			{
-				"item_code": baggage_item,
-				"qty": 1,
-				"rate": baggage_amount,
-				"description": f"Excess baggage charges for booking {booking.name}",
-			}
+			_remote_item_row(
+				baggage_item,
+				baggage_amount,
+				f"Excess baggage charges for booking {booking.name}",
+			)
 		)
 
 	if not invoice["items"]:
