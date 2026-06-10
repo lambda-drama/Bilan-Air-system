@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { FormAlerts } from "@/components/portal/form-alerts";
+import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock";
 
 interface BilanFormDialogProps {
   open: boolean;
@@ -39,7 +40,10 @@ export function BilanFormDialog({
   onDismissAlerts,
 }: BilanFormDialogProps) {
   const handleOpenChange = (next: boolean) => {
-    if (!next) onDismissAlerts?.();
+    if (!next) {
+      onDismissAlerts?.();
+      clearPortalPointerLocks();
+    }
     onOpenChange(next);
   };
 

@@ -6,11 +6,14 @@ import { useSearchParams } from "next/navigation";
 import { MoreHorizontal, Plus, Ticket } from "lucide-react";
 import { listBookings, type AirBookingRow } from "@/services/portal";
 import {
-  cancelBooking,
   confirmBookingOnCredit,
   fetchBookingDetails,
   type BookingDetails,
 } from "@/services/airBooking";
+import {
+  CancelBookingDialog,
+  type CancelBookingTarget,
+} from "@/components/portal/cancel-booking-dialog";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
 import { openDeskDocument } from "@/services/desk";
@@ -27,6 +30,7 @@ import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { bookingReference } from "@/lib/booking-reference";
+import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock";
 import { isPassengerTicketPrintable } from "@/lib/passenger-ticket";
 import { PassengerTicketPrintButton } from "@/components/portal/passenger-ticket-print-button";
 import { StatusBadge } from "@/components/portal/status-badge";
@@ -108,11 +112,10 @@ function PortalBookingsPageContent() {
     { reloadKey: `${statusFilter}:${paymentFilter}` },
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<CancelBookingTarget | null>(null);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
   const [confirmingCreditId, setConfirmingCreditId] = useState<string | null>(null);
   const [creditConfirmRef, setCreditConfirmRef] = useState<string | null>(null);
   const {
@@ -125,6 +128,11 @@ function PortalBookingsPageContent() {
   const creditActionDisabledReason = agentCreditLoading
     ? "Checking your booking agent profile…"
     : confirmOnCreditDisabledReason;
+
+  useEffect(() => {
+    clearPortalPointerLocks();
+    return () => clearPortalPointerLocks();
+  }, []);
 
   const reloadDetail = useCallback(async (pnr: string) => {
     const next = await fetchBookingDetails(pnr);
@@ -152,13 +160,54 @@ function PortalBookingsPageContent() {
     row.reservation_status || row.booking_status || "";
 
   const openDetails = (pnr: string) => {
-    setShowCancelForm(false);
     setSelectedId(pnr);
   };
 
   const closeDetails = () => {
     setSelectedId(null);
-    setShowCancelForm(false);
+  };
+
+  const isCancelledBooking = (row: AirBookingRow) => {
+    const status = reservationStatus(row);
+    return status === "Void" || status === "Cancelled";
+  };
+
+  const cancelTargetFromRow = (row: AirBookingRow): CancelBookingTarget => ({
+    name: row.name,
+    pnr: row.pnr,
+    payer_name: row.payer_name,
+    payment_status: row.payment_status,
+    total_fare: row.total_fare,
+    reservation_status: row.reservation_status,
+    booking_status: row.booking_status,
+  });
+
+  const openCancelDialog = (row: AirBookingRow) => {
+    closeDetails();
+    setCancelTarget(cancelTargetFromRow(row));
+  };
+
+  const handleCancelSuccess = async (
+    bookingRef: string,
+    refund?: {
+      return_invoice_number?: string;
+      refund_payment_entry?: string;
+      refund_type?: string;
+      refund_amount?: number | null;
+    } | null,
+  ) => {
+    if (refund?.return_invoice_number) {
+      const payout = refund.refund_payment_entry
+        ? ` · refund payment ${refund.refund_payment_entry}`
+        : "";
+      toast.success(
+        `Booking cancelled — return invoice ${refund.return_invoice_number}${payout}`,
+      );
+    } else {
+      toast.success("Booking cancelled");
+    }
+    refresh();
+    if (selectedId === bookingRef) await reloadDetail(bookingRef);
   };
 
   const handleConfirmOnCredit = async (bookingRef: string) => {
@@ -173,22 +222,6 @@ function PortalBookingsPageContent() {
       toast.error(e instanceof Error ? e.message : "Confirm on credit failed");
     } finally {
       setConfirmingCreditId(null);
-    }
-  };
-
-  const handleCancelBooking = async (reason: string) => {
-    if (!selectedId) return;
-    setCancelling(true);
-    try {
-      await cancelBooking(selectedId, reason);
-      toast.success("Booking cancelled");
-      refresh();
-      await reloadDetail(selectedId);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to cancel booking");
-      throw e;
-    } finally {
-      setCancelling(false);
     }
   };
 
@@ -207,7 +240,7 @@ function PortalBookingsPageContent() {
             size="icon"
             className="shrink-0 bg-gold text-navy hover:bg-gold-dark sm:hidden"
           >
-            <Link href="/portal/booking/new" aria-label="Office booking">
+            <Link href="/portal/booking/new" aria-label="Office booking" onClick={closeDetails}>
               <Plus className="h-4 w-4" />
             </Link>
           </Button>
@@ -222,7 +255,9 @@ function PortalBookingsPageContent() {
               All tickets
             </Link>
           </Button>
-          <BookingStartLink className="hidden sm:inline-flex">Office booking</BookingStartLink>
+          <BookingStartLink className="hidden sm:inline-flex" onNavigate={closeDetails}>
+            Office booking
+          </BookingStartLink>
         </div>
       </div>
 
@@ -335,7 +370,7 @@ function PortalBookingsPageContent() {
                     <TableCell>{formatMoney(b.total_fare)}</TableCell>
                     <TableCell className="text-right">
                       <ListRowActions doctype="Air Booking" docName={b.name}>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
                               <MoreHorizontal className="h-4 w-4" />
@@ -373,6 +408,17 @@ function PortalBookingsPageContent() {
                                 Confirm payment & invoice
                               </DropdownMenuItem>
                             )}
+                            {!isCancelledBooking(b) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => openCancelDialog(b)}
+                                >
+                                  Cancel booking
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>
@@ -409,10 +455,9 @@ function PortalBookingsPageContent() {
               pnr={selectedId}
               detail={detail}
               row={selectedRow}
-              showCancelForm={showCancelForm}
-              onShowCancelForm={setShowCancelForm}
-              onCancelComplete={() => refresh()}
-              cancelling={cancelling}
+              onOpenCancel={() => {
+                if (selectedRow) openCancelDialog(selectedRow);
+              }}
               onConfirmPayment={() => setPaymentDialogPnr(selectedId)}
               onConfirmCreditComplete={async () => {
                 refresh();
@@ -420,7 +465,6 @@ function PortalBookingsPageContent() {
               }}
               allowConfirmOnCredit={creditActionEnabled}
               confirmOnCreditDisabledReason={creditActionDisabledReason}
-              onSubmitCancel={handleCancelBooking}
             />
           ) : undefined
         }
@@ -528,12 +572,12 @@ function PortalBookingsPageContent() {
         )}
       </DetailSheet>
 
-      <ConfirmActionDialog
-        open={!!creditConfirmRef}
-        onOpenChange={(open) => !open && setCreditConfirmRef(null)}
-        title="Confirm on agent credit?"
-        description={
-          creditConfirmRef ? (
+      {creditConfirmRef ? (
+        <ConfirmActionDialog
+          open
+          onOpenChange={(open) => !open && setCreditConfirmRef(null)}
+          title="Confirm on agent credit?"
+          description={
             <>
               <p>
                 Reservation{" "}
@@ -544,25 +588,36 @@ function PortalBookingsPageContent() {
                 A PNR will be issued and the total fare will be deducted from the agent credit limit.
               </p>
             </>
-          ) : null
-        }
-        confirmLabel="Confirm on credit"
-        loading={!!creditConfirmRef && confirmingCreditId === creditConfirmRef}
-        onConfirm={() => {
-          if (creditConfirmRef) void handleConfirmOnCredit(creditConfirmRef);
-        }}
-      />
+          }
+          confirmLabel="Confirm on credit"
+          loading={confirmingCreditId === creditConfirmRef}
+          onConfirm={() => {
+            void handleConfirmOnCredit(creditConfirmRef);
+          }}
+        />
+      ) : null}
 
-      <ConfirmPaymentDialog
-        open={!!paymentDialogPnr}
-        pnr={paymentDialogPnr}
-        onOpenChange={(open) => !open && setPaymentDialogPnr(null)}
-        onSuccess={(pnr) => {
-          toast.success("Payment confirmed and sales invoice created");
-          refresh();
-          if (selectedId === pnr) void reloadDetail(pnr);
-        }}
-      />
+      {paymentDialogPnr ? (
+        <ConfirmPaymentDialog
+          open
+          pnr={paymentDialogPnr}
+          onOpenChange={(open) => !open && setPaymentDialogPnr(null)}
+          onSuccess={(pnr) => {
+            toast.success("Payment confirmed and sales invoice created");
+            refresh();
+            if (selectedId === pnr) void reloadDetail(pnr);
+          }}
+        />
+      ) : null}
+
+      {cancelTarget ? (
+        <CancelBookingDialog
+          open
+          booking={cancelTarget}
+          onOpenChange={(open) => !open && setCancelTarget(null)}
+          onSuccess={handleCancelSuccess}
+        />
+      ) : null}
     </div>
   );
 }

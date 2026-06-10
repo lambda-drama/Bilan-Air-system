@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Loader2, Pencil, Ticket, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { openDeskDocument } from "@/services/desk";
 import { confirmBookingOnCredit, type BookingDetails } from "@/services/airBooking";
 import type { AirBookingRow } from "@/services/portal";
@@ -15,34 +14,24 @@ type PortalBookingSheetFooterProps = {
   pnr: string;
   detail: BookingDetails | null;
   row: AirBookingRow | undefined;
-  showCancelForm: boolean;
-  onShowCancelForm: (show: boolean) => void;
-  onCancelComplete: () => void;
+  onOpenCancel: () => void;
   onConfirmPayment?: () => void;
   onConfirmCreditComplete?: () => void | Promise<void>;
   /** When false, Confirm on Credit stays visible but disabled. */
   allowConfirmOnCredit?: boolean;
   confirmOnCreditDisabledReason?: string | null;
-  cancelling?: boolean;
-  onSubmitCancel: (reason: string) => Promise<void>;
 };
 
 export function PortalBookingSheetFooter({
   pnr,
   detail,
   row,
-  showCancelForm,
-  onShowCancelForm,
-  onCancelComplete,
+  onOpenCancel,
   onConfirmPayment,
   onConfirmCreditComplete,
   allowConfirmOnCredit = false,
   confirmOnCreditDisabledReason = null,
-  cancelling,
-  onSubmitCancel,
 }: PortalBookingSheetFooterProps) {
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelError, setCancelError] = useState("");
   const [confirmingCredit, setConfirmingCredit] = useState(false);
   const [creditConfirmOpen, setCreditConfirmOpen] = useState(false);
 
@@ -59,23 +48,6 @@ export function PortalBookingSheetFooter({
       ? "Confirming on credit…"
       : null;
 
-  const handleConfirmCancel = async () => {
-    const reason = cancelReason.trim();
-    if (!reason) {
-      setCancelError("Please provide a reason for cancellation.");
-      return;
-    }
-    setCancelError("");
-    try {
-      await onSubmitCancel(reason);
-      setCancelReason("");
-      onShowCancelForm(false);
-      onCancelComplete();
-    } catch {
-      /* parent handles toast */
-    }
-  };
-
   const handleConfirmOnCredit = async () => {
     setConfirmingCredit(true);
     try {
@@ -89,59 +61,6 @@ export function PortalBookingSheetFooter({
       setConfirmingCredit(false);
     }
   };
-
-  if (showCancelForm) {
-    return (
-      <div className="flex w-full flex-col gap-3">
-        <div>
-          <p className="text-sm font-semibold">Cancel booking</p>
-          <p className="text-xs text-muted-foreground mt-1 mb-2">
-            A reason is required and will be saved on the booking record.
-          </p>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => {
-              setCancelReason(e.target.value);
-              if (cancelError) setCancelError("");
-            }}
-            placeholder="Reason for cancellation…"
-            rows={4}
-            className="min-h-[96px] resize-y"
-          />
-          {cancelError && <p className="text-xs text-destructive mt-2">{cancelError}</p>}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="destructive"
-            className="w-full"
-            disabled={cancelling || !cancelReason.trim()}
-            onClick={handleConfirmCancel}
-          >
-            {cancelling ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Cancelling…
-              </>
-            ) : (
-              "Confirm cancellation"
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full"
-            disabled={cancelling}
-            onClick={() => {
-              onShowCancelForm(false);
-              setCancelReason("");
-              setCancelError("");
-            }}
-          >
-            Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -164,57 +83,57 @@ export function PortalBookingSheetFooter({
       />
 
       <div className="grid w-full grid-cols-2 gap-2">
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => openDeskDocument("Air Booking", pnr)}
-      >
-        <Pencil className="mr-2 h-4 w-4" />
-        Edit
-      </Button>
-      {showConfirmOnCredit && (
-        <DisabledActionTooltip
-          disabled={creditActionDisabled}
-          reason={creditActionTooltip}
-        >
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled={creditActionDisabled}
-            onClick={() => setCreditConfirmOpen(true)}
-          >
-            {confirmingCredit ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Confirming…
-              </>
-            ) : (
-              <>
-                <Ticket className="mr-2 h-4 w-4" />
-                Confirm on Credit (PNR)
-              </>
-            )}
-          </Button>
-        </DisabledActionTooltip>
-      )}
-      {isUnpaid && onConfirmPayment && (
-        <Button
-          className="bg-gold text-navy hover:bg-gold-dark w-full"
-          onClick={onConfirmPayment}
-        >
-          Confirm payment & invoice
-        </Button>
-      )}
-      {!isCancelled && (
         <Button
           variant="outline"
-          className="w-full text-destructive hover:bg-destructive hover:text-destructive-foreground"
-          onClick={() => onShowCancelForm(true)}
+          className="w-full"
+          onClick={() => openDeskDocument("Air Booking", pnr)}
         >
-          <XCircle className="mr-2 h-4 w-4" />
-          Cancel booking
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
         </Button>
-      )}
+        {showConfirmOnCredit && (
+          <DisabledActionTooltip
+            disabled={creditActionDisabled}
+            reason={creditActionTooltip}
+          >
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={creditActionDisabled}
+              onClick={() => setCreditConfirmOpen(true)}
+            >
+              {confirmingCredit ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Confirming…
+                </>
+              ) : (
+                <>
+                  <Ticket className="mr-2 h-4 w-4" />
+                  Confirm on Credit (PNR)
+                </>
+              )}
+            </Button>
+          </DisabledActionTooltip>
+        )}
+        {isUnpaid && onConfirmPayment && (
+          <Button
+            className="bg-gold text-navy hover:bg-gold-dark w-full"
+            onClick={onConfirmPayment}
+          >
+            Confirm payment & invoice
+          </Button>
+        )}
+        {!isCancelled && (
+          <Button
+            variant="outline"
+            className="w-full text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={onOpenCancel}
+          >
+            <XCircle className="mr-2 h-4 w-4" />
+            Cancel booking
+          </Button>
+        )}
       </div>
     </>
   );

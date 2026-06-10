@@ -118,7 +118,12 @@ export default function PortalInvoicesPage() {
                     onClick={() => setSelectedId(inv.name)}
                   >
                     <TableCell>
-                      <DocLink onClick={() => setSelectedId(inv.name)}>{inv.name}</DocLink>
+                      <DocLink onClick={() => setSelectedId(inv.name)}>
+                        {inv.invoice_number || inv.name}
+                      </DocLink>
+                      {inv.invoice_number && inv.invoice_number !== inv.name ? (
+                        <p className="text-xs text-muted-foreground">{inv.name}</p>
+                      ) : null}
                     </TableCell>
                     <TableCell>{inv.booking_pnr}</TableCell>
                     <TableCell>{inv.payer_name || "—"}</TableCell>
@@ -176,7 +181,11 @@ export default function PortalInvoicesPage() {
         {(detail || selectedRow) && (
           <>
             <DetailSection title="Invoice">
-              <DetailRow label="Invoice" value={detail?.name || selectedRow?.name} />
+              <DetailRow
+                label="Invoice number"
+                value={detail?.invoice_number || selectedRow?.invoice_number || detail?.name}
+              />
+              <DetailRow label="System ID" value={detail?.name || selectedRow?.name} />
               <DetailRow label="Type" value={detail?.invoice_type || selectedRow?.invoice_type} />
               <DetailRow
                 label="Document status"

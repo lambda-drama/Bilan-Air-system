@@ -561,6 +561,16 @@ class AirBooking(Document):
             return get_remote_client().doc_exists("Sales Invoice", invoice_name)
         return bool(frappe.db.exists("Sales Invoice", invoice_name))
 
+    def _append_invoice_link(self, invoice_name, invoice_type="Main Fare", invoice_number=None):
+        self.append(
+            "invoices",
+            {
+                "invoice": invoice_name,
+                "invoice_type": invoice_type,
+                "invoice_number": invoice_number or invoice_name,
+            },
+        )
+
     def _get_main_fare_invoice(self):
         for row in self.invoices or []:
             if not row.invoice:
@@ -570,6 +580,60 @@ class AirBooking(Document):
             if self._invoice_is_accessible(row.invoice):
                 return row.invoice
         return None
+
+    def process_refund(self, refund_type="full", refund_amount=None):
+        """Create a return invoice on the accounting site (full or partial credit note)."""
+        if self.payment_status != "Paid":
+            return None
+
+        main_invoice = self._get_main_fare_invoice()
+        if not main_invoice:
+            frappe.throw(f"No sales invoice found to refund for booking {self.name}.")
+
+        from bilan_sky.bilan_air_booking_system.utils.billing import (
+            create_return_sales_invoice,
+            get_sales_invoice_grand_total,
+        )
+
+        refund_type = (refund_type or "full").strip().lower()
+        partial_amount = None
+        if refund_type == "partial":
+            partial_amount = flt(refund_amount)
+            if partial_amount <= 0:
+                frappe.throw("Enter a refund amount greater than zero.")
+            invoice_total = get_sales_invoice_grand_total(main_invoice)
+            if partial_amount > invoice_total:
+                frappe.throw(
+                    f"Refund amount cannot exceed invoice total {invoice_total}."
+                )
+        elif refund_type != "full":
+            frappe.throw("Refund type must be full or partial.")
+
+        return_name, return_number = create_return_sales_invoice(
+            main_invoice,
+            refund_amount=partial_amount,
+            submit=True,
+        )
+        from bilan_sky.bilan_air_booking_system.utils.billing import create_refund_payment_entry
+
+        refund_payment_entry = create_refund_payment_entry(
+            return_name,
+            mode_of_payment=self.payment_method,
+            reference_no=self.get_public_reference(),
+        )
+        self._append_invoice_link(return_name, "Return", return_number)
+        self.payment_status = "Refunded"
+        self.flags.ignore_validate = True
+        self.save()
+        self.flags.ignore_validate = False
+        frappe.db.commit()
+        return {
+            "return_invoice": return_name,
+            "return_invoice_number": return_number,
+            "refund_payment_entry": refund_payment_entry,
+            "refund_type": refund_type,
+            "refund_amount": partial_amount,
+        }
 
     def create_sales_invoice(self, submit=False):
         from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
@@ -588,7 +652,13 @@ class AirBooking(Document):
             )
 
             invoice_name = create_remote_sales_invoice(self, submit=submit)
-            self.append("invoices", {"invoice": invoice_name, "invoice_type": "Main Fare"})
+            from bilan_sky.bilan_air_booking_system.utils.remote_billing import (
+                get_remote_client,
+                remote_invoice_number,
+            )
+
+            invoice_number = remote_invoice_number(get_remote_client(), invoice_name)
+            self._append_invoice_link(invoice_name, "Main Fare", invoice_number)
             self.flags.ignore_validate = True
             self.save()
             self.flags.ignore_validate = False
@@ -645,7 +715,7 @@ class AirBooking(Document):
         if submit:
             invoice.submit()
 
-        self.append("invoices", {"invoice": invoice.name, "invoice_type": "Main Fare"})
+        self._append_invoice_link(invoice.name, "Main Fare", invoice.name)
         if not self.customer_link:
             self.customer_link = customer
         self.flags.ignore_validate = True
@@ -653,7 +723,12 @@ class AirBooking(Document):
         self.flags.ignore_validate = False
         frappe.db.commit()
 
-        return {"success": True, "invoice": invoice.name, "created": True}
+        return {
+            "success": True,
+            "invoice": invoice.name,
+            "invoice_number": invoice.name,
+            "created": True,
+        }
 
     def _submit_sales_invoice(self, invoice_name):
         from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled

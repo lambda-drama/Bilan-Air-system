@@ -8,6 +8,8 @@ import {
   amendFlightSchedule,
   cancelFlightSchedule,
   deleteFlightSchedule,
+  getScheduleCancellationPreview,
+  type ScheduleCancellationPreview,
   estimateArrivalFromRoute,
   fetchFlightDetails,
   getFlightSchedule,
@@ -39,6 +41,8 @@ import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -229,6 +233,10 @@ function PortalFlightsPageContent() {
   const rescheduleAlerts = useFormDialogAlerts();
   const [cancelTarget, setCancelTarget] = useState<FlightScheduleRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelPreview, setCancelPreview] = useState<ScheduleCancellationPreview | null>(null);
+  const [cancelPreviewLoading, setCancelPreviewLoading] = useState(false);
+  const [refundType, setRefundType] = useState<"full" | "partial">("full");
+  const [refundAmount, setRefundAmount] = useState("");
   const cancelAlerts = useFormDialogAlerts();
   const [amendTarget, setAmendTarget] = useState<FlightScheduleRow | null>(null);
   const [amendForm, setAmendForm] = useState<ScheduleFormState>(emptyScheduleForm);
@@ -266,6 +274,9 @@ function PortalFlightsPageContent() {
     if (!open) {
       setCancelTarget(null);
       setCancelReason("");
+      setCancelPreview(null);
+      setRefundType("full");
+      setRefundAmount("");
       cancelAlerts.clearAlerts();
     }
   };
@@ -273,7 +284,19 @@ function PortalFlightsPageContent() {
   const openCancel = (s: FlightScheduleRow) => {
     cancelAlerts.clearAlerts();
     setCancelReason("");
+    setCancelPreview(null);
+    setRefundType("full");
+    setRefundAmount("");
     setCancelTarget(s);
+    setCancelPreviewLoading(true);
+    getScheduleCancellationPreview(s.name)
+      .then(setCancelPreview)
+      .catch((e) => {
+        cancelAlerts.setSubmitError(
+          e instanceof Error ? e.message : "Could not load booking summary",
+        );
+      })
+      .finally(() => setCancelPreviewLoading(false));
   };
 
   const submitDelete = async () => {
@@ -299,12 +322,35 @@ function PortalFlightsPageContent() {
       cancelAlerts.showValidation([{ key: "cancel_reason", label: "Cancellation reason" }]);
       return;
     }
+    const paidCount = cancelPreview?.paid_bookings_count ?? 0;
+    if (paidCount > 0 && refundType === "partial") {
+      const amount = Number(refundAmount);
+      if (!refundAmount.trim() || Number.isNaN(amount) || amount <= 0) {
+        cancelAlerts.showValidation([{ key: "refund_amount", label: "Refund amount per booking" }]);
+        return;
+      }
+    }
     cancelAlerts.clearAlerts();
     try {
-      await cancelFlightSchedule(cancelTarget.name, reason);
-      toast.success(`Flight ${cancelTarget.flight_number} cancelled`);
+      const result = await cancelFlightSchedule(cancelTarget.name, reason, {
+        ...(paidCount > 0
+          ? {
+              refund_type: refundType,
+              refund_amount:
+                refundType === "partial" ? Number(refundAmount) : undefined,
+            }
+          : {}),
+      });
+      const refundNote =
+        result.refunds && result.refunds.length > 0
+          ? ` · ${result.refunds.length} return invoice(s) created`
+          : "";
+      toast.success(`Flight ${cancelTarget.flight_number} cancelled${refundNote}`);
       setCancelTarget(null);
       setCancelReason("");
+      setCancelPreview(null);
+      setRefundType("full");
+      setRefundAmount("");
       if (selectedId === cancelTarget.name) setSelectedId(null);
       refresh();
     } catch (e) {
@@ -1175,7 +1221,7 @@ function PortalFlightsPageContent() {
         open={!!cancelTarget}
         onOpenChange={handleCancelDialogOpenChange}
         title={`Cancel ${cancelTarget?.flight_number ?? "flight schedule"}`}
-        description="This cancels the schedule in the system. Active bookings must be cancelled first."
+        description="Cancels the flight, voids linked bookings, and creates return invoices for paid bookings."
         validationErrors={cancelAlerts.validationErrors}
         submitError={cancelAlerts.submitError}
         onDismissAlerts={cancelAlerts.clearAlerts}
@@ -1194,25 +1240,95 @@ function PortalFlightsPageContent() {
           </>
         }
       >
-        <div className="space-y-2">
-          <label htmlFor="flight-cancel-reason" className="text-sm font-medium leading-none">
-            Cancellation reason
-            <span className="text-destructive ml-0.5">*</span>
-          </label>
-          <p className="text-xs text-muted-foreground">
-            A reason is required and will be saved with the cancellation.
-          </p>
-          <Textarea
-            id="flight-cancel-reason"
-            value={cancelReason}
-            onChange={(e) => {
-              setCancelReason(e.target.value);
-              cancelAlerts.clearAlerts();
-            }}
-            placeholder="Why is this flight being cancelled?"
-            rows={4}
-            className="min-h-[96px] resize-y"
-          />
+        <div className="space-y-4">
+          {cancelPreviewLoading ? (
+            <p className="text-sm text-muted-foreground">Loading linked bookings…</p>
+          ) : cancelPreview && cancelPreview.active_bookings_count > 0 ? (
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <p>
+                <strong>{cancelPreview.active_bookings_count}</strong> active booking(s) will be
+                cancelled
+                {cancelPreview.paid_bookings_count > 0 ? (
+                  <>
+                    {" "}
+                    — <strong>{cancelPreview.paid_bookings_count}</strong> paid (
+                    {formatMoney(cancelPreview.total_paid_fare)} total fare)
+                  </>
+                ) : null}
+                {cancelPreview.unpaid_bookings_count > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{cancelPreview.unpaid_bookings_count}</strong> unpaid (no refund)
+                  </>
+                ) : null}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No active bookings on this flight.</p>
+          )}
+
+          {(cancelPreview?.paid_bookings_count ?? 0) > 0 && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label>Refund for paid bookings</Label>
+              <RadioGroup
+                value={refundType}
+                onValueChange={(v) => {
+                  setRefundType(v as "full" | "partial");
+                  cancelAlerts.clearAlerts();
+                }}
+                className="space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="full" id="refund-full" />
+                  <Label htmlFor="refund-full" className="font-normal">
+                    Full refund — return invoice for the full paid amount per booking
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="partial" id="refund-partial" />
+                  <Label htmlFor="refund-partial" className="font-normal">
+                    Partial refund — return invoice for a fixed amount per booking
+                  </Label>
+                </div>
+              </RadioGroup>
+              {refundType === "partial" && (
+                <FormField label="Refund amount per booking" required>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={refundAmount}
+                    onChange={(e) => {
+                      setRefundAmount(e.target.value);
+                      cancelAlerts.clearAlerts();
+                    }}
+                    placeholder="Amount to credit back on each return invoice"
+                  />
+                </FormField>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label htmlFor="flight-cancel-reason" className="text-sm font-medium leading-none">
+              Cancellation reason
+              <span className="text-destructive ml-0.5">*</span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Saved on the flight cancellation and each voided booking.
+            </p>
+            <Textarea
+              id="flight-cancel-reason"
+              value={cancelReason}
+              onChange={(e) => {
+                setCancelReason(e.target.value);
+                cancelAlerts.clearAlerts();
+              }}
+              placeholder="Why is this flight being cancelled?"
+              rows={4}
+              className="min-h-[96px] resize-y"
+            />
+          </div>
         </div>
       </BilanFormDialog>
 

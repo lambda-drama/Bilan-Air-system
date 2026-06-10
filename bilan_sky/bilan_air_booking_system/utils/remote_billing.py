@@ -300,20 +300,60 @@ def _get_remote_company_abbreviation(client, company: str) -> str:
 	)
 
 
-def _get_next_remote_invoice_sequence(client, company_abbr: str, year: str) -> int:
-	pattern = f"{company_abbr}-{year}-%"
-	count = client.get_count(
-		"Sales Invoice",
-		filters=[["custom_invoice_no", "like", pattern]],
+def _parse_remote_invoice_sequence(value: str, prefix: str) -> int | None:
+	if not value or not value.startswith(prefix):
+		return None
+	suffix = (value[len(prefix) :] or "").strip()
+	try:
+		return int(suffix)
+	except ValueError:
+		return None
+
+
+def _remote_invoice_number_in_use(client, invoice_no: str) -> bool:
+	if client.doc_exists("Sales Invoice", invoice_no):
+		return True
+	return bool(
+		client.get_list(
+			"Sales Invoice",
+			fields=["name"],
+			filters={"custom_invoice_no": invoice_no},
+			limit=1,
+		)
 	)
-	return (count or 0) + 1
+
+
+def _get_next_remote_invoice_sequence(client, company_abbr: str, year: str) -> int:
+	"""Next sequence from the highest existing BA-YYYY-##### (name or custom_invoice_no)."""
+	prefix = f"{company_abbr}-{year}-"
+	pattern = f"{prefix}%"
+	max_seq = 0
+	for field in ("custom_invoice_no", "name"):
+		rows = client.get_list(
+			"Sales Invoice",
+			fields=[field],
+			filters=[[field, "like", pattern]],
+			limit=500,
+			order_by=f"{field} desc",
+		)
+		for row in rows:
+			seq = _parse_remote_invoice_sequence((row.get(field) or "").strip(), prefix)
+			if seq is not None:
+				max_seq = max(max_seq, seq)
+	return max_seq + 1
 
 
 def generate_remote_invoice_number(client, company: str) -> str:
 	abbr = _get_remote_company_abbreviation(client, company)
 	year = str(nowdate())[:4]
 	seq = _get_next_remote_invoice_sequence(client, abbr, year)
-	return f"{abbr}-{year}-{seq:05d}"
+	prefix = f"{abbr}-{year}-"
+	for _ in range(50):
+		invoice_no = f"{prefix}{seq:05d}"
+		if not _remote_invoice_number_in_use(client, invoice_no):
+			return invoice_no
+		seq += 1
+	frappe.throw(_("Could not allocate a unique invoice number on the accounting site."))
 
 
 def get_or_create_remote_customer(booking) -> str:
@@ -430,11 +470,136 @@ def create_remote_sales_invoice(booking, *, submit: bool = False) -> str:
 	return invoice_name
 
 
+def remote_invoice_number(client, invoice_name: str) -> str:
+	inv = client.get_doc("Sales Invoice", invoice_name)
+	return (inv.get("custom_invoice_no") or invoice_name or "").strip() or invoice_name
+
+
+def _prepare_remote_return_doc_for_insert(client, return_doc: dict) -> dict:
+	"""Return docs from make_sales_return copy the source custom_invoice_no — replace it."""
+	for key in (
+		"name",
+		"owner",
+		"creation",
+		"modified",
+		"modified_by",
+		"docstatus",
+		"__unsaved",
+		"__onload",
+	):
+		return_doc.pop(key, None)
+
+	company = return_doc.get("company") or client.company
+	return_doc["custom_invoice_no"] = generate_remote_invoice_number(client, company)
+
+	for row in return_doc.get("items") or []:
+		if isinstance(row, dict):
+			row.pop("name", None)
+
+	return return_doc
+
+
+def create_remote_return_sales_invoice(
+	original_invoice_name: str,
+	refund_amount: float | None = None,
+	*,
+	submit: bool = True,
+) -> tuple[str, str]:
+	"""Return invoice on the accounting site (full or partial credit note)."""
+	from bilan_sky.bilan_air_booking_system.utils.billing import _apply_partial_return_amount
+
+	client = get_remote_client()
+	return_doc = client.run_method(
+		"erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return",
+		source_name=original_invoice_name,
+	)
+	if isinstance(return_doc, str):
+		return_doc = json.loads(return_doc)
+	if not isinstance(return_doc, dict):
+		frappe.throw(_("Could not build return invoice for {0}.").format(original_invoice_name))
+
+	if refund_amount is not None:
+		_apply_partial_return_amount(return_doc, flt(refund_amount))
+
+	return_doc = _prepare_remote_return_doc_for_insert(client, return_doc)
+
+	created = client.insert_doc(return_doc)
+	return_name = created.get("name")
+	if not return_name:
+		frappe.throw(_("Return invoice was not created on the accounting site."))
+
+	if submit:
+		client.submit("Sales Invoice", return_name)
+
+	return return_name, remote_invoice_number(client, return_name)
+
+
 def submit_remote_sales_invoice(invoice_name: str) -> None:
 	client = get_remote_client()
 	doc = client.get_doc("Sales Invoice", invoice_name)
 	if doc.get("docstatus") == 0:
 		client.submit("Sales Invoice", invoice_name)
+
+
+def create_remote_refund_payment_entry(
+	return_invoice_name: str,
+	*,
+	mode_of_payment: str | None = None,
+	paid_account: str | None = None,
+	reference_no: str | None = None,
+) -> str:
+	"""Pay the customer on the accounting site against a return Sales Invoice."""
+	from bilan_sky.bilan_air_booking_system.utils.billing import (
+		_apply_refund_amount_to_payment_doc,
+		_existing_submitted_payment_for_invoice,
+		_refund_amount_due_on_invoice,
+	)
+
+	client = get_remote_client()
+	settings = client.settings
+
+	invoice = client.get_doc("Sales Invoice", return_invoice_name)
+	if invoice.get("docstatus") == 0:
+		client.submit("Sales Invoice", return_invoice_name)
+		invoice = client.get_doc("Sales Invoice", return_invoice_name)
+
+	existing = _existing_submitted_payment_for_invoice(return_invoice_name, payment_type="Pay")
+	if existing:
+		return existing
+
+	refund_due = _refund_amount_due_on_invoice(invoice)
+	if refund_due <= 0:
+		frappe.throw(_("Return invoice {0} has no refundable amount on the accounting site.").format(return_invoice_name))
+
+	if not paid_account:
+		paid_account = resolve_remote_paid_to_account(settings, mode_of_payment)
+
+	# Do not pass party_amount — form POST sends strings and ERPNext abs() fails on them.
+	pe_doc = client.run_method(
+		"erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry",
+		dt="Sales Invoice",
+		dn=return_invoice_name,
+		bank_account=paid_account,
+		payment_type="Pay",
+	)
+	if isinstance(pe_doc, str):
+		pe_doc = json.loads(pe_doc)
+
+	for key in ("name", "owner", "creation", "modified", "modified_by", "docstatus"):
+		pe_doc.pop(key, None)
+
+	if flt(pe_doc.get("paid_amount")) <= 0:
+		pe_doc = _apply_refund_amount_to_payment_doc(pe_doc, refund_due)
+
+	if mode_of_payment:
+		pe_doc["mode_of_payment"] = mode_of_payment
+	if reference_no:
+		pe_doc["reference_no"] = reference_no
+	pe_doc["remarks"] = _("Refund for {0}").format(reference_no or return_invoice_name)
+
+	pe_name = client.insert(pe_doc)
+	client.submit("Payment Entry", pe_name)
+	return pe_name
 
 
 def create_remote_payment_entry(
@@ -503,6 +668,7 @@ def fetch_remote_sales_invoice(invoice_name: str) -> dict | None:
 		return None
 	return {
 		"name": inv.get("name"),
+		"invoice_number": inv.get("custom_invoice_no") or inv.get("name"),
 		"customer": inv.get("customer"),
 		"posting_date": inv.get("posting_date"),
 		"due_date": inv.get("due_date"),

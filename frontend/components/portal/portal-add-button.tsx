@@ -21,14 +21,20 @@ export function PortalAddLink({
   href,
   children,
   className,
+  onNavigate,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
+  onNavigate?: () => void;
 }) {
   return (
     <Button asChild className={cn(addButtonClass, className)}>
-      <Link href={href} className="inline-flex items-center">
+      <Link
+        href={href}
+        className="inline-flex items-center"
+        onClick={() => onNavigate?.()}
+      >
         <Plus className="mr-2 h-4 w-4 shrink-0" />
         {children}
       </Link>

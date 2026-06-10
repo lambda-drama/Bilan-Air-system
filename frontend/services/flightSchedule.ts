@@ -124,14 +124,60 @@ export async function ensureScheduleSeats(scheduleName: string) {
   });
 }
 
-export async function cancelFlightSchedule(schedule_name: string, cancel_reason: string) {
-  return apiRequest<{ name: string; status: string; docstatus: number }>(
-    methodUrl("portal", "cancel_flight_schedule"),
+export type ScheduleCancellationPreview = {
+  active_bookings_count: number;
+  paid_bookings_count: number;
+  unpaid_bookings_count: number;
+  paid_bookings: Array<{
+    name: string;
+    pnr?: string | null;
+    payment_status: string;
+    total_fare: number;
+    payer_name?: string;
+  }>;
+  total_paid_fare: number;
+};
+
+export async function getScheduleCancellationPreview(schedule_name: string) {
+  return apiRequest<ScheduleCancellationPreview>(
+    methodUrl("portal", "get_schedule_cancellation_preview"),
     {
       method: "POST",
-      body: JSON.stringify({ schedule_name, cancel_reason: cancel_reason.trim() }),
+      body: JSON.stringify({ schedule_name }),
     },
   );
+}
+
+export async function cancelFlightSchedule(
+  schedule_name: string,
+  cancel_reason: string,
+  opts?: {
+    refund_type?: "full" | "partial";
+    refund_amount?: number;
+  },
+) {
+  return apiRequest<{
+    name: string;
+    status: string;
+    docstatus: number;
+    bookings_cancelled?: number;
+    refunds?: Array<{
+      booking: string;
+      pnr?: string | null;
+      return_invoice: string;
+      return_invoice_number: string;
+      refund_type: string;
+      refund_amount?: number | null;
+    }>;
+  }>(methodUrl("portal", "cancel_flight_schedule"), {
+    method: "POST",
+    body: JSON.stringify({
+      schedule_name,
+      cancel_reason: cancel_reason.trim(),
+      refund_type: opts?.refund_type ?? null,
+      refund_amount: opts?.refund_amount ?? null,
+    }),
+  });
 }
 
 export async function deleteFlightSchedule(schedule_name: string) {

@@ -97,6 +97,7 @@ export async function listPassengerTickets(opts?: {
 
 export interface BookingInvoiceRow {
   name: string;
+  invoice_number?: string;
   invoice_type?: string;
   booking_pnr: string;
   payer_name?: string;
@@ -115,6 +116,7 @@ export interface BookingInvoiceRow {
 
 export interface BookingInvoiceDetail {
   name: string;
+  invoice_number?: string;
   invoice_type?: string;
   booking_pnr?: string;
   customer?: string;

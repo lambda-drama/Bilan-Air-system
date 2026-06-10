@@ -9,6 +9,7 @@ import { hasPortalAccess } from "@/lib/portal-access"
 import { useAuth } from "@/contexts/auth-context"
 import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen"
 import { signalPortalNavStart } from "@/lib/portal-navigation"
+import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock"
 import {
   Bell,
   ChevronDown,
@@ -77,6 +78,10 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   const firstName = getDisplayFirstName(user)
 
   useEffect(() => {
+    clearPortalPointerLocks()
+  }, [pathname])
+
+  useEffect(() => {
     if (isLoading) return
 
     if (isAuthRoute) {
@@ -143,8 +148,8 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Desktop sidebar — pinned in flex shell, never scrolls with main content */}
-      <aside className="hidden h-full min-h-0 w-64 shrink-0 overflow-hidden bg-navy text-cream lg:flex lg:flex-col">
+      {/* Desktop sidebar — above sheet/dialog overlays so nav stays clickable */}
+      <aside className="relative z-[60] hidden h-full min-h-0 w-64 shrink-0 overflow-hidden bg-navy text-cream lg:flex lg:flex-col">
         <PortalSidebar />
       </aside>
 

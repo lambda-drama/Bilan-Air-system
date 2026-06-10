@@ -1,23 +1,13 @@
 "use client";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { useEffect } from "react";
+import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-/** Portaled UI (print menu, etc.) rendered outside the sheet but must remain clickable. */
-const SHEET_PORTAL_OVERLAY_SELECTOR = "[data-print-format-menu], [data-portal-popover]";
-
-function isSheetPortalOverlayTarget(target: EventTarget | null) {
-  return target instanceof HTMLElement && !!target.closest(SHEET_PORTAL_OVERLAY_SELECTOR);
-}
+import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock";
 
 interface DetailSheetProps {
   open: boolean;
@@ -44,23 +34,43 @@ export function DetailSheet({
   footer,
   children,
 }: DetailSheetProps) {
+  useEffect(() => {
+    if (!open) {
+      clearPortalPointerLocks();
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      clearPortalPointerLocks();
+    };
+  }, [open, onOpenChange]);
+
+  if (!open) return null;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex h-full w-full max-w-[100vw] flex-col overflow-hidden border-l-2 border-l-gold p-0 sm:max-w-xl md:max-w-2xl"
-        onPointerDownOutside={(e) => {
-          if (isSheetPortalOverlayTarget(e.target)) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (isSheetPortalOverlayTarget(e.target)) e.preventDefault();
-        }}
+    <>
+      <button
+        type="button"
+        aria-label="Close details"
+        className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        onClick={() => onOpenChange(false)}
+      />
+      <div
+        data-slot="sheet-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-[100vw] flex-col overflow-hidden border-l-2 border-l-gold bg-background shadow-xl sm:max-w-xl md:max-w-2xl"
       >
-        <SheetHeader className="bilan-panel-header space-y-0 text-left">
-          <div className="flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
+        <div className="bilan-panel-header relative space-y-0 text-left">
+          <div className="flex flex-col gap-3 pr-12 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <SheetTitle className="text-lg">{title}</SheetTitle>
+                <h2 className="text-lg font-semibold">{title}</h2>
                 {badge && (
                   <Badge
                     variant={badge.variant || "outline"}
@@ -70,10 +80,20 @@ export function DetailSheet({
                   </Badge>
                 )}
               </div>
-              {subtitle && <SheetDescription className="mt-1">{subtitle}</SheetDescription>}
+              {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
             </div>
           </div>
-        </SheetHeader>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-3 top-3 h-8 w-8"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
         <Separator className="bg-secondary/15" />
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center py-20">
@@ -85,8 +105,8 @@ export function DetailSheet({
             {footer && <div className="bilan-panel-footer">{footer}</div>}
           </>
         )}
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }
 
