@@ -328,7 +328,8 @@ export default function PortalBookingAgentsPage() {
         is_agency: companyForm.is_agency,
       });
       await loadCompanies();
-      setForm((prev) => ({ ...prev, booking_company: created.name }));
+      const companyId = created.name || name;
+      setForm((prev) => ({ ...prev, booking_company: companyId }));
       setCompanyForm(emptyCompanyForm);
       setCompanyDialogOpen(false);
       toast.success(companyForm.is_agency ? "Agency created" : "Company created");
@@ -724,6 +725,9 @@ export default function PortalBookingAgentsPage() {
           if (!v) {
             setStep(1);
             setEditingAgentId(null);
+            setCompanyDialogOpen(false);
+            setCompanyForm(emptyCompanyForm);
+            setCompanyError(null);
           }
         }}
         className="sm:max-w-4xl"
@@ -774,6 +778,7 @@ export default function PortalBookingAgentsPage() {
                     className="min-w-0 w-full flex-1"
                     options={companyOptions}
                     value={form.booking_company}
+                    valueLabel={selectedCompanyLabel !== "—" ? selectedCompanyLabel : undefined}
                     onValueChange={(v) => setForm({ ...form, booking_company: v })}
                     placeholder="Search company or agency..."
                     emptyMessage="No companies found — use + to add one"
@@ -980,6 +985,7 @@ export default function PortalBookingAgentsPage() {
       <BilanFormDialog
         open={companyDialogOpen}
         onOpenChange={setCompanyDialogOpen}
+        stackLevel={1}
         className="sm:max-w-md"
         title="New company or agency"
         description="Companies are the default. Tick Agency only for travel agencies."
@@ -987,7 +993,11 @@ export default function PortalBookingAgentsPage() {
         onDismissAlerts={() => setCompanyError(null)}
         footer={
           <>
-            <Button variant="outline" onClick={() => setCompanyDialogOpen(false)} disabled={companySaving}>
+            <Button
+              variant="outline"
+              onClick={() => setCompanyDialogOpen(false)}
+              disabled={companySaving}
+            >
               Cancel
             </Button>
             <Button
@@ -1009,7 +1019,7 @@ export default function PortalBookingAgentsPage() {
             />
           </FormField>
           <FormField label="Type" fullWidth>
-            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-secondary/20 bg-muted/40 p-3">
               <Checkbox
                 checked={companyForm.is_agency}
                 onCheckedChange={(checked) =>

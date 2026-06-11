@@ -1683,7 +1683,7 @@ function PortalFlightsPageContent() {
               <DetailSection title="Current fares (economy)">
                 <DetailRow
                   label="Adult / Child / Infant"
-                  value={formatFaresSummary(scheduleSummary.base_fares)}
+                  value={formatFaresSummary(scheduleSummary.base_fares, formatMoney)}
                 />
               </DetailSection>
             )}
