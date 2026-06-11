@@ -167,9 +167,18 @@ export function buildOverridePayloadLegacy(
 
 export function formatFaresSummary(
   fares: Partial<PassengerBaseFares> | null | undefined,
-  formatMoney: (n: number) => string,
+  formatMoney?: (n: number | string | null | undefined) => string,
 ): string {
-  if (!fares?.adult && fares?.adult !== 0) return "—";
+  if (!fares || typeof fares !== "object" || Array.isArray(fares)) return "—";
+  if (!formatMoney || typeof formatMoney !== "function") {
+    const parts = PASSENGER_FARE_KEYS.map((key) => {
+      const v = fares[key];
+      if (v == null) return null;
+      return `${PASSENGER_FARE_LABELS[key]} ${v}`;
+    }).filter(Boolean);
+    return parts.length ? parts.join(" · ") : "—";
+  }
+  if (!fares.adult && fares.adult !== 0) return "—";
   const parts = PASSENGER_FARE_KEYS.map((key) => {
     const v = fares[key];
     if (v == null) return null;
