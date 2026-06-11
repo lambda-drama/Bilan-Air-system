@@ -61,6 +61,7 @@ export function DetailSheet({
       />
       <div
         data-slot="sheet-content"
+        data-state="open"
         role="dialog"
         aria-modal="true"
         aria-label={title}

@@ -24,6 +24,8 @@ interface BilanFormDialogProps {
   submitError?: string | null;
   validationTitle?: string;
   onDismissAlerts?: () => void;
+  /** Use 1 when this dialog opens on top of another dialog. */
+  stackLevel?: number;
 }
 
 export function BilanFormDialog({
@@ -38,6 +40,7 @@ export function BilanFormDialog({
   submitError,
   validationTitle,
   onDismissAlerts,
+  stackLevel = 0,
 }: BilanFormDialogProps) {
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -49,7 +52,10 @@ export function BilanFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className={cn("gap-0 overflow-hidden p-0 sm:max-w-lg", className)}>
+      <DialogContent
+        stackLevel={stackLevel}
+        className={cn("gap-0 overflow-hidden p-0 sm:max-w-lg", className)}
+      >
         <DialogHeader className="bilan-panel-header space-y-1 text-left">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
