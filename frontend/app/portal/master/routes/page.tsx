@@ -713,12 +713,7 @@ export default function PortalRoutesPage() {
               <DetailRow label="Distance (km)" value={String(selectedRoute.distance_km ?? "—")} />
               <DetailRow
                 label="Base fares"
-                value={formatFaresSummary(
-                  parseBaseFaresInput(
-                    faresFromRouteRow(selectedRoute),
-                  ),
-                  formatMoney,
-                )}
+                value={formatFaresSummary(faresFromRouteRow(selectedRoute), formatMoney)}
               />
               <DetailRow label="Active" value={selectedRoute.is_active ? "Yes" : "No"} />
               <DetailRow label="Notes" value={String(selectedRoute.notes || "")} />

@@ -319,14 +319,14 @@ function PortalFlightsPageContent() {
     if (!cancelTarget) return;
     const reason = cancelReason.trim();
     if (!reason) {
-      cancelAlerts.showValidation([{ key: "cancel_reason", label: "Cancellation reason" }]);
+      cancelAlerts.showValidation(["Cancellation reason"]);
       return;
     }
     const paidCount = cancelPreview?.paid_bookings_count ?? 0;
     if (paidCount > 0 && refundType === "partial") {
       const amount = Number(refundAmount);
       if (!refundAmount.trim() || Number.isNaN(amount) || amount <= 0) {
-        cancelAlerts.showValidation([{ key: "refund_amount", label: "Refund amount per booking" }]);
+        cancelAlerts.showValidation(["Refund amount per booking"]);
         return;
       }
     }
@@ -399,7 +399,7 @@ function PortalFlightsPageContent() {
     editPricesAlerts.clearAlerts();
     const override = buildOverridePayload(fareOverrideForm);
     if (override === null && PASSENGER_FARE_KEYS.some((k) => fareOverrideForm[k].trim())) {
-      editPricesAlerts.showValidation([{ key: "base_fares", label: "Base fare overrides" }]);
+      editPricesAlerts.showValidation(["Base fare overrides"]);
       return;
     }
     try {
@@ -593,11 +593,13 @@ function PortalFlightsPageContent() {
       : "";
 
   useEffect(() => {
-    if (!addOpen && !amendTarget) return;
+    if (!addOpen && !amendTarget && !editPricesTarget) return;
     fetchAllRoutes().then(setRoutes);
-    fetchAllAirplanes().then(setAirplanes);
-    listCrewRoles("Pilot").then(setPilotRoles).catch(() => setPilotRoles([]));
-  }, [addOpen, amendTarget]);
+    if (addOpen || amendTarget) {
+      fetchAllAirplanes().then(setAirplanes);
+      listCrewRoles("Pilot").then(setPilotRoles).catch(() => setPilotRoles([]));
+    }
+  }, [addOpen, amendTarget, editPricesTarget]);
 
   useEffect(() => {
     if ((!addOpen && !amendTarget) || !crewDepartureDate) {
@@ -1165,6 +1167,7 @@ function PortalFlightsPageContent() {
       <BilanFormDialog
         open={!!editPricesTarget}
         onOpenChange={handleEditPricesDialogOpenChange}
+        stackLevel={selectedId ? 1 : 0}
         title={`Edit pricing — ${editPricesTarget?.flight_number ?? ""}`}
         description={
           routeBaseFaresForHint
