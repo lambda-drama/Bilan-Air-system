@@ -39,8 +39,10 @@ export function PortalBookingSheetFooter({
     detail?.status ?? row?.reservation_status ?? row?.booking_status ?? "";
   const paymentStatus = detail?.payment_status ?? row?.payment_status ?? "";
   const isCancelled = status === "Void" || status === "Cancelled";
+  const isRefunded = paymentStatus === "Refunded";
   const isUnpaid = paymentStatus !== "Paid" && paymentStatus !== "Refunded";
   const showConfirmOnCredit = !isCancelled && status === "Booked";
+  const showEdit = !isRefunded;
   const creditActionDisabled = !allowConfirmOnCredit || confirmingCredit;
   const creditActionTooltip = !allowConfirmOnCredit
     ? confirmOnCreditDisabledReason
@@ -53,7 +55,14 @@ export function PortalBookingSheetFooter({
     try {
       const res = await confirmBookingOnCredit(pnr);
       setCreditConfirmOpen(false);
-      toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
+      toast.success(
+        [
+          res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.",
+          res.invoice ? `Invoice ${res.invoice} created.` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       await onConfirmCreditComplete?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Confirm on credit failed");
@@ -74,7 +83,10 @@ export function PortalBookingSheetFooter({
               Reservation <span className="font-mono font-medium text-foreground">{pnr}</span> will
               be confirmed on your agent credit account.
             </p>
-            <p>A PNR will be issued and the total fare will be deducted from the agent credit limit.</p>
+            <p>
+              A PNR will be issued, a sales invoice and payment entry will be created on the
+              accounting site, and the total fare will be deducted from the agent credit limit.
+            </p>
           </>
         }
         confirmLabel="Confirm on credit"
@@ -83,14 +95,16 @@ export function PortalBookingSheetFooter({
       />
 
       <div className="grid w-full grid-cols-2 gap-2">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => openDeskDocument("Air Booking", pnr)}
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </Button>
+        {showEdit ? (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => openDeskDocument("Air Booking", pnr)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+        ) : null}
         {showConfirmOnCredit && (
           <DisabledActionTooltip
             disabled={creditActionDisabled}

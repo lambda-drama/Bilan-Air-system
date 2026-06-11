@@ -70,19 +70,11 @@ export default function PortalDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-lg text-muted-foreground">
-            Here&apos;s what&apos;s happening with your airline today.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>{currentTime.toLocaleDateString()}</span>
-          <Clock className="ml-2 h-4 w-4" />
-          <span>{currentTime.toLocaleTimeString()}</span>
-        </div>
+      <div className="flex justify-end items-center gap-2 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        <span>{currentTime.toLocaleDateString()}</span>
+        <Clock className="ml-2 h-4 w-4" />
+        <span>{currentTime.toLocaleTimeString()}</span>
       </div>
 
       {/* Stats Grid */}
@@ -162,7 +154,7 @@ export default function PortalDashboard() {
                 Passengers
               </Button>
             </Link>
-            <Link href="/portal/reports">
+            <Link href="/portal/reports/analytics">
               <Button variant="outline" className="w-full">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 View Reports

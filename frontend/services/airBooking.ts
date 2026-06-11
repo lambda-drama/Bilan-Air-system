@@ -200,6 +200,8 @@ export type ConfirmOnCreditResult = {
   pnr: string;
   reservation_ref?: string;
   already_confirmed?: boolean;
+  invoice?: string;
+  payment_entry?: string;
 };
 
 /** Issue PNR and tickets using agent credit (reservation ref or PNR). */

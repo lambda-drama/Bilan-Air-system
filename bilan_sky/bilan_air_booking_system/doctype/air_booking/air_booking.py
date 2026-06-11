@@ -745,20 +745,20 @@ class AirBooking(Document):
         if invoice.docstatus == 0:
             invoice.submit()
 
-    def confirm_payment_and_invoice(self, payment_method=None, paid_account=None):
-        """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
+    def _ensure_main_fare_invoice_and_payment(
+        self,
+        payment_method=None,
+        paid_account=None,
+        reference_no=None,
+    ):
+        """Create or submit the main fare Sales Invoice and Payment Entry when billing is configured."""
         from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import get_ba_setting
+        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
 
-        if self.reservation_status == VOID:
-            frappe.throw("Cannot record payment on a voided reservation.")
-        if self.payment_status == "Refunded":
-            frappe.throw("Cannot record payment on a refunded booking.")
         if payment_method:
             self.payment_method = payment_method
         if not self.payment_method:
             self.payment_method = get_ba_setting("default_mode_of_payment", "Cash")
-
-        from bilan_sky.bilan_air_booking_system.utils.remote_erp import is_remote_accounting_enabled
 
         self._validate_billing_setup()
 
@@ -797,9 +797,27 @@ class AirBooking(Document):
                 invoice_name,
                 mode_of_payment=self.payment_method,
                 paid_account=paid_account,
-                reference_no=self.get_public_reference(),
+                reference_no=reference_no or self.get_public_reference(),
             )
             self.payment_entry = payment_entry_name
+
+        self.flags.ignore_validate = True
+        self.save()
+        self.flags.ignore_validate = False
+
+        return invoice_name, payment_entry_name
+
+    def confirm_payment_and_invoice(self, payment_method=None, paid_account=None):
+        """Mark paid, create/submit Sales Invoice and Payment Entry, confirm booking."""
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot record payment on a voided reservation.")
+        if self.payment_status == "Refunded":
+            frappe.throw("Cannot record payment on a refunded booking.")
+
+        invoice_name, payment_entry_name = self._ensure_main_fare_invoice_and_payment(
+            payment_method=payment_method,
+            paid_account=paid_account,
+        )
 
         self.payment_status = "Paid"
 
@@ -824,6 +842,42 @@ class AirBooking(Document):
             "booking_status": self.reservation_status,
             "payment_status": self.payment_status,
         }
+
+    def confirm_on_credit_and_invoice(self):
+        """Agent credit: bill on the accounting site, then issue PNR and consume agent credit."""
+        if self.reservation_status == VOID:
+            frappe.throw("Cannot confirm on credit for a voided reservation.")
+        if self.payment_status == "Refunded":
+            frappe.throw("Cannot confirm on credit for a refunded booking.")
+
+        if self.reservation_status == CONFIRM and self.pnr:
+            invoice_name, payment_entry_name = self._ensure_main_fare_invoice_and_payment(
+                reference_no=f"{self.get_public_reference()} (agent credit)",
+            )
+            frappe.db.commit()
+            return {
+                "success": True,
+                "pnr": self.pnr,
+                "already_confirmed": True,
+                "reservation_ref": self.name,
+                "invoice": invoice_name,
+                "payment_entry": payment_entry_name,
+            }
+
+        self.calculate_total_fare()
+        if not flt(self.total_fare):
+            self._ensure_confirmable_fare_for_credit()
+
+        self._validate_agent_credit_for_confirmation()
+
+        invoice_name, payment_entry_name = self._ensure_main_fare_invoice_and_payment(
+            reference_no=f"{self.get_public_reference()} (agent credit)",
+        )
+
+        result = self.confirm_booking(via_credit=True)
+        result["invoice"] = invoice_name
+        result["payment_entry"] = payment_entry_name
+        return result
 
     def _get_or_create_customer(self):
         from bilan_sky.bilan_air_booking_system.utils.customer_group import (

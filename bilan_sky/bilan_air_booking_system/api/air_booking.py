@@ -815,16 +815,10 @@ def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_acco
 
 @frappe.whitelist()
 def confirm_booking_on_credit(pnr):
-	"""Issue PNR and tickets using agent credit (logged-in agent or Booking Agent on the reservation)."""
+	"""Issue PNR and tickets on agent credit; create Sales Invoice and Payment Entry when billing is configured."""
 	booking = _load_booking(pnr)
 	booking.check_permission("write")
-	booking.calculate_total_fare()
-	if not flt(booking.total_fare):
-		frappe.throw(
-			_("Total fare is zero. Assign seats from Seat Inventory, save, and ensure route base fares are set."),
-			title=_("Zero fare"),
-		)
-	result = booking.confirm_booking(via_credit=True)
+	result = booking.confirm_on_credit_and_invoice()
 	frappe.db.commit()
 	return result
 
