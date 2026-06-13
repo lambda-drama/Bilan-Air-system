@@ -37,8 +37,12 @@ def list_flight_schedules(
 	search=None,
 	departure_date=None,
 	departure_time=None,
+	flight_number=None,
 ):
 	filters = {}
+	if flight_number:
+		filters["flight_number"] = str(flight_number).strip()
+
 	if frappe.utils.cint(upcoming):
 		filters["status"] = ["in", ["Scheduled", "Boarding", "Delayed"]]
 	elif status:
@@ -100,6 +104,131 @@ def list_flight_schedules(
 	for row in result["data"]:
 		row["route_label"] = route_labels.get(row.get("route")) or row.get("route")
 	return result
+
+
+@frappe.whitelist()
+def list_flight_setups(limit=50, offset=0, search=None):
+	"""Master list grouped by flight number (same number, many dated schedules)."""
+	require_portal_staff()
+	limit = int(limit)
+	offset = int(offset)
+	params = {"limit": limit, "offset": offset}
+	where = ""
+	if search:
+		where = "WHERE flight_number LIKE %(search)s"
+		params["search"] = f"%{str(search).strip()}%"
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			flight_number,
+			COUNT(name) AS schedule_count,
+			MIN(departure_date) AS first_departure,
+			MAX(departure_date) AS last_departure
+		FROM `tabFlight Schedule`
+		{where}
+		GROUP BY flight_number
+		ORDER BY flight_number ASC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		params,
+		as_dict=True,
+	)
+	total_row = frappe.db.sql(
+		f"SELECT COUNT(DISTINCT flight_number) FROM `tabFlight Schedule` {where}",
+		params,
+	)
+	total = cint(total_row[0][0] if total_row else 0)
+
+	today = frappe.utils.getdate()
+	for row in rows:
+		latest = frappe.get_all(
+			"Flight Schedule",
+			filters={"flight_number": row.flight_number},
+			fields=[
+				"route",
+				"airplane",
+				"modified",
+				"modified_by",
+				"schedule_plan",
+			],
+			order_by="modified desc",
+			limit=1,
+		)
+		if latest:
+			latest_row = latest[0]
+			row["route"] = latest_row.route
+			row["airplane"] = latest_row.airplane
+			row["updated_on"] = latest_row.modified
+			row["updated_by"] = latest_row.modified_by
+			row["schedule_plan"] = latest_row.schedule_plan
+		else:
+			row["route"] = None
+			row["airplane"] = None
+			row["updated_on"] = None
+			row["updated_by"] = None
+			row["schedule_plan"] = None
+
+		upcoming = frappe.get_all(
+			"Flight Schedule",
+			filters={
+				"flight_number": row.flight_number,
+				"departure_date": [">=", today],
+				"status": ["in", ["Scheduled", "Boarding", "Delayed"]],
+			},
+			fields=["departure_date", "departure_time"],
+			order_by="departure_date asc, departure_time asc",
+			limit=1,
+		)
+		if upcoming:
+			row["next_departure"] = str(upcoming[0].departure_date)
+			row["next_departure_time"] = upcoming[0].departure_time
+		else:
+			row["next_departure"] = None
+			row["next_departure_time"] = None
+
+	route_names = {row["route"] for row in rows if row.get("route")}
+	route_labels = {}
+	route_endpoints = {}
+	if route_names:
+		for route_row in frappe.get_all(
+			"Flight Route",
+			filters={"name": ["in", list(route_names)]},
+			fields=["name", "origin_airport", "destination_airport"],
+		):
+			route_labels[route_row.name] = format_route_label(
+				route_row.origin_airport, route_row.destination_airport
+			)
+			route_endpoints[route_row.name] = {
+				"origin_label": frappe.db.get_value("Airport", route_row.origin_airport, "city")
+				or route_row.origin_airport,
+				"destination_label": frappe.db.get_value(
+					"Airport", route_row.destination_airport, "city"
+				)
+				or route_row.destination_airport,
+			}
+
+	airplanes = {row["airplane"] for row in rows if row.get("airplane")}
+	airplane_labels = {}
+	if airplanes:
+		for ap in frappe.get_all(
+			"Airplane",
+			filters={"name": ["in", list(airplanes)]},
+			fields=["name", "registration_number", "aircraft_model"],
+		):
+			airplane_labels[ap.name] = " · ".join(
+				p for p in [ap.registration_number, ap.aircraft_model] if p
+			) or ap.name
+
+	for row in rows:
+		route_name = row.get("route")
+		row["route_label"] = route_labels.get(route_name) or route_name
+		endpoints = route_endpoints.get(route_name) or {}
+		row["origin_label"] = endpoints.get("origin_label")
+		row["destination_label"] = endpoints.get("destination_label")
+		row["airplane_label"] = airplane_labels.get(row.get("airplane")) or row.get("airplane")
+
+	return {"data": rows, "total": total}
 
 
 @frappe.whitelist()

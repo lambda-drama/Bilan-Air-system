@@ -68,7 +68,8 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
         {open && (
           <div className="ml-3 space-y-0.5 border-l border-cream/15 pl-2">
             {group.items.map((item) => {
-              const active = isNavItemActive(pathname, item.href);
+              const groupHrefs = group.items.map((i) => i.href);
+              const active = isNavItemActive(pathname, item.href, groupHrefs);
               return (
                 <Link
                   key={item.href}

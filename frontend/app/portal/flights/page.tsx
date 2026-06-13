@@ -145,6 +145,7 @@ function PortalFlightsPageContent() {
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
   const [departureDateFilter, setDepartureDateFilter] = useState("");
   const [departureTimeFilter, setDepartureTimeFilter] = useState("");
+  const [flightNumberFilter, setFlightNumberFilter] = useState("");
 
   useEffect(() => {
     if (searchParams.get("view") === "upcoming") {
@@ -154,6 +155,8 @@ function PortalFlightsPageContent() {
     if (status) {
       setStatusFilter(status);
     }
+    const flightNumber = searchParams.get("flight_number");
+    setFlightNumberFilter(flightNumber || "");
   }, [searchParams]);
 
   const fetchSchedules = useCallback(
@@ -161,6 +164,7 @@ function PortalFlightsPageContent() {
       const res = await listSchedules({
         limit: 100,
         search: search.trim() || undefined,
+        flight_number: flightNumberFilter.trim() || undefined,
         status:
           statusFilter === ALL_STATUSES_VALUE || statusFilter === UPCOMING_STATUSES_VALUE
             ? undefined
@@ -171,9 +175,9 @@ function PortalFlightsPageContent() {
       });
       return res.data;
     },
-    [statusFilter, departureDateFilter, departureTimeFilter],
+    [statusFilter, departureDateFilter, departureTimeFilter, flightNumberFilter],
   );
-  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}`;
+  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}|${flightNumberFilter}`;
   const {
     search: searchQuery,
     setSearch: setSearchQuery,
@@ -186,7 +190,8 @@ function PortalFlightsPageContent() {
     !!searchQuery.trim() ||
     statusFilter !== ALL_STATUSES_VALUE ||
     !!departureDateFilter ||
-    !!departureTimeFilter;
+    !!departureTimeFilter ||
+    !!flightNumberFilter;
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyScheduleForm);
   const [arrivalTouched, setArrivalTouched] = useState(false);
@@ -830,10 +835,22 @@ function PortalFlightsPageContent() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex items-center justify-between gap-3 sm:block">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold">Flight schedule</h1>
+            <h1 className="text-2xl font-bold">
+              {flightNumberFilter ? `Flight schedule — ${flightNumberFilter}` : "Flight schedule"}
+            </h1>
             <p className="hidden text-muted-foreground sm:block">
-              View, create, and manage departures
+              {flightNumberFilter
+                ? "All dated departures for this flight number"
+                : "View, create, and manage departures"}
             </p>
+            {flightNumberFilter ? (
+              <Link
+                href="/portal/flights/setup"
+                className="mt-1 inline-block text-sm text-gold hover:underline"
+              >
+                ← Back to flight setup
+              </Link>
+            ) : null}
           </div>
           <Button
             type="button"
@@ -849,6 +866,9 @@ function PortalFlightsPageContent() {
           </Button>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button variant="outline" asChild className="h-10">
+            <Link href="/portal/flights/setup">Flight setup</Link>
+          </Button>
           <Button
             asChild
             className="h-10 w-full bg-gold text-navy hover:bg-gold-dark sm:hidden"
