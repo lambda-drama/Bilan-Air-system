@@ -248,17 +248,15 @@ def economy_price_for_passenger(
 
 
 def prices_for_schedule_search(schedule: Any, route: Any) -> dict[str, Any]:
+	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_bookable_fare_classes
+
 	fares = resolve_base_fares(schedule, route)
 	fare_mult = fare_rule_multiplier(_row_val(route, "name"), _row_val(schedule, "departure_date"))
-	seat_classes = frappe.get_all(
-		"Seat Class",
-		fields=["name", "class_name", "price_multiplier"],
-		ignore_permissions=True,
-	)
+	seat_classes = list_bookable_fare_classes()
 	prices = {}
 	for seat_class in seat_classes:
-		prices[_row_val(seat_class, "class_name")] = round(
-			fares["adult"] * _row_val(seat_class, "price_multiplier") * fare_mult,
+		prices[seat_class["class_name"]] = round(
+			fares["adult"] * flt(seat_class.get("price_multiplier")) * fare_mult,
 			2,
 		)
 	passenger_base = {key: round(fares[key] * fare_mult, 2) for key in PASSENGER_FARE_KEYS}

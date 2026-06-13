@@ -94,32 +94,30 @@ def search_available_flights(origin, destination, date, passengers=1):
 
 @frappe.whitelist(allow_guest=True)
 def fetch_seat_map(flight_schedule_name):
-    """Get seat map for a flight"""
-    
+    """Get seat map for a flight, grouped by cabin name."""
+    from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import cabin_name_for_layout_seat
+
     seats = frappe.get_all(
         "Seat Inventory",
         filters={"flight_schedule": flight_schedule_name},
         fields=["name", "seat_number", "seat_class", "status", "booking_reference"],
         ignore_permissions=True,
     )
-    
-    seat_map = {
-        "First Class": [],
-        "Business": [],
-        "Economy": []
-    }
-    
+
+    seat_map = {}
+
     for seat in seats:
-        seat_class_doc = frappe.get_doc("Seat Class", seat.seat_class, ignore_permissions=True)
-        class_name = seat_class_doc.class_name
-        
-        seat_map[class_name].append({
+        cabin_name = cabin_name_for_layout_seat(seat.seat_class)
+        if not cabin_name:
+            cabin_name = frappe.db.get_value("Seat Class", seat.seat_class, "class_name") or "Economy"
+
+        seat_map.setdefault(cabin_name, []).append({
             "name": seat.name,
             "seat_number": seat.seat_number,
             "status": seat.status,
             "booked_by": seat.booking_reference if seat.status == "Booked" else None
         })
-    
+
     return seat_map
 
 @frappe.whitelist(allow_guest=True)
@@ -139,7 +137,9 @@ def fetch_flight_details(schedule_id):
         "arrival_date": schedule.arrival_date,
         "arrival_time": schedule.arrival_time,
         "aircraft": airplane.registration_number,
-        "aircraft_model": airplane.aircraft_model
+        "aircraft_model": airplane.aircraft_model,
+        "is_active": schedule.is_active,
+        "only_prepayment": schedule.only_prepayment,
     }
 
 

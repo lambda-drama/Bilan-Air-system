@@ -232,3 +232,93 @@ export async function getPortalReports(year?: number) {
     },
   );
 }
+
+export interface ManifestReportRow {
+  pnr_number: string;
+  passenger_name: string;
+  class: string;
+  agent: string;
+  passport_number: string;
+  origin: string;
+  destination: string;
+  phone: string;
+  reservation_date: string;
+  status: string;
+}
+
+export async function listReportFlightNumbers(search?: string, limit = 200) {
+  return apiRequest<string[]>(methodUrl("portal", "list_report_flight_numbers"), {
+    method: "POST",
+    body: JSON.stringify({
+      search: search?.trim() || null,
+      limit,
+    }),
+  });
+}
+
+export async function getManifestDepartureTimes(flightNumber: string, departureDate: string) {
+  return apiRequest<string[]>(methodUrl("portal", "get_manifest_departure_times"), {
+    method: "POST",
+    body: JSON.stringify({
+      flight_number: flightNumber.trim(),
+      departure_date: departureDate,
+    }),
+  });
+}
+
+export async function getManifestReport(params: {
+  flight_number: string;
+  departure_date: string;
+  departure_time?: string;
+  destination?: string;
+}) {
+  return apiRequest<{
+    data: ManifestReportRow[];
+    total: number;
+    flight_number: string;
+    departure_date: string;
+  }>(methodUrl("portal", "get_manifest_report"), {
+    method: "POST",
+    body: JSON.stringify({
+      flight_number: params.flight_number.trim(),
+      departure_date: params.departure_date,
+      departure_time: params.departure_time?.trim() || null,
+      destination: params.destination?.trim() || null,
+    }),
+  });
+}
+
+export interface NoShowReportRow {
+  flight_no: string;
+  departure_date: string;
+  pnr_number: string;
+  passenger_name: string;
+  ticket_type: string;
+  agent: string;
+  passport_number: string;
+  destination: string;
+  phone: string;
+  status: string;
+}
+
+export async function getNoShowReport(params: {
+  flight_number: string;
+  departure_date: string;
+  departure_time?: string;
+  destination?: string;
+}) {
+  return apiRequest<{
+    data: NoShowReportRow[];
+    total: number;
+    flight_number: string;
+    departure_date: string;
+  }>(methodUrl("portal", "get_no_show_report"), {
+    method: "POST",
+    body: JSON.stringify({
+      flight_number: params.flight_number.trim(),
+      departure_date: params.departure_date,
+      departure_time: params.departure_time?.trim() || null,
+      destination: params.destination?.trim() || null,
+    }),
+  });
+}

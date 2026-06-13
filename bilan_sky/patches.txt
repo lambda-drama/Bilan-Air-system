@@ -23,3 +23,5 @@ bilan_sky.patches.v1_0.clear_air_booking_reservation_ref_reqd
 bilan_sky.patches.v1_0.clear_passenger_date_of_birth_reqd
 bilan_sky.patches.v1_0.backfill_seat_class_baggage_allowance
 bilan_sky.patches.v1_0.backfill_seat_class_excess_fee
+bilan_sky.patches.v1_0.migrate_cabin_class_and_seat_class
+bilan_sky.patches.v1_0.backfill_flight_schedule_is_active

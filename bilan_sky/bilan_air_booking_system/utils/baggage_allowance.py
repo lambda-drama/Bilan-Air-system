@@ -57,6 +57,7 @@ def get_baggage_allowance(seat_class=None, seat_inventory_name=None):
 			seat_class_name,
 			[
 				"class_name",
+				"cabin_class",
 				"checked_baggage_kg",
 				"carry_on_kg",
 				"checked_baggage_pieces",
@@ -77,6 +78,35 @@ def get_baggage_allowance(seat_class=None, seat_inventory_name=None):
 				carry_on_pieces = cint(row.carry_on_pieces)
 			if flt(row.excess_baggage_fee_per_kg) > 0:
 				excess_fee_per_kg = flt(row.excess_baggage_fee_per_kg)
+
+			if row.cabin_class and (
+				not flt(row.checked_baggage_kg)
+				or not flt(row.carry_on_kg)
+				or not flt(row.excess_baggage_fee_per_kg)
+			):
+				cabin_row = frappe.db.get_value(
+					"Cabin Class",
+					row.cabin_class,
+					[
+						"checked_baggage_kg",
+						"carry_on_kg",
+						"checked_baggage_pieces",
+						"carry_on_pieces",
+						"excess_baggage_fee_per_kg",
+					],
+					as_dict=True,
+				)
+				if cabin_row:
+					if not flt(row.checked_baggage_kg) and flt(cabin_row.checked_baggage_kg) > 0:
+						checked_kg = flt(cabin_row.checked_baggage_kg)
+					if not flt(row.carry_on_kg) and flt(cabin_row.carry_on_kg) > 0:
+						carry_on_kg = flt(cabin_row.carry_on_kg)
+					if not cint(row.checked_baggage_pieces) and cint(cabin_row.checked_baggage_pieces) > 0:
+						checked_pieces = cint(cabin_row.checked_baggage_pieces)
+					if not cint(row.carry_on_pieces) and cint(cabin_row.carry_on_pieces) > 0:
+						carry_on_pieces = cint(cabin_row.carry_on_pieces)
+					if not flt(row.excess_baggage_fee_per_kg) and flt(cabin_row.excess_baggage_fee_per_kg) > 0:
+						excess_fee_per_kg = flt(cabin_row.excess_baggage_fee_per_kg)
 
 	return {
 		"checked_kg": checked_kg,

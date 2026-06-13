@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MoreHorizontal, Pencil } from "lucide-react";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
@@ -10,7 +10,7 @@ import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { getMissingRequired } from "@/lib/validate-form";
 import { useCurrency } from "@/contexts/currency-context";
-import { listSeatClasses, saveSeatClass, type SeatClassRow } from "@/services/portalMaster";
+import { listSeatClasses, listCabinClasses, saveSeatClass, type CabinClassRow, type SeatClassRow } from "@/services/portalMaster";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -31,6 +32,8 @@ import {
 
 const emptyForm = {
   class_name: "",
+  cabin_class: "",
+  use_on_aircraft_layout: false,
   price_multiplier: "1",
   color_code: "",
   checked_baggage_kg: "",
@@ -51,6 +54,14 @@ export default function PortalSeatClassesPage() {
   const [form, setForm] = useState(emptyForm);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const formAlerts = useFormDialogAlerts();
+  const [cabins, setCabins] = useState<CabinClassRow[]>([]);
+
+  useEffect(() => {
+    listCabinClasses(false).then(setCabins).catch(() => setCabins([]));
+  }, []);
+
+  const cabinLabel = (link?: string) =>
+    cabins.find((c) => c.name === link)?.cabin_name || link || "—";
 
   const openCreate = () => {
     formAlerts.clearAlerts();
@@ -64,6 +75,8 @@ export default function PortalSeatClassesPage() {
     setEditing(row);
     setForm({
       class_name: String(row.class_name || ""),
+      cabin_class: String(row.cabin_class || ""),
+      use_on_aircraft_layout: !!row.use_on_aircraft_layout,
       price_multiplier: String(row.price_multiplier ?? 1),
       color_code: String(row.color_code || ""),
       checked_baggage_kg: row.checked_baggage_kg ? String(row.checked_baggage_kg) : "",
@@ -80,7 +93,10 @@ export default function PortalSeatClassesPage() {
   };
 
   const handleSave = async () => {
-    const missing = getMissingRequired(form, [{ key: "class_name", label: "Class name" }]);
+    const missing = getMissingRequired(form, [
+      { key: "class_name", label: "Fare class code" },
+      { key: "cabin_class", label: "Cabin class" },
+    ]);
     if (missing.length) {
       formAlerts.showValidation(missing);
       return;
@@ -90,6 +106,8 @@ export default function PortalSeatClassesPage() {
       await saveSeatClass({
         ...(editing?.name ? { name: editing.name } : {}),
         class_name: form.class_name.trim(),
+        cabin_class: form.cabin_class,
+        use_on_aircraft_layout: form.use_on_aircraft_layout ? 1 : 0,
         price_multiplier: Number(form.price_multiplier) || 1,
         color_code: form.color_code.trim() || undefined,
         checked_baggage_kg: form.checked_baggage_kg ? Number(form.checked_baggage_kg) : 0,
@@ -114,9 +132,9 @@ export default function PortalSeatClassesPage() {
   return (
     <div className="space-y-6">
       <PortalMasterPageHeader
-        title="Seat classes"
-        description="Master data — fare multipliers, baggage allowance, and excess fee per kg"
-        addLabel="New seat class"
+        title="Fare classes"
+        description="Booking fare codes (L, M, Y…) linked to a cabin — multipliers and baggage overrides"
+        addLabel="New fare class"
         onAdd={openCreate}
       />
 
@@ -126,10 +144,11 @@ export default function PortalSeatClassesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Class</TableHead>
+              <TableHead>Fare code</TableHead>
+              <TableHead>Cabin</TableHead>
+              <TableHead>Layout</TableHead>
               <TableHead>Multiplier</TableHead>
               <TableHead>Checked</TableHead>
-              <TableHead>Cabin</TableHead>
               <TableHead>Excess / kg</TableHead>
               <TableHead>Active</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -138,13 +157,13 @@ export default function PortalSeatClassesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
+                <TableCell colSpan={8} className="text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
+                <TableCell colSpan={8} className="text-muted-foreground">
                   No seat classes yet.
                 </TableCell>
               </TableRow>
@@ -156,19 +175,17 @@ export default function PortalSeatClassesPage() {
                   onClick={() => setSelectedId(String(row.name))}
                 >
                   <TableCell className="font-medium">{row.class_name}</TableCell>
+                  <TableCell>{cabinLabel(row.cabin_class)}</TableCell>
+                  <TableCell>{row.use_on_aircraft_layout ? "Yes" : "No"}</TableCell>
                   <TableCell>{row.price_multiplier ?? 1}</TableCell>
                   <TableCell>
-                    {row.checked_baggage_kg ? `${row.checked_baggage_kg} kg` : "BA default"}
+                    {row.checked_baggage_kg ? `${row.checked_baggage_kg} kg` : "Cabin / BA default"}
                     {row.checked_baggage_pieces ? ` · ${row.checked_baggage_pieces} pc` : ""}
-                  </TableCell>
-                  <TableCell>
-                    {row.carry_on_kg ? `${row.carry_on_kg} kg` : "BA default"}
-                    {row.carry_on_pieces ? ` · ${row.carry_on_pieces} pc` : ""}
                   </TableCell>
                   <TableCell>
                     {row.excess_baggage_fee_per_kg
                       ? formatMoney(row.excess_baggage_fee_per_kg)
-                      : "BA default"}
+                      : "Cabin / BA default"}
                   </TableCell>
                   <TableCell>{row.is_active ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-right">
@@ -195,7 +212,7 @@ export default function PortalSeatClassesPage() {
       <BilanFormDialog
         open={open}
         onOpenChange={setOpen}
-        title={editing ? "Edit seat class" : "New seat class"}
+        title={editing ? "Edit fare class" : "New fare class"}
         validationErrors={formAlerts.validationErrors}
         submitError={formAlerts.submitError}
         onDismissAlerts={formAlerts.clearAlerts}
@@ -211,11 +228,30 @@ export default function PortalSeatClassesPage() {
         }
       >
         <FormGrid>
-          <FormField label="Class name" required>
+          <FormField label="Fare class code" required>
             <Input
+              placeholder="e.g. L, M, Y"
               value={form.class_name}
               onChange={(e) => setForm((f) => ({ ...f, class_name: e.target.value }))}
             />
+          </FormField>
+          <FormField label="Cabin class" required>
+            <SearchableSelect
+              options={cabins.map((c) => ({ value: c.name, label: c.cabin_name }))}
+              value={form.cabin_class}
+              onValueChange={(v) => setForm((f) => ({ ...f, cabin_class: v }))}
+              clearable={false}
+            />
+          </FormField>
+          <FormField label="Use on aircraft layout">
+            <div className="flex h-10 items-center">
+              <Switch
+                checked={form.use_on_aircraft_layout}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({ ...f, use_on_aircraft_layout: checked }))
+                }
+              />
+            </div>
           </FormField>
           <FormField label="Price multiplier" required>
             <Input

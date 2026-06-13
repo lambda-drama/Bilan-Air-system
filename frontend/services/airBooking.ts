@@ -74,6 +74,7 @@ export interface BookingDetails {
     destination: string;
     departure_date: string;
     departure_time: string;
+    only_prepayment?: number | boolean;
   };
   baggage?: BaggageRecord[];
   baggage_policy?: BaggagePolicy;
@@ -200,6 +201,8 @@ export type ConfirmOnCreditResult = {
   pnr: string;
   reservation_ref?: string;
   already_confirmed?: boolean;
+  invoice?: string;
+  payment_entry?: string;
 };
 
 /** Issue PNR and tickets using agent credit (reservation ref or PNR). */

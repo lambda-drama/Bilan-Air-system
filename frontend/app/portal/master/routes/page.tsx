@@ -17,7 +17,7 @@ import {
   type PassengerBaseFaresForm,
 } from "@/lib/passenger-base-fares";
 import { getFlightRoute, saveRoute, type RouteSegmentRow } from "@/services/flightRoute";
-import { listAirlines, listCurrencies, listFlightRoutes } from "@/services/portalMaster";
+import { listAirlines, listFlightRoutes } from "@/services/portalMaster";
 import {
   BilanFormDialog,
   FormField,
@@ -63,7 +63,6 @@ const emptyRouteForm = {
   destination_airport: "",
   distance_km: "",
   airline: "",
-  currency: "USD",
   duration_hours: "",
   is_active: true,
   is_multi_segment: false,
@@ -134,7 +133,6 @@ export default function PortalRoutesPage() {
   const { search, setSearch, rows, loading, error, refresh } = useLiveListQuery(fetchRows);
   const [airports, setAirports] = useState<AirportSelectRow[]>([]);
   const [airlines, setAirlines] = useState<{ name: string; airline_name: string }[]>([]);
-  const [currencies, setCurrencies] = useState<{ name: string }[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState(emptyRouteForm);
@@ -150,7 +148,6 @@ export default function PortalRoutesPage() {
       .then(setAirports)
       .catch(() => setAirports([]));
     listAirlines({ limit: 200 }).then((r) => setAirlines(r.data as { name: string; airline_name: string }[]));
-    listCurrencies().then(setCurrencies).catch(() => setCurrencies([{ name: "USD" }]));
   }, []);
 
   const airportOptions = useMemo(() => buildAirportSelectOptions(airports), [airports]);
@@ -175,11 +172,6 @@ export default function PortalRoutesPage() {
     [airlines],
   );
 
-  const currencyOptions = useMemo(
-    () => currencies.map((c) => ({ value: c.name, label: c.name })),
-    [currencies],
-  );
-
   const applyRouteToForm = (row: Record<string, unknown>, segs: RouteSegmentRow[]) => {
     const durationSec = Number(row.duration || 0);
     const isMulti = !!row.is_multi_segment;
@@ -188,7 +180,6 @@ export default function PortalRoutesPage() {
       destination_airport: String(row.destination_airport || ""),
       distance_km: String(row.distance_km ?? ""),
       airline: String(row.airline || ""),
-      currency: String(row.currency || "USD"),
       duration_hours: durationSec ? String(durationSec / 3600) : "",
       is_active: !!row.is_active,
       is_multi_segment: isMulti,
@@ -317,7 +308,6 @@ export default function PortalRoutesPage() {
       is_active: form.is_active ? 1 : 0,
       notes: form.notes || undefined,
       airline: form.airline || undefined,
-      currency: form.currency || "USD",
     };
 
     if (form.is_multi_segment) {
@@ -609,14 +599,6 @@ export default function PortalRoutesPage() {
                     placeholder="Optional"
                   />
                 </FormField>
-                <FormField label="Currency">
-                  <SearchableSelect
-                    options={currencyOptions}
-                    value={form.currency}
-                    onValueChange={(v) => setForm({ ...form, currency: v })}
-                    clearable={false}
-                  />
-                </FormField>
                 <FormField label="Distance (km)" required>
                   <Input
                     type="number"
@@ -709,7 +691,6 @@ export default function PortalRoutesPage() {
               <DetailRow label="Origin" value={routeAirportLabel(selectedRoute, "origin")} />
               <DetailRow label="Destination" value={routeAirportLabel(selectedRoute, "destination")} />
               <DetailRow label="Airline" value={String(selectedRoute.airline || "—")} />
-              <DetailRow label="Currency" value={String(selectedRoute.currency || "—")} />
               <DetailRow label="Distance (km)" value={String(selectedRoute.distance_km ?? "—")} />
               <DetailRow
                 label="Base fares"

@@ -254,15 +254,61 @@ def list_currencies():
 
 
 @frappe.whitelist()
-def list_seat_classes(active_only=1):
+def list_cabin_classes(active_only=1):
 	require_portal_staff()
 	filters = {"is_active": 1} if cint(active_only) else {}
+	return frappe.get_all(
+		"Cabin Class",
+		filters=filters,
+		fields=[
+			"name",
+			"cabin_name",
+			"display_order",
+			"color_code",
+			"is_active",
+			"checked_baggage_kg",
+			"checked_baggage_pieces",
+			"carry_on_kg",
+			"carry_on_pieces",
+			"excess_baggage_fee_per_kg",
+			"description",
+		],
+		order_by="display_order asc, cabin_name asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def save_cabin_class(data):
+	require_portal_staff()
+	data = _parse_data(data)
+	name = data.get("name")
+	payload = {k: v for k, v in data.items() if k != "name"}
+	if name:
+		doc = frappe.get_doc("Cabin Class", name, ignore_permissions=True)
+		doc.update(payload)
+		doc.save(ignore_permissions=True)
+	else:
+		doc = frappe.get_doc({"doctype": "Cabin Class", **payload})
+		doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def list_seat_classes(active_only=1, layout_only=None):
+	require_portal_staff()
+	filters = {"is_active": 1} if cint(active_only) else {}
+	if layout_only not in (None, ""):
+		filters["use_on_aircraft_layout"] = cint(layout_only)
 	return frappe.get_all(
 		"Seat Class",
 		filters=filters,
 		fields=[
 			"name",
 			"class_name",
+			"cabin_class",
+			"use_on_aircraft_layout",
 			"price_multiplier",
 			"color_code",
 			"is_active",

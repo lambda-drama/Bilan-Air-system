@@ -124,10 +124,13 @@ function PortalBookingsPageContent() {
     confirmOnCreditDisabledReason,
   } = useBookingAgentCreditEligibility();
 
-  const creditActionEnabled = !agentCreditLoading && allowConfirmOnCredit;
+  const creditActionEnabled =
+    !agentCreditLoading && allowConfirmOnCredit && !detail?.flight?.only_prepayment;
   const creditActionDisabledReason = agentCreditLoading
     ? "Checking your booking agent profile…"
-    : confirmOnCreditDisabledReason;
+    : detail?.flight?.only_prepayment
+      ? "This flight requires pre-payment. Use Confirm payment instead."
+      : confirmOnCreditDisabledReason;
 
   useEffect(() => {
     clearPortalPointerLocks();
@@ -215,7 +218,14 @@ function PortalBookingsPageContent() {
     try {
       const res = await confirmBookingOnCredit(bookingRef);
       setCreditConfirmRef(null);
-      toast.success(res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.");
+      toast.success(
+        [
+          res.pnr ? `PNR issued: ${res.pnr}` : "Reservation confirmed on credit.",
+          res.invoice ? `Invoice ${res.invoice} created.` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       refresh();
       if (selectedId === bookingRef) await reloadDetail(bookingRef);
     } catch (e) {
@@ -377,11 +387,13 @@ function PortalBookingsPageContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => openDeskDocument("Air Booking", b.name)}
-                            >
-                              Edit
-                            </DropdownMenuItem>
+                            {b.payment_status !== "Refunded" ? (
+                              <DropdownMenuItem
+                                onClick={() => openDeskDocument("Air Booking", b.name)}
+                              >
+                                Edit
+                              </DropdownMenuItem>
+                            ) : null}
                             {reservationStatus(b) === "Booked" && (
                               <>
                                 <DropdownMenuSeparator />
@@ -585,7 +597,8 @@ function PortalBookingsPageContent() {
                 will be confirmed on your agent credit account.
               </p>
               <p>
-                A PNR will be issued and the total fare will be deducted from the agent credit limit.
+                A PNR will be issued, a sales invoice and payment entry will be created on the
+                accounting site, and the total fare will be deducted from the agent credit limit.
               </p>
             </>
           }

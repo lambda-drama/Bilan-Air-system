@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -101,6 +102,8 @@ const emptyScheduleForm = {
   arrival_date: "",
   arrival_time: "",
   status: "Scheduled",
+  is_active: true,
+  only_prepayment: false,
   captain: "",
   first_officer: "",
   initial_seats_released: "",
@@ -140,6 +143,8 @@ function PortalFlightsPageContent() {
   const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
+  const [departureDateFilter, setDepartureDateFilter] = useState("");
+  const [departureTimeFilter, setDepartureTimeFilter] = useState("");
 
   useEffect(() => {
     if (searchParams.get("view") === "upcoming") {
@@ -161,11 +166,14 @@ function PortalFlightsPageContent() {
             ? undefined
             : statusFilter,
         upcoming: statusFilter === UPCOMING_STATUSES_VALUE,
+        departure_date: departureDateFilter.trim() || undefined,
+        departure_time: departureTimeFilter.trim() || undefined,
       });
       return res.data;
     },
-    [statusFilter],
+    [statusFilter, departureDateFilter, departureTimeFilter],
   );
+  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}`;
   const {
     search: searchQuery,
     setSearch: setSearchQuery,
@@ -173,7 +181,12 @@ function PortalFlightsPageContent() {
     loading,
     error,
     refresh,
-  } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: statusFilter });
+  } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: listReloadKey });
+  const hasListFilters =
+    !!searchQuery.trim() ||
+    statusFilter !== ALL_STATUSES_VALUE ||
+    !!departureDateFilter ||
+    !!departureTimeFilter;
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyScheduleForm);
   const [arrivalTouched, setArrivalTouched] = useState(false);
@@ -220,6 +233,8 @@ function PortalFlightsPageContent() {
     ReturnType<typeof getFlightSchedule>
   > | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [bookingRules, setBookingRules] = useState({ is_active: true, only_prepayment: false });
+  const [savingBookingRules, setSavingBookingRules] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FlightScheduleRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<FlightScheduleRow | null>(null);
@@ -655,6 +670,34 @@ function PortalFlightsPageContent() {
       .finally(() => setDetailLoading(false));
   }, [selectedId]);
 
+  useEffect(() => {
+    if (!scheduleSummary) return;
+    setBookingRules({
+      is_active: scheduleSummary.is_active !== 0 && scheduleSummary.is_active !== false,
+      only_prepayment: !!scheduleSummary.only_prepayment,
+    });
+  }, [scheduleSummary]);
+
+  const saveBookingRules = async () => {
+    if (!selectedId) return;
+    setSavingBookingRules(true);
+    try {
+      await saveSchedule({
+        name: selectedId,
+        is_active: bookingRules.is_active ? 1 : 0,
+        only_prepayment: bookingRules.only_prepayment ? 1 : 0,
+      });
+      const summary = await getFlightSchedule(selectedId);
+      setScheduleSummary(summary);
+      refresh();
+      toast.success("Booking rules updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update booking rules");
+    } finally {
+      setSavingBookingRules(false);
+    }
+  };
+
   const selectedRow = rows.find((r) => r.name === selectedId);
 
   const routeLabelByName = useMemo(() => {
@@ -747,6 +790,8 @@ function PortalFlightsPageContent() {
         arrival_date: form.arrival_date,
         arrival_time: form.arrival_time,
         status: form.status,
+        is_active: form.is_active ? 1 : 0,
+        only_prepayment: form.only_prepayment ? 1 : 0,
         captain: form.captain,
         first_officer: form.first_officer,
       };
@@ -844,7 +889,7 @@ function PortalFlightsPageContent() {
               <Plane className="h-5 w-5 text-gold" />
               All departures
             </CardTitle>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <label htmlFor="flight-status-filter" className="text-sm font-medium text-muted-foreground shrink-0">
                   Status
@@ -863,6 +908,36 @@ function PortalFlightsPageContent() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                <label
+                  htmlFor="flight-departure-date-filter"
+                  className="text-sm font-medium text-muted-foreground shrink-0"
+                >
+                  Departure date
+                </label>
+                <Input
+                  id="flight-departure-date-filter"
+                  type="date"
+                  value={departureDateFilter}
+                  onChange={(e) => setDepartureDateFilter(e.target.value)}
+                  className="w-full sm:w-[160px]"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                <label
+                  htmlFor="flight-departure-time-filter"
+                  className="text-sm font-medium text-muted-foreground shrink-0"
+                >
+                  Time <span className="font-normal">(optional)</span>
+                </label>
+                <Input
+                  id="flight-departure-time-filter"
+                  type="time"
+                  value={departureTimeFilter}
+                  onChange={(e) => setDepartureTimeFilter(e.target.value)}
+                  className="w-full sm:w-[140px]"
+                />
               </div>
               <ListSearch
                 value={searchQuery}
@@ -888,14 +963,16 @@ function PortalFlightsPageContent() {
                     <TableHead>Departure</TableHead>
                     <TableHead>Aircraft</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead>Pre-pay</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                        {searchQuery.trim() || statusFilter !== ALL_STATUSES_VALUE
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                        {hasListFilters
                           ? "No flights match your filters."
                           : "No flight schedules yet."}
                       </TableCell>
@@ -923,6 +1000,8 @@ function PortalFlightsPageContent() {
                           onFilter={(value) => setStatusFilter(value)}
                         />
                       </TableCell>
+                      <TableCell>{s.is_active === 0 || s.is_active === false ? "No" : "Yes"}</TableCell>
+                      <TableCell>{s.only_prepayment ? "Yes" : "No"}</TableCell>
                       <TableCell className="text-right">
                         <ListRowActions doctype="Flight Schedule" docName={s.name}>
                           <DropdownMenu>
@@ -1036,6 +1115,25 @@ function PortalFlightsPageContent() {
                 placeholder="Search status..."
                 clearable={false}
               />
+            </FormField>
+            <FormField label="Active for booking" hint="When off, flight is hidden from search">
+              <div className="flex h-10 items-center">
+                <Switch
+                  checked={form.is_active}
+                  onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
+                />
+              </div>
+            </FormField>
+            <FormField
+              label="Only pre-payment"
+              hint="Ticket only after payment — no pay-later or agent credit"
+            >
+              <div className="flex h-10 items-center">
+                <Switch
+                  checked={form.only_prepayment}
+                  onCheckedChange={(checked) => setForm({ ...form, only_prepayment: checked })}
+                />
+              </div>
             </FormField>
             <FormField label="Departure date" required>
               <Input
@@ -1673,6 +1771,50 @@ function PortalFlightsPageContent() {
                 label="Arrival"
                 value={`${selectedRow.arrival_date} ${selectedRow.arrival_time}`}
               />
+            </DetailSection>
+            <DetailSection title="Booking rules">
+              <DetailRow
+                label="Active for booking"
+                value={scheduleSummary?.is_active !== 0 && scheduleSummary?.is_active !== false ? "Yes" : "No"}
+              />
+              <DetailRow
+                label="Only pre-payment"
+                value={scheduleSummary?.only_prepayment ? "Yes" : "No"}
+              />
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="detail-is-active" className="text-sm font-normal">
+                    Active for booking
+                  </Label>
+                  <Switch
+                    id="detail-is-active"
+                    checked={bookingRules.is_active}
+                    onCheckedChange={(checked) =>
+                      setBookingRules((prev) => ({ ...prev, is_active: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="detail-only-prepay" className="text-sm font-normal">
+                    Only pre-payment
+                  </Label>
+                  <Switch
+                    id="detail-only-prepay"
+                    checked={bookingRules.only_prepayment}
+                    onCheckedChange={(checked) =>
+                      setBookingRules((prev) => ({ ...prev, only_prepayment: checked }))
+                    }
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={savingBookingRules}
+                  onClick={saveBookingRules}
+                >
+                  {savingBookingRules ? "Saving…" : "Save booking rules"}
+                </Button>
+              </div>
             </DetailSection>
             {detail && (
               <DetailSection title="Route detail">

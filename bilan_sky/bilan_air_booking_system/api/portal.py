@@ -9,7 +9,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	format_route_label,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
-from bilan_sky.bilan_air_booking_system.utils.reservation_status import VOID
+from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, FLIGHT_TAKEN, VOID
 
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
@@ -29,12 +29,30 @@ def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modifie
 
 
 @frappe.whitelist()
-def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search=None):
+def list_flight_schedules(
+	limit=50,
+	offset=0,
+	status=None,
+	upcoming=None,
+	search=None,
+	departure_date=None,
+	departure_time=None,
+):
 	filters = {}
 	if frappe.utils.cint(upcoming):
 		filters["status"] = ["in", ["Scheduled", "Boarding", "Delayed"]]
 	elif status:
 		filters["status"] = status
+
+	if departure_date:
+		filters["departure_date"] = departure_date
+
+	if departure_time:
+		time_value = str(departure_time).strip()
+		if len(time_value) == 5:
+			filters["departure_time"] = ["like", f"{time_value}%"]
+		else:
+			filters["departure_time"] = time_value
 
 	or_filters = None
 	if search:
@@ -42,6 +60,10 @@ def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search
 			"flight_number": ["like", f"%{search}%"],
 			"name": ["like", f"%{search}%"],
 		}
+
+	order_by = "departure_date desc, departure_time desc"
+	if departure_date or departure_time:
+		order_by = "departure_date asc, departure_time asc"
 
 	result = _paginated(
 		"Flight Schedule",
@@ -55,9 +77,12 @@ def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search
 			"arrival_date",
 			"arrival_time",
 			"status",
+			"is_active",
+			"only_prepayment",
 		],
 		filters=filters,
 		or_filters=or_filters,
+		order_by=order_by,
 		limit=limit,
 		offset=offset,
 	)
@@ -101,6 +126,8 @@ def get_flight_schedule(schedule_name):
 		"arrival_date": str(doc.arrival_date) if doc.arrival_date else None,
 		"arrival_time": doc.arrival_time,
 		"status": doc.status,
+		"is_active": doc.is_active,
+		"only_prepayment": doc.only_prepayment,
 		"captain": doc.captain,
 		"first_officer": doc.first_officer or "",
 		"route_base_fares": route_fares,
@@ -691,6 +718,9 @@ def save_flight_route(data):
 
 	payload, segments = _parse_route_payload(data)
 	normalize_route_fare_payload(payload)
+	from bilan_sky.bilan_air_booking_system.utils.currency import resolve_display_currency
+
+	payload["currency"] = resolve_display_currency()
 	name = payload.get("name")
 	skip_keys = {"name", "route_segments", "segment_count", "segments_summary", "base_fares"}
 
@@ -1298,6 +1328,358 @@ def _reports_summary_for_year(year):
 		"total_passengers": cint(total_passengers),
 		"flights_operated": cint(flights_operated),
 	}
+
+
+def _normalize_portal_time(time_val):
+	if not time_val:
+		return None
+	text = str(time_val).strip()
+	if not text:
+		return None
+	if " " in text:
+		text = text.split(" ", 1)[-1]
+	if len(text) >= 5:
+		return text[:5]
+	return text
+
+
+@frappe.whitelist()
+def list_report_flight_numbers(search=None, limit=200):
+	"""Distinct flight numbers from schedules (manifest / no-show report filters)."""
+	require_portal_staff()
+	limit = min(cint(limit) or 200, 500)
+	search = (search or "").strip()
+	params = {"limit": limit}
+	where = "WHERE IFNULL(flight_number, '') != ''"
+	if search:
+		where += " AND flight_number LIKE %(search)s"
+		params["search"] = f"%{search}%"
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT DISTINCT flight_number
+		FROM `tabFlight Schedule`
+		{where}
+		ORDER BY flight_number ASC
+		LIMIT %(limit)s
+		""",
+		params,
+		as_dict=True,
+	)
+	return [row.flight_number for row in rows if row.get("flight_number")]
+
+
+@frappe.whitelist()
+def get_manifest_departure_times(flight_number, departure_date):
+	"""Departure times for a flight number on a given date (manifest filter dropdown)."""
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	departure_date = (departure_date or "").strip()
+	if not flight_number or not departure_date:
+		return []
+
+	rows = frappe.get_all(
+		"Flight Schedule",
+		filters={"flight_number": flight_number, "departure_date": departure_date},
+		fields=["departure_time"],
+		order_by="departure_time asc",
+	)
+	times = []
+	seen = set()
+	for row in rows:
+		label = _normalize_portal_time(row.get("departure_time"))
+		if label and label not in seen:
+			seen.add(label)
+			times.append(label)
+	return times
+
+
+def _report_flight_schedules(flight_number, departure_date, departure_time=None, destination=None):
+	"""Resolve flight schedules for portal manifest / no-show reports."""
+	from bilan_sky.bilan_air_booking_system.utils.airports import resolve_airport_name
+
+	flight_number = (flight_number or "").strip()
+	departure_date = (departure_date or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required."))
+	if not departure_date:
+		frappe.throw(_("Departure date is required."))
+
+	schedules = frappe.get_all(
+		"Flight Schedule",
+		filters={"flight_number": flight_number, "departure_date": departure_date},
+		fields=["name", "route", "departure_time", "flight_number", "departure_date", "status"],
+	)
+
+	if departure_time:
+		normalized = _normalize_portal_time(departure_time)
+		schedules = [
+			s
+			for s in schedules
+			if _normalize_portal_time(s.get("departure_time")) == normalized
+		]
+
+	destination_airport = None
+	if (destination or "").strip():
+		destination_airport = resolve_airport_name(destination.strip())
+		if not destination_airport:
+			frappe.throw(_("Destination airport not found."))
+
+	if destination_airport:
+		route_names = {s.route for s in schedules if s.get("route")}
+		matching_routes = set()
+		if route_names:
+			for route_row in frappe.get_all(
+				"Flight Route",
+				filters={"name": ["in", list(route_names)]},
+				fields=["name", "destination_airport"],
+			):
+				if route_row.destination_airport == destination_airport:
+					matching_routes.add(route_row.name)
+		schedules = [s for s in schedules if s.get("route") in matching_routes]
+
+	route_meta = {}
+	route_names = {s.route for s in schedules if s.get("route")}
+	if route_names:
+		for route_row in frappe.get_all(
+			"Flight Route",
+			filters={"name": ["in", list(route_names)]},
+			fields=["name", "origin_airport", "destination_airport"],
+		):
+			route_meta[route_row.name] = route_row
+
+	schedule_origin = {}
+	schedule_destination = {}
+	for schedule in schedules:
+		route = route_meta.get(schedule.get("route")) or {}
+		schedule_origin[schedule.name] = route.get("origin_airport")
+		schedule_destination[schedule.name] = route.get("destination_airport")
+
+	return {
+		"flight_number": flight_number,
+		"departure_date": departure_date,
+		"destination_airport": destination_airport,
+		"schedules": schedules,
+		"schedule_ids": [s.name for s in schedules],
+		"schedule_origin": schedule_origin,
+		"schedule_destination": schedule_destination,
+	}
+
+
+@frappe.whitelist()
+def get_manifest_report(flight_number, departure_date, departure_time=None, destination=None):
+	"""Passenger manifest for a flight schedule (portal manifest report)."""
+	from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label
+
+	require_portal_staff()
+	ctx = _report_flight_schedules(flight_number, departure_date, departure_time, destination)
+	schedules = ctx["schedules"]
+	flight_number = ctx["flight_number"]
+	departure_date = ctx["departure_date"]
+	destination_airport = ctx["destination_airport"]
+	schedule_ids = ctx["schedule_ids"]
+	schedule_origin = ctx["schedule_origin"]
+	schedule_destination = ctx["schedule_destination"]
+
+	if not schedules:
+		return {"data": [], "total": 0, "flight_number": flight_number, "departure_date": departure_date}
+
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			ab.pnr,
+			ab.name AS reservation_ref,
+			ab.booking_date,
+			ab.reservation_status,
+			ab.payer_phone,
+			ab.cabin_class,
+			ab.boarding_airport,
+			ab.deboarding_airport,
+			ab.booking_agent,
+			ab.flight_schedule,
+			p.passenger_name,
+			p.id_number,
+			p.passenger,
+			p.seat_number,
+			ba.agent_name,
+			ba.username,
+			pass.phone_number AS profile_phone
+		FROM `tabAir Booking Passenger` p
+		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
+		LEFT JOIN `tabBooking Agent` ba ON ba.name = ab.booking_agent
+		LEFT JOIN `tabPassenger` pass ON pass.name = p.passenger
+		WHERE ab.flight_schedule IN %(schedules)s
+			AND IFNULL(ab.reservation_status, '') != %(void)s
+		ORDER BY p.passenger_name ASC, ab.booking_date ASC
+		""",
+		{"schedules": schedule_ids, "void": VOID},
+		as_dict=True,
+	)
+
+	seat_ids = {row.seat_number for row in rows if row.get("seat_number")}
+	seat_class_by_seat = {}
+	if seat_ids:
+		for seat in frappe.get_all(
+			"Seat Inventory",
+			filters={"name": ["in", list(seat_ids)]},
+			fields=["name", "seat_class"],
+		):
+			seat_class_by_seat[seat.name] = seat.seat_class
+
+	data = []
+	for row in rows:
+		origin_airport = row.boarding_airport or schedule_origin.get(row.flight_schedule)
+		dest_airport = row.deboarding_airport or schedule_destination.get(row.flight_schedule)
+		if destination_airport and dest_airport != destination_airport:
+			continue
+
+		agent = row.agent_name or row.username or ""
+		passenger_class = (
+			seat_class_by_seat.get(row.seat_number)
+			or row.cabin_class
+			or ""
+		)
+		data.append(
+			{
+				"pnr_number": row.pnr or row.reservation_ref,
+				"passenger_name": row.passenger_name,
+				"class": passenger_class,
+				"agent": agent,
+				"passport_number": row.id_number or "",
+				"origin": airport_display_label(origin_airport),
+				"destination": airport_display_label(dest_airport),
+				"phone": row.profile_phone or row.payer_phone or "",
+				"reservation_date": str(row.booking_date) if row.booking_date else "",
+				"status": row.reservation_status or "",
+			}
+		)
+
+	return {
+		"data": data,
+		"total": len(data),
+		"flight_number": flight_number,
+		"departure_date": departure_date,
+		"departure_time": _normalize_portal_time(departure_time) if departure_time else None,
+		"destination": destination_airport,
+	}
+
+
+@frappe.whitelist()
+def get_no_show_report(flight_number, departure_date, departure_time=None, destination=None):
+	"""Passengers who were confirmed and paid but never checked in after departure."""
+	from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata
+
+	require_portal_staff()
+	ctx = _report_flight_schedules(flight_number, departure_date, departure_time, destination)
+	schedules = ctx["schedules"]
+	flight_number = ctx["flight_number"]
+	departure_date = ctx["departure_date"]
+	destination_airport = ctx["destination_airport"]
+	schedule_ids = ctx["schedule_ids"]
+	schedule_destination = ctx["schedule_destination"]
+
+	if not schedules:
+		return {"data": [], "total": 0, "flight_number": flight_number, "departure_date": departure_date}
+
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			fs.flight_number,
+			fs.departure_date,
+			ab.pnr,
+			ab.name AS reservation_ref,
+			ab.cabin_class,
+			ab.deboarding_airport,
+			ab.payer_phone,
+			ab.flight_schedule,
+			p.passenger_name,
+			p.id_number,
+			p.passenger,
+			p.seat_number,
+			p.check_in_status,
+			ba.agent_name,
+			ba.username,
+			pass.phone_number AS profile_phone
+		FROM `tabAir Booking Passenger` p
+		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
+		INNER JOIN `tabFlight Schedule` fs ON fs.name = ab.flight_schedule
+		LEFT JOIN `tabBooking Agent` ba ON ba.name = ab.booking_agent
+		LEFT JOIN `tabPassenger` pass ON pass.name = p.passenger
+		WHERE ab.flight_schedule IN %(schedules)s
+			AND ab.payment_status = 'Paid'
+			AND IFNULL(ab.reservation_status, '') IN %(confirmed_statuses)s
+			AND IFNULL(p.check_in_status, 'Not Checked In') NOT IN ('Checked In', 'Boarded')
+			AND fs.status IN ('Departed', 'Arrived')
+		ORDER BY fs.departure_date DESC, p.passenger_name ASC
+		""",
+		{
+			"schedules": schedule_ids,
+			"confirmed_statuses": (CONFIRM, FLIGHT_TAKEN),
+		},
+		as_dict=True,
+	)
+
+	seat_ids = {row.seat_number for row in rows if row.get("seat_number")}
+	seat_class_by_seat = {}
+	if seat_ids:
+		for seat in frappe.get_all(
+			"Seat Inventory",
+			filters={"name": ["in", list(seat_ids)]},
+			fields=["name", "seat_class"],
+		):
+			seat_class_by_seat[seat.name] = seat.seat_class
+
+	data = []
+	for row in rows:
+		dest_airport = row.deboarding_airport or schedule_destination.get(row.flight_schedule)
+		if destination_airport and dest_airport != destination_airport:
+			continue
+
+		ticket_type = seat_class_by_seat.get(row.seat_number) or row.cabin_class or ""
+		agent = row.agent_name or row.username or ""
+		iata = get_airport_iata(dest_airport) if dest_airport else ""
+		destination_label = (iata or dest_airport or "").strip().upper()
+
+		data.append(
+			{
+				"flight_no": row.flight_number or flight_number,
+				"departure_date": str(row.departure_date) if row.departure_date else departure_date,
+				"pnr_number": row.pnr or row.reservation_ref,
+				"passenger_name": row.passenger_name,
+				"ticket_type": ticket_type,
+				"agent": agent,
+				"passport_number": row.id_number or "",
+				"destination": destination_label,
+				"phone": row.profile_phone or row.payer_phone or "",
+				"status": "No Show",
+			}
+		)
+
+	return {
+		"data": data,
+		"total": len(data),
+		"flight_number": flight_number,
+		"departure_date": departure_date,
+		"departure_time": _normalize_portal_time(departure_time) if departure_time else None,
+		"destination": destination_airport,
+	}
+
+
+@frappe.whitelist()
+def export_portal_report_pdf(title, subtitle=None, columns=None, rows=None, filename=None):
+	"""Export portal tabular report rows to a downloadable PDF."""
+	from bilan_sky.bilan_air_booking_system.utils.report_pdf import export_tabular_report_pdf
+
+	require_portal_staff()
+	parsed_columns = frappe.parse_json(columns) if isinstance(columns, str) else (columns or [])
+	parsed_rows = frappe.parse_json(rows) if isinstance(rows, str) else (rows or [])
+	return export_tabular_report_pdf(
+		title=title,
+		subtitle=subtitle,
+		columns=parsed_columns,
+		rows=parsed_rows,
+		filename=filename,
+	)
 
 
 @frappe.whitelist()

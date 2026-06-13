@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/portal/user-avatar"
@@ -11,12 +11,17 @@ import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen"
 import { signalPortalNavStart } from "@/lib/portal-navigation"
 import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock"
 import {
+  clearAllPortalReportStates,
+  isPortalReportsPath,
+} from "@/lib/portal-report-storage"
+import {
   Bell,
   ChevronDown,
   Menu,
   X,
 } from "lucide-react"
 import { PortalSidebar } from "@/components/portal/portal-sidebar"
+import { ThemeDropdownSubmenu } from "@/components/theme-dropdown-items"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -76,9 +81,19 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   )
   const portalAccess = user ? hasPortalAccess(user.roles) : false
   const firstName = getDisplayFirstName(user)
+  const previousPathnameRef = useRef<string | null>(null)
 
   useEffect(() => {
     clearPortalPointerLocks()
+  }, [pathname])
+
+  useEffect(() => {
+    const previous = previousPathnameRef.current
+    const current = pathname || ""
+    if (previous && isPortalReportsPath(previous) && !isPortalReportsPath(current)) {
+      clearAllPortalReportStates()
+    }
+    previousPathnameRef.current = current
   }, [pathname])
 
   useEffect(() => {
@@ -238,6 +253,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                     Settings
                   </Link>
                 </DropdownMenuItem>
+                <ThemeDropdownSubmenu />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"

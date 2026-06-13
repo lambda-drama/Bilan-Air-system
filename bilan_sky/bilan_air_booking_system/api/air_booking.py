@@ -16,15 +16,17 @@ def _load_booking(identifier, **kwargs):
 
 
 def _validate_seat_matches_cabin(seat_inventory_name: str, expected_cabin: str) -> None:
+	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import cabin_name_for_layout_seat
+
 	seat_class_link = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_class")
 	if not seat_class_link:
 		frappe.throw(_("Seat not found."))
-	class_name = frappe.db.get_value("Seat Class", seat_class_link, "class_name") or seat_class_link
-	if class_name != expected_cabin:
+	cabin_name = cabin_name_for_layout_seat(seat_class_link) or seat_class_link
+	if cabin_name != expected_cabin:
 		seat_label = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_number") or seat_inventory_name
 		frappe.throw(
 			_("Seat {0} is in {1}. Only {2} seats can be booked for this cabin.").format(
-				seat_label, class_name, expected_cabin
+				seat_label, cabin_name, expected_cabin
 			)
 		)
 
@@ -131,7 +133,14 @@ def create_booking(booking_data):
 
     from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
 
-    expected_cabin = (booking_data.get("seat_class") or "").strip()
+    from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import (
+        resolve_booking_fare_and_cabin,
+    )
+
+    fare_class_doc, cabin_from_fare = resolve_booking_fare_and_cabin(
+        booking_data.get("seat_class") or booking_data.get("fare_class")
+    )
+    expected_cabin = (booking_data.get("cabin_class") or cabin_from_fare or "").strip()
     seat_selection_required = is_seat_selection_enabled()
 
     for row in passenger_links:
@@ -167,6 +176,7 @@ def create_booking(booking_data):
         "boarding_airport": boarding,
         "deboarding_airport": deboarding,
         "cabin_class": expected_cabin or None,
+        "fare_class": fare_class_doc,
         "payer_name": booking_data.get("payer_name"),
         "payer_email": booking_data.get("payer_email"),
         "payer_phone": booking_data.get("payer_phone"),
@@ -417,6 +427,8 @@ def _serialize_booking_details(booking):
 			"arrival_date": str(flight.arrival_date),
 			"arrival_time": flight.arrival_time,
 			"status": flight.status,
+			"is_active": flight.is_active,
+			"only_prepayment": flight.only_prepayment,
 		},
 	}
 
@@ -815,16 +827,10 @@ def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_acco
 
 @frappe.whitelist()
 def confirm_booking_on_credit(pnr):
-	"""Issue PNR and tickets using agent credit (logged-in agent or Booking Agent on the reservation)."""
+	"""Issue PNR and tickets on agent credit; create Sales Invoice and Payment Entry when billing is configured."""
 	booking = _load_booking(pnr)
 	booking.check_permission("write")
-	booking.calculate_total_fare()
-	if not flt(booking.total_fare):
-		frappe.throw(
-			_("Total fare is zero. Assign seats from Seat Inventory, save, and ensure route base fares are set."),
-			title=_("Zero fare"),
-		)
-	result = booking.confirm_booking(via_credit=True)
+	result = booking.confirm_on_credit_and_invoice()
 	frappe.db.commit()
 	return result
 

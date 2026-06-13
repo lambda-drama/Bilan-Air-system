@@ -20,7 +20,7 @@ export default function PortalSettingsPage() {
             Appearance
           </CardTitle>
           <CardDescription>
-            Choose light, dark, or match your device (system)
+            Click to cycle between light, dark, and system (match your device)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

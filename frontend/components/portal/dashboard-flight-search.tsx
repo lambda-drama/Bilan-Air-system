@@ -10,9 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormField, FormGrid } from "@/components/portal/form-dialog";
 import { SearchableSelect } from "@/components/portal/searchable-select";
+import { FlightSearchPassengersCabin } from "@/components/flight-search-passengers-cabin";
+import { NearestFlightDatesPanel } from "@/components/nearest-flight-dates-panel";
 import { useCurrency } from "@/contexts/currency-context";
 import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
 import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
+import { cabinOptionsFromApi } from "@/lib/cabin-classes";
+import {
+  DEFAULT_PASSENGER_COUNTS,
+  seatsRequired,
+  totalPassengers,
+  SEAT_CLASS_OPTIONS,
+  type PassengerSearchCounts,
+  type SeatClassOption,
+} from "@/lib/passenger-search-counts";
 import {
   draftFromFlight,
   loadOfficeBookingDraft,
@@ -21,10 +32,20 @@ import {
 import {
   findFlights,
   fetchAllRoutes,
+  fetchPublicSeatClasses,
+  fetchPublicCabinClasses,
   getBookingSearchDefaults,
+  suggestNearestFlightDates,
   type AvailableRoute,
   type FlightSearchResult,
+  type NearestFlightDateSuggestion,
+  type PublicSeatClassOption,
 } from "@/services/search";
+import {
+  FlightFareResultCard,
+  defaultFareCardLabels,
+  flightSearchResultToFareDisplay,
+} from "@/components/flight-fare-result-card";
 
 type SearchMode = "route" | "airports";
 
@@ -38,19 +59,34 @@ export function DashboardFlightSearch() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [departureDate, setDepartureDate] = useState("");
-  const [passengerCount, setPassengerCount] = useState(1);
+  const [passengerCounts, setPassengerCounts] = useState<PassengerSearchCounts>({
+    ...DEFAULT_PASSENGER_COUNTS,
+  });
+  const [seatClass, setSeatClass] = useState<SeatClassOption>("Economy");
   const [airportOptions, setAirportOptions] = useState<{ value: string; label: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
+  const [departureSuggestions, setDepartureSuggestions] = useState<NearestFlightDateSuggestion[]>([]);
+  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] = useState(false);
+  const [departureSuggestionsChecked, setDepartureSuggestionsChecked] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [enableSeatSelection, setEnableSeatSelection] = useState(false);
+  const [seatClasses, setSeatClasses] = useState<PublicSeatClassOption[]>([]);
+  const [cabinOptions, setCabinOptions] = useState(SEAT_CLASS_OPTIONS);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchAllRoutes(), getBookingSearchDefaults()])
-      .then(([routes, defaults]) => {
+    Promise.all([
+      fetchAllRoutes(),
+      getBookingSearchDefaults(),
+      fetchPublicSeatClasses(),
+      fetchPublicCabinClasses(),
+    ])
+      .then(([routes, defaults, classes, cabins]) => {
         if (cancelled) return;
+        setSeatClasses(classes);
+        setCabinOptions(cabinOptionsFromApi(cabins));
         const codes = new Map<string, string>();
         for (const r of routes) {
           if (r.origin_code) codes.set(r.origin_code, r.origin_city || r.origin_code);
@@ -102,8 +138,32 @@ export function DashboardFlightSearch() {
     if (r.destination_code) setDestination(r.destination_code);
   };
 
-  const runSearch = async () => {
-    if (!departureDate) {
+  const loadDepartureSuggestions = async (anchorDate: string) => {
+    const legOrigin = searchMode === "route" ? origin : origin;
+    const legDestination = searchMode === "route" ? destination : destination;
+    if (!legOrigin || !legDestination || !anchorDate) return;
+    setLoadingDepartureSuggestions(true);
+    setDepartureSuggestionsChecked(false);
+    setDepartureSuggestions([]);
+    try {
+      const res = await suggestNearestFlightDates({
+        origin: legOrigin,
+        destination: legDestination,
+        anchor_date: anchorDate,
+        passengers: seatsRequired(passengerCounts),
+      });
+      setDepartureSuggestions(res.suggestions || []);
+    } catch {
+      setDepartureSuggestions([]);
+    } finally {
+      setLoadingDepartureSuggestions(false);
+      setDepartureSuggestionsChecked(true);
+    }
+  };
+
+  const runSearch = async (dateOverride?: string) => {
+    const searchDate = dateOverride || departureDate;
+    if (!searchDate) {
       setSearchError("Departure date is required.");
       return;
     }
@@ -119,26 +179,33 @@ export function DashboardFlightSearch() {
     setSearchError("");
     setSearching(true);
     setFlightResults([]);
+    setDepartureSuggestions([]);
+    setDepartureSuggestionsChecked(false);
+    const seatNeed = seatsRequired(passengerCounts);
     try {
       const res =
         searchMode === "route"
           ? await findFlights({
               route: selectedRoute,
-              date: departureDate,
-              passengers: passengerCount,
+              date: searchDate,
+              passengers: seatNeed,
             })
           : await findFlights({
               origin,
               destination,
-              date: departureDate,
-              passengers: passengerCount,
+              date: searchDate,
+              passengers: seatNeed,
             });
       if (res.error) {
         setSearchError(res.error);
+        void loadDepartureSuggestions(searchDate);
         return;
       }
       setFlightResults(res.flights || []);
-      if (!res.flights?.length) setSearchError("No flights on this route and date.");
+      if (!res.flights?.length) {
+        setSearchError("No flights on this route and date.");
+        void loadDepartureSuggestions(searchDate);
+      }
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : "Search failed");
     } finally {
@@ -146,17 +213,28 @@ export function DashboardFlightSearch() {
     }
   };
 
-  const selectFlight = (flight: FlightSearchResult) => {
+  const applyDepartureSuggestion = (suggestedDate: string) => {
+    setDepartureDate(suggestedDate);
+    void runSearch(suggestedDate);
+  };
+
+  const selectFlight = (flight: FlightSearchResult, chosenClass: string) => {
+    const cabinClassName =
+      seatClasses.find((sc) => sc.class_name === chosenClass)?.cabin_name || seatClass;
+    const paxTotal = totalPassengers(passengerCounts);
     const existing = loadOfficeBookingDraft();
     saveOfficeBookingDraft({
       ...draftFromFlight(flight, {
-        seatClass: "Economy",
-        passengerCount,
+        seatClass: chosenClass,
+        cabinClass: cabinClassName,
+        passengerCount: paxTotal,
+        passengerCounts,
         origin,
         destination,
         departureDate,
         route: searchMode === "route" ? selectedRoute : flight.route,
       }),
+      onlyPrepayment: !!flight.only_prepayment,
       selectedSeatIds:
         existing?.scheduleId === flight.schedule_id ? existing.selectedSeatIds : [],
       payer: existing?.payer,
@@ -191,6 +269,7 @@ export function DashboardFlightSearch() {
                 setSearchMode(v as SearchMode);
                 setSearchError("");
                 setFlightResults([]);
+                setDepartureSuggestions([]);
               }}
             >
               <TabsList className="grid w-full grid-cols-2">
@@ -241,55 +320,96 @@ export function DashboardFlightSearch() {
               </TabsContent>
             </Tabs>
 
-            <FormGrid className="sm:grid-cols-2">
-              <FormField label="Departure date" required>
-                <Input
-                  type="date"
-                  value={departureDate}
-                  onChange={(e) => setDepartureDate(e.target.value)}
-                />
-              </FormField>
-              <FormField label="Passengers">
-                <Input
-                  type="number"
-                  min={1}
-                  max={9}
-                  value={passengerCount}
-                  onChange={(e) =>
-                    setPassengerCount(Math.max(1, parseInt(e.target.value, 10) || 1))
-                  }
-                />
-              </FormField>
-            </FormGrid>
+            <FormField label="Departure date" required>
+              <Input
+                type="date"
+                value={departureDate}
+                onChange={(e) => setDepartureDate(e.target.value)}
+              />
+            </FormField>
 
-            {searchError ? <p className="text-sm text-destructive">{searchError}</p> : null}
+            <FlightSearchPassengersCabin
+              counts={passengerCounts}
+              onCountsChange={setPassengerCounts}
+              seatClass={seatClass}
+              onSeatClassChange={setSeatClass}
+              cabinOptions={cabinOptions}
+              variant="portal"
+              disabled={searching}
+              labels={{
+                passengers: "Travelers",
+                adults: "Adults",
+                children: "Children (2–11)",
+                infants: "Infants (under 2)",
+                infantsHint: "On lap — no separate seat",
+                cabin: "Cabin",
+              }}
+            />
+
+            {searchError ? (
+              <div className="space-y-3">
+                <p className="text-sm text-destructive">{searchError}</p>
+                <NearestFlightDatesPanel
+                  title="Nearest dates with flights:"
+                  loadingLabel="Finding nearby dates…"
+                  emptyLabel="No nearby dates found for this route."
+                  useDateLabel={(d) =>
+                    new Date(`${d}T12:00:00`).toLocaleDateString(undefined, {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  }
+                  formatDaysOffset={(days) => {
+                    if (days === 1) return "1 day later";
+                    if (days === -1) return "1 day earlier";
+                    if (days > 1) return `${days} days later`;
+                    if (days < -1) return `${Math.abs(days)} days earlier`;
+                    return "Same week";
+                  }}
+                  formatFlightCount={(count) =>
+                    count > 1 ? `${count} flights available` : "1 flight available"
+                  }
+                  formatFromPrice={(amount) =>
+                    `From ${formatMoney(Math.round(amount))}`
+                  }
+                  suggestions={departureSuggestions}
+                  loading={loadingDepartureSuggestions}
+                  checked={departureSuggestionsChecked}
+                  onSelect={applyDepartureSuggestion}
+                />
+              </div>
+            ) : null}
 
             {flightResults.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {flightResults.map((f) => (
-                  <button
+                  <FlightFareResultCard
                     key={f.schedule_id}
-                    type="button"
-                    onClick={() => selectFlight(f)}
-                    className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:border-gold hover:bg-muted/50"
-                  >
-                    <div>
-                      <p className="font-medium">{f.flight_number}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {f.departure_time} → {f.arrival_time} · {f.available_seats} seats
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold text-gold">
-                      {formatMoney(f.prices?.Economy ?? Object.values(f.prices || {})[0])}
-                    </span>
-                  </button>
+                    variant="portal"
+                    flight={flightSearchResultToFareDisplay(f, origin, destination, departureDate)}
+                    seatClasses={seatClasses}
+                    cabinFilter={seatClass}
+                    formatMoney={formatMoney}
+                    formatDate={(iso) =>
+                      new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    }
+                    labels={defaultFareCardLabels}
+                    onSelect={(chosenClass) => selectFlight(f, chosenClass)}
+                  />
                 ))}
               </div>
             ) : null}
 
             <Button
               className="w-full bg-gold text-navy hover:bg-gold-dark sm:w-auto"
-              onClick={runSearch}
+              onClick={() => runSearch()}
               disabled={searching}
             >
               {searching ? (

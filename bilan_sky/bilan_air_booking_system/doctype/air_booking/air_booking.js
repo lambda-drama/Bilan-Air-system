@@ -558,12 +558,19 @@ function confirm_booking_on_credit(frm) {
                             show_booking_error(__('Confirm on credit failed'), r);
                             return;
                         }
-                        const pnr = r.message && r.message.pnr;
+                        const msg = r.message || {};
+                        const parts = [];
+                        if (msg.pnr) {
+                            parts.push(__('PNR issued: {0}', [msg.pnr]));
+                        } else {
+                            parts.push(__('Reservation confirmed.'));
+                        }
+                        if (msg.invoice) {
+                            parts.push(__('Invoice {0} created.', [msg.invoice]));
+                        }
                         frappe.msgprint({
                             title: __('Confirmed'),
-                            message: pnr
-                                ? __('PNR issued: {0}', [pnr])
-                                : __('Reservation confirmed.'),
+                            message: parts.join(' '),
                             indicator: 'green',
                         });
                         frm.reload_doc();

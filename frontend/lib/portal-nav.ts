@@ -15,6 +15,7 @@ import {
   Settings,
   Ticket,
   UserCog,
+  UserX,
   Users,
   Warehouse,
 } from "lucide-react";
@@ -53,7 +54,8 @@ export const portalNavItems: PortalNavItem[] = [
       { href: "/portal/master/airlines", label: "Airlines", icon: Plane },
       { href: "/portal/master/routes", label: "Routes", icon: MapPin },
       { href: "/portal/master/airplanes", label: "Airplanes", icon: Plane },
-      { href: "/portal/master/seat-classes", label: "Seat classes", icon: Armchair },
+      { href: "/portal/master/cabin-classes", label: "Cabin classes", icon: Armchair },
+      { href: "/portal/master/seat-classes", label: "Fare classes", icon: Armchair },
       { href: "/portal/master/ticket-terms", label: "Ticket terms", icon: FileText },
     ],
   },
@@ -69,7 +71,16 @@ export const portalNavItems: PortalNavItem[] = [
   { type: "link", href: "/portal/fare-rules", label: "Fare rules", icon: Percent },
   { type: "link", href: "/portal/invoices", label: "Invoices", icon: FileText },
   { type: "link", href: "/portal/payments", label: "Payments", icon: FileText },
-  { type: "link", href: "/portal/reports", label: "Reports", icon: BarChart3 },
+  {
+    type: "group",
+    label: "Reports",
+    icon: BarChart3,
+    items: [
+      { href: "/portal/reports/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/portal/reports/manifest", label: "Manifest report", icon: FileText },
+      { href: "/portal/reports/no-show", label: "No show report", icon: UserX },
+    ],
+  },
   { type: "link", href: "/portal/settings", label: "Settings", icon: Settings },
 ];
 

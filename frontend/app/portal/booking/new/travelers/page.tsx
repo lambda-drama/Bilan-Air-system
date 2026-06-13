@@ -25,8 +25,13 @@ import {
   applyPayerToFirstTraveler,
   travelerMatchesPayer,
 } from "@/lib/payer-traveler-sync";
-import { bookingLookupRef, createBooking, confirmPaymentAndInvoice } from "@/services/airBooking";
+import {
+  normalizePassengerCounts,
+  passengerTypesFromCounts,
+  totalPassengers,
+} from "@/lib/passenger-search-counts";
 import { toast } from "sonner";
+import { getFlightSchedule } from "@/services/flightSchedule";
 
 const MAX_TRAVELERS = 9;
 
@@ -59,6 +64,7 @@ export default function OfficeBookingTravelersPage() {
   const [payer, setPayer] = useState({ name: "", email: "", phone: "" });
   const [passengers, setPassengers] = useState<OfficeBookingPassengerDraft[]>([emptyPassenger()]);
   const [markPaid, setMarkPaid] = useState(true);
+  const [onlyPrepayment, setOnlyPrepayment] = useState(false);
   const [payerIsTraveling, setPayerIsTraveling] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -79,17 +85,38 @@ export default function OfficeBookingTravelersPage() {
       return;
     }
     setDraft(d);
-    setMarkPaid(d.markPaid ?? true);
+    setMarkPaid(d.onlyPrepayment ? true : (d.markPaid ?? true));
+    setOnlyPrepayment(!!d.onlyPrepayment);
+    getFlightSchedule(d.scheduleId)
+      .then((schedule) => {
+        if (schedule.only_prepayment) {
+          setOnlyPrepayment(true);
+          setMarkPaid(true);
+        }
+      })
+      .catch(() => {});
     const nextPayer = d.payer ?? { name: "", email: "", phone: "" };
     if (d.payer) setPayer(nextPayer);
 
     const count = enableSeatSelection
       ? Math.max(d.selectedSeatIds?.length ?? 0, d.passengers?.length ?? 0, 1)
-      : Math.max(d.passengerCount ?? 1, d.passengers?.length ?? 0, 1);
-    let nextPassengers = Array.from(
-      { length: count },
-      (_, i) => d.passengers?.[i] || emptyPassenger(),
-    );
+      : Math.max(
+          d.passengerCount ?? totalPassengers(normalizePassengerCounts(d.passengerCounts)),
+          d.passengers?.length ?? 0,
+          1,
+        );
+    const typeDefaults = d.passengerCounts
+      ? passengerTypesFromCounts(normalizePassengerCounts(d.passengerCounts))
+      : [];
+    let nextPassengers = Array.from({ length: count }, (_, i) => {
+      const saved = d.passengers?.[i];
+      if (saved) return saved;
+      const empty = emptyPassenger();
+      if (typeDefaults[i]) {
+        empty.passenger_type = typeDefaults[i];
+      }
+      return empty;
+    });
     const traveling =
       d.payerIsTraveling ??
       (count === 1 || travelerMatchesPayer(nextPassengers[0], nextPayer));
@@ -179,6 +206,9 @@ export default function OfficeBookingTravelersPage() {
       if (!p.full_name.trim()) missing.push(`Traveler ${n} name`);
       if (!p.passenger_type) missing.push(`Traveler ${n} passenger type (Adult / Child / Infant)`);
     });
+    if (onlyPrepayment && !markPaid) {
+      missing.push("This flight requires pre-payment — mark as paid to continue");
+    }
     return missing;
   };
 
@@ -197,6 +227,7 @@ export default function OfficeBookingTravelersPage() {
         booking_source: "office",
         flight_schedule: draft.scheduleId,
         seat_class: draft.seatClass,
+        cabin_class: draft.cabinClass || draft.seatClass,
         payer_name: payer.name.trim(),
         payer_email: payer.email.trim(),
         payer_phone: payer.phone.trim(),
@@ -414,11 +445,14 @@ export default function OfficeBookingTravelersPage() {
         <div>
           <Label className="text-sm font-medium">Paid at counter</Label>
           <p className="text-xs text-muted-foreground">
-            Creates sales invoice and records payment immediately
+            {onlyPrepayment
+              ? "This flight requires pre-payment — reservation without payment is not allowed."
+              : "Creates sales invoice and records payment immediately"}
           </p>
         </div>
         <Switch
           checked={markPaid}
+          disabled={onlyPrepayment}
           onCheckedChange={(v) => {
             setMarkPaid(v);
             persistDraft(passengers, payer, v);
