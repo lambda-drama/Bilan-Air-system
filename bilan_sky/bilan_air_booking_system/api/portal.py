@@ -29,12 +29,30 @@ def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modifie
 
 
 @frappe.whitelist()
-def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search=None):
+def list_flight_schedules(
+	limit=50,
+	offset=0,
+	status=None,
+	upcoming=None,
+	search=None,
+	departure_date=None,
+	departure_time=None,
+):
 	filters = {}
 	if frappe.utils.cint(upcoming):
 		filters["status"] = ["in", ["Scheduled", "Boarding", "Delayed"]]
 	elif status:
 		filters["status"] = status
+
+	if departure_date:
+		filters["departure_date"] = departure_date
+
+	if departure_time:
+		time_value = str(departure_time).strip()
+		if len(time_value) == 5:
+			filters["departure_time"] = ["like", f"{time_value}%"]
+		else:
+			filters["departure_time"] = time_value
 
 	or_filters = None
 	if search:
@@ -42,6 +60,10 @@ def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search
 			"flight_number": ["like", f"%{search}%"],
 			"name": ["like", f"%{search}%"],
 		}
+
+	order_by = "departure_date desc, departure_time desc"
+	if departure_date or departure_time:
+		order_by = "departure_date asc, departure_time asc"
 
 	result = _paginated(
 		"Flight Schedule",
@@ -60,6 +82,7 @@ def list_flight_schedules(limit=50, offset=0, status=None, upcoming=None, search
 		],
 		filters=filters,
 		or_filters=or_filters,
+		order_by=order_by,
 		limit=limit,
 		offset=offset,
 	)

@@ -72,6 +72,8 @@ export async function listSchedules(opts?: {
   status?: string;
   upcoming?: boolean;
   search?: string;
+  departure_date?: string;
+  departure_time?: string;
 }) {
   return apiRequest<PaginatedResponse<FlightScheduleRow>>(
     methodUrl("portal", "list_flight_schedules"),
@@ -83,6 +85,8 @@ export async function listSchedules(opts?: {
         status: opts?.status ?? null,
         upcoming: opts?.upcoming ? 1 : 0,
         search: opts?.search ?? null,
+        departure_date: opts?.departure_date ?? null,
+        departure_time: opts?.departure_time ?? null,
       }),
     },
   );

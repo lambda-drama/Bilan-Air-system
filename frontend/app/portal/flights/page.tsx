@@ -143,6 +143,8 @@ function PortalFlightsPageContent() {
   const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
+  const [departureDateFilter, setDepartureDateFilter] = useState("");
+  const [departureTimeFilter, setDepartureTimeFilter] = useState("");
 
   useEffect(() => {
     if (searchParams.get("view") === "upcoming") {
@@ -164,11 +166,14 @@ function PortalFlightsPageContent() {
             ? undefined
             : statusFilter,
         upcoming: statusFilter === UPCOMING_STATUSES_VALUE,
+        departure_date: departureDateFilter.trim() || undefined,
+        departure_time: departureTimeFilter.trim() || undefined,
       });
       return res.data;
     },
-    [statusFilter],
+    [statusFilter, departureDateFilter, departureTimeFilter],
   );
+  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}`;
   const {
     search: searchQuery,
     setSearch: setSearchQuery,
@@ -176,7 +181,12 @@ function PortalFlightsPageContent() {
     loading,
     error,
     refresh,
-  } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: statusFilter });
+  } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: listReloadKey });
+  const hasListFilters =
+    !!searchQuery.trim() ||
+    statusFilter !== ALL_STATUSES_VALUE ||
+    !!departureDateFilter ||
+    !!departureTimeFilter;
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyScheduleForm);
   const [arrivalTouched, setArrivalTouched] = useState(false);
@@ -879,7 +889,7 @@ function PortalFlightsPageContent() {
               <Plane className="h-5 w-5 text-gold" />
               All departures
             </CardTitle>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <label htmlFor="flight-status-filter" className="text-sm font-medium text-muted-foreground shrink-0">
                   Status
@@ -898,6 +908,36 @@ function PortalFlightsPageContent() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                <label
+                  htmlFor="flight-departure-date-filter"
+                  className="text-sm font-medium text-muted-foreground shrink-0"
+                >
+                  Departure date
+                </label>
+                <Input
+                  id="flight-departure-date-filter"
+                  type="date"
+                  value={departureDateFilter}
+                  onChange={(e) => setDepartureDateFilter(e.target.value)}
+                  className="w-full sm:w-[160px]"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                <label
+                  htmlFor="flight-departure-time-filter"
+                  className="text-sm font-medium text-muted-foreground shrink-0"
+                >
+                  Time <span className="font-normal">(optional)</span>
+                </label>
+                <Input
+                  id="flight-departure-time-filter"
+                  type="time"
+                  value={departureTimeFilter}
+                  onChange={(e) => setDepartureTimeFilter(e.target.value)}
+                  className="w-full sm:w-[140px]"
+                />
               </div>
               <ListSearch
                 value={searchQuery}
@@ -932,7 +972,7 @@ function PortalFlightsPageContent() {
                   {rows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                        {searchQuery.trim() || statusFilter !== ALL_STATUSES_VALUE
+                        {hasListFilters
                           ? "No flights match your filters."
                           : "No flight schedules yet."}
                       </TableCell>
