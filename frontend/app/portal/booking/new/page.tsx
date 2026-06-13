@@ -18,7 +18,7 @@ import {
   loadOfficeBookingDraft,
   saveOfficeBookingDraft,
 } from "@/lib/office-booking-store";
-import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
+import { formatAirportDisplay, formatRouteDisplay, buildIataLabelMapFromRoutes } from "@/lib/format-airport";
 import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import { FlightSearchPassengersCabin } from "@/components/flight-search-passengers-cabin";
 import { NearestFlightDatesPanel } from "@/components/nearest-flight-dates-panel";
@@ -208,6 +208,8 @@ function OfficeBookingSearchContent() {
       })),
     [routeList],
   );
+
+  const iataLabels = useMemo(() => buildIataLabelMapFromRoutes(routeList), [routeList]);
 
   const applyRouteAirports = (routeName: string) => {
     const r = routeList.find((x) => x.name === routeName);
@@ -517,6 +519,7 @@ function OfficeBookingSearchContent() {
                 variant="portal"
                 flight={flightSearchResultToFareDisplay(f, origin, destination, departureDate)}
                 seatClasses={seatClasses}
+                iataLabels={iataLabels}
                 cabinFilter={seatClass}
                 formatMoney={formatMoney}
                 formatDate={(iso) =>

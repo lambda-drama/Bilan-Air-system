@@ -13,7 +13,7 @@ import { SearchableSelect } from "@/components/portal/searchable-select";
 import { FlightSearchPassengersCabin } from "@/components/flight-search-passengers-cabin";
 import { NearestFlightDatesPanel } from "@/components/nearest-flight-dates-panel";
 import { useCurrency } from "@/contexts/currency-context";
-import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
+import { formatAirportDisplay, formatRouteDisplay, buildIataLabelMapFromRoutes } from "@/lib/format-airport";
 import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
 import { cabinOptionsFromApi } from "@/lib/cabin-classes";
 import {
@@ -130,6 +130,8 @@ export function DashboardFlightSearch() {
       })),
     [routeList],
   );
+
+  const iataLabels = useMemo(() => buildIataLabelMapFromRoutes(routeList), [routeList]);
 
   const applyRouteAirports = (routeName: string) => {
     const r = routeList.find((x) => x.name === routeName);
@@ -390,6 +392,7 @@ export function DashboardFlightSearch() {
                     variant="portal"
                     flight={flightSearchResultToFareDisplay(f, origin, destination, departureDate)}
                     seatClasses={seatClasses}
+                    iataLabels={iataLabels}
                     cabinFilter={seatClass}
                     formatMoney={formatMoney}
                     formatDate={(iso) =>

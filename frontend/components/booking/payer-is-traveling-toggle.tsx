@@ -18,9 +18,15 @@ export function PayerIsTravelingToggle({
   return (
     <Button
       type="button"
-      variant={active ? "secondary" : "outline"}
+      variant="outline"
       size="sm"
-      className={cn("h-8 gap-1.5 text-xs font-normal", className)}
+      className={cn(
+        "h-8 gap-1.5 text-xs font-normal",
+        active
+          ? "border-gold/40 bg-gold/15 text-foreground hover:bg-gold/25 dark:border-transparent dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary/80"
+          : "text-muted-foreground",
+        className,
+      )}
       onClick={() => onToggle(!active)}
     >
       <UserCheck className="h-3.5 w-3.5" />

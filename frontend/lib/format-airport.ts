@@ -62,10 +62,10 @@ export function buildIataLabelMapFromRoutes(routes: AvailableRoute[]): Map<strin
 
 export function labelForIata(
   code: string | undefined,
-  labelsByIata: Map<string, string>,
+  labelsByIata?: Map<string, string> | null,
 ): string {
   if (!code) return "—";
-  return labelsByIata.get(code) || code;
+  return labelsByIata?.get(code) || code;
 }
 
 export function endpointLabel(code?: string, label?: string): string {

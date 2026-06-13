@@ -301,8 +301,8 @@ def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_a
 		"deboarding_airport": deboard,
 		"aircraft_model": plane.get("aircraft_model"),
 		"operator": plane.get("operator"),
-		"is_active": cint(_row_val(schedule, "is_active", 1)),
-		"only_prepayment": cint(_row_val(schedule, "only_prepayment", 0)),
+		"is_active": cint(_row_val(schedule, "is_active") or 1),
+		"only_prepayment": cint(_row_val(schedule, "only_prepayment") or 0),
 	}
 
 
@@ -328,6 +328,8 @@ def _find_schedules_for_routes(routes, date, passengers, origin_airport=None, de
 				"base_fare_child_override",
 				"base_fare_infant_override",
 				"airplane",
+				"is_active",
+				"only_prepayment",
 			],
 		)
 		for schedule in schedules:
