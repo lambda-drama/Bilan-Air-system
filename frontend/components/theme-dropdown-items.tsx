@@ -1,47 +1,33 @@
 'use client';
 
-import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
-import {
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { nextTheme, themeOption, type ThemeValue } from '@/lib/theme-options';
 
-const THEMES = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
-] as const;
-
-/** Theme options shown directly in profile / account dropdowns (no nested submenu). */
+/** Single theme control in profile dropdown — click cycles light → dark → system. */
 export function ThemeDropdownSubmenu() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
-  const current = mounted ? theme || 'system' : 'system';
+  const current = (mounted ? theme || 'system' : 'system') as ThemeValue;
+  const { label, icon: Icon } = themeOption(current);
 
   return (
     <>
       <DropdownMenuSeparator />
-      <DropdownMenuLabel className="text-xs text-muted-foreground">Appearance</DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={current}
-        onValueChange={(value) => {
-          setTheme(value);
+      <DropdownMenuItem
+        disabled={!mounted}
+        onSelect={(event) => {
+          event.preventDefault();
+          setTheme(nextTheme(current));
         }}
       >
-        {THEMES.map(({ value, label, icon: Icon }) => (
-          <DropdownMenuRadioItem key={value} value={value} disabled={!mounted}>
-            <Icon className="h-4 w-4" />
-            {label}
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
+        <Icon className="h-4 w-4" />
+        {label}
+      </DropdownMenuItem>
     </>
   );
 }

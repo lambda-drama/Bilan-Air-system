@@ -20,19 +20,35 @@ import {
 } from "@/lib/office-booking-store";
 import { formatAirportDisplay, formatRouteDisplay } from "@/lib/format-airport";
 import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
+import { FlightSearchPassengersCabin } from "@/components/flight-search-passengers-cabin";
+import { NearestFlightDatesPanel } from "@/components/nearest-flight-dates-panel";
+import { cabinOptionsFromApi } from "@/lib/cabin-classes";
+import {
+  DEFAULT_PASSENGER_COUNTS,
+  normalizePassengerCounts,
+  seatsRequired,
+  totalPassengers,
+  SEAT_CLASS_OPTIONS,
+  type PassengerSearchCounts,
+  type SeatClassOption,
+} from "@/lib/passenger-search-counts";
 import {
   findFlights,
   fetchAllRoutes,
+  fetchPublicSeatClasses,
+  fetchPublicCabinClasses,
   getBookingSearchDefaults,
+  suggestNearestFlightDates,
   type AvailableRoute,
   type FlightSearchResult,
+  type NearestFlightDateSuggestion,
+  type PublicSeatClassOption,
 } from "@/services/search";
-
-const SEAT_CLASS_OPTIONS = [
-  { value: "Economy", label: "Economy" },
-  { value: "Business", label: "Business" },
-  { value: "First Class", label: "First Class" },
-];
+import {
+  FlightFareResultCard,
+  defaultFareCardLabels,
+  flightSearchResultToFareDisplay,
+} from "@/components/flight-fare-result-card";
 
 type SearchMode = "route" | "airports";
 
@@ -48,15 +64,23 @@ function OfficeBookingSearchContent() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [departureDate, setDepartureDate] = useState("");
-  const [passengerCount, setPassengerCount] = useState(1);
-  const [seatClass, setSeatClass] = useState("Economy");
+  const [passengerCounts, setPassengerCounts] = useState<PassengerSearchCounts>({
+    ...DEFAULT_PASSENGER_COUNTS,
+  });
+  const [seatClass, setSeatClass] = useState<SeatClassOption>("Economy");
   const [airportOptions, setAirportOptions] = useState<{ value: string; label: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
+  const [departureSuggestions, setDepartureSuggestions] = useState<NearestFlightDateSuggestion[]>([]);
+  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] = useState(false);
+  const [departureSuggestionsChecked, setDepartureSuggestionsChecked] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
+  const [activeSeatClass, setActiveSeatClass] = useState<string | null>(null);
   const [enableSeatSelection, setEnableSeatSelection] = useState(false);
+  const [seatClasses, setSeatClasses] = useState<PublicSeatClassOption[]>([]);
+  const [cabinOptions, setCabinOptions] = useState(SEAT_CLASS_OPTIONS);
 
   useEffect(() => {
     const schedule = searchParams.get("schedule");
@@ -74,9 +98,16 @@ function OfficeBookingSearchContent() {
     }
 
     let cancelled = false;
-    Promise.all([fetchAllRoutes(), getBookingSearchDefaults()])
-      .then(([routes, defaults]) => {
+    Promise.all([
+      fetchAllRoutes(),
+      getBookingSearchDefaults(),
+      fetchPublicSeatClasses(),
+      fetchPublicCabinClasses(),
+    ])
+      .then(([routes, defaults, classes, cabins]) => {
         if (cancelled) return;
+        setSeatClasses(classes);
+        setCabinOptions(cabinOptionsFromApi(cabins));
         const codes = new Map<string, string>();
         for (const r of routes) {
           if (r.origin_code) codes.set(r.origin_code, r.origin_city || r.origin_code);
@@ -95,14 +126,22 @@ function OfficeBookingSearchContent() {
         let nextDate = defaults.suggested_date;
         let nextRoute = defaults.route || "";
         let nextMode: SearchMode = "route";
-        let nextPassengers = 1;
-        let nextSeatClass = "Economy";
+        let nextPassengers = DEFAULT_PASSENGER_COUNTS;
+        let nextSeatClass: SeatClassOption = "Economy";
 
         const draft = loadOfficeBookingDraft();
         if (draft?.scheduleId) setActiveScheduleId(draft.scheduleId);
         if (draft) {
-          if (draft.seatClass) nextSeatClass = draft.seatClass;
-          if (draft.passengerCount) nextPassengers = draft.passengerCount;
+          if (draft.seatClass) nextSeatClass = draft.seatClass as SeatClassOption;
+          if (draft.passengerCounts) {
+            nextPassengers = normalizePassengerCounts(draft.passengerCounts);
+          } else if (draft.passengerCount) {
+            nextPassengers = normalizePassengerCounts({
+              adults: draft.passengerCount,
+              children: 0,
+              infants: 0,
+            });
+          }
           if (draft.departureDate) nextDate = draft.departureDate;
           if (draft.route) {
             nextRoute = draft.route;
@@ -120,7 +159,7 @@ function OfficeBookingSearchContent() {
 
         setEnableSeatSelection(!!defaults.enable_seat_selection);
         setSeatClass(nextSeatClass);
-        setPassengerCount(nextPassengers);
+        setPassengerCounts(nextPassengers);
         setOrigin(nextOrigin);
         setDestination(nextDestination);
         setDepartureDate(nextDate);
@@ -177,13 +216,40 @@ function OfficeBookingSearchContent() {
     if (r.destination_code) setDestination(r.destination_code);
   };
 
+  const loadDepartureSuggestions = async (
+    opts: { mode: SearchMode; route: string; origin: string; destination: string },
+    anchorDate: string,
+    seatNeed: number,
+  ) => {
+    const legOrigin = opts.mode === "route" ? origin : opts.origin;
+    const legDestination = opts.mode === "route" ? destination : opts.destination;
+    if (!legOrigin || !legDestination || !anchorDate) return;
+    setLoadingDepartureSuggestions(true);
+    setDepartureSuggestionsChecked(false);
+    setDepartureSuggestions([]);
+    try {
+      const res = await suggestNearestFlightDates({
+        origin: legOrigin,
+        destination: legDestination,
+        anchor_date: anchorDate,
+        passengers: seatNeed,
+      });
+      setDepartureSuggestions(res.suggestions || []);
+    } catch {
+      setDepartureSuggestions([]);
+    } finally {
+      setLoadingDepartureSuggestions(false);
+      setDepartureSuggestionsChecked(true);
+    }
+  };
+
   const runFlightSearch = async (opts: {
     mode: SearchMode;
     route: string;
     origin: string;
     destination: string;
     date: string;
-    passengers: number;
+    passengers: PassengerSearchCounts;
   }) => {
     if (!opts.date) {
       showValidation(["Departure date"]);
@@ -200,27 +266,34 @@ function OfficeBookingSearchContent() {
     clearAlerts();
     setSearching(true);
     setSearchError("");
+    setDepartureSuggestions([]);
+    setDepartureSuggestionsChecked(false);
+    const seatNeed = seatsRequired(opts.passengers);
     try {
       const res =
         opts.mode === "route"
           ? await findFlights({
               route: opts.route,
               date: opts.date,
-              passengers: opts.passengers,
+              passengers: seatNeed,
             })
           : await findFlights({
               origin: opts.origin,
               destination: opts.destination,
               date: opts.date,
-              passengers: opts.passengers,
+              passengers: seatNeed,
             });
       if (res.error) {
         setSearchError(res.error);
         setFlightResults([]);
+        void loadDepartureSuggestions(opts, opts.date, seatNeed);
         return;
       }
       setFlightResults(res.flights || []);
-      if (!res.flights?.length) setSearchError("No flights on this route and date.");
+      if (!res.flights?.length) {
+        setSearchError("No flights on this route and date.");
+        void loadDepartureSuggestions(opts, opts.date, seatNeed);
+      }
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : "Search failed");
       setFlightResults([]);
@@ -236,32 +309,53 @@ function OfficeBookingSearchContent() {
       origin,
       destination,
       date: departureDate,
-      passengers: passengerCount,
+      passengers: passengerCounts,
     });
 
-  const selectFlight = (flight: FlightSearchResult) => {
+  const applyDepartureSuggestion = (suggestedDate: string) => {
+    setDepartureDate(suggestedDate);
+    setSearchError("");
+    setDepartureSuggestions([]);
+    void runFlightSearch({
+      mode: searchMode,
+      route: selectedRoute,
+      origin,
+      destination,
+      date: suggestedDate,
+      passengers: passengerCounts,
+    });
+  };
+
+  const selectFlight = (flight: FlightSearchResult, chosenClass: string) => {
+    const cabinClassName =
+      seatClasses.find((sc) => sc.class_name === chosenClass)?.cabin_name || seatClass;
+    const paxTotal = totalPassengers(passengerCounts);
     const existing = loadOfficeBookingDraft();
     const keepSeats =
       existing?.scheduleId === flight.schedule_id &&
-      existing.seatClass === seatClass
+      existing.seatClass === chosenClass
         ? existing.selectedSeatIds
         : [];
 
     saveOfficeBookingDraft({
       ...draftFromFlight(flight, {
-        seatClass,
-        passengerCount,
+        seatClass: chosenClass,
+        cabinClass: cabinClassName,
+        passengerCount: paxTotal,
+        passengerCounts,
         origin,
         destination,
         departureDate,
         route: searchMode === "route" ? selectedRoute : flight.route,
       }),
+      onlyPrepayment: !!flight.only_prepayment,
       selectedSeatIds: keepSeats,
       payer: existing?.payer,
       passengers: existing?.passengers,
       markPaid: existing?.markPaid,
     });
     setActiveScheduleId(flight.schedule_id);
+    setActiveSeatClass(chosenClass);
     router.push(officeBookingAfterFlightPath(flight.schedule_id, enableSeatSelection));
   };
 
@@ -357,52 +451,89 @@ function OfficeBookingSearchContent() {
             onChange={(e) => setDepartureDate(e.target.value)}
           />
         </FormField>
-            <FormField
-              label="Passengers (search)"
-              hint="Used to find flights with enough seats. Add more travelers on the next steps."
-            >
-              <Input
-                type="number"
-                min={1}
-                max={9}
-                value={passengerCount}
-                onChange={(e) => setPassengerCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              />
-            </FormField>
-        <FormField label="Cabin" required fullWidth>
-          <SearchableSelect
-            options={SEAT_CLASS_OPTIONS}
-            value={seatClass}
-            onValueChange={setSeatClass}
-            clearable={false}
-          />
-        </FormField>
       </FormGrid>
 
-      {searchError && <p className="mt-4 text-sm text-destructive">{searchError}</p>}
+      <FlightSearchPassengersCabin
+        counts={passengerCounts}
+        onCountsChange={setPassengerCounts}
+        seatClass={seatClass}
+        onSeatClassChange={setSeatClass}
+        cabinOptions={cabinOptions}
+        variant="portal"
+        disabled={searching}
+        className="mt-4"
+        labels={{
+          passengers: "Travelers",
+          adults: "Adults",
+          children: "Children (2–11)",
+          infants: "Infants (under 2)",
+          infantsHint: "On lap — no separate seat",
+          cabin: "Cabin",
+        }}
+      />
+
+      {searchError ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-destructive">{searchError}</p>
+          <NearestFlightDatesPanel
+            title="Nearest dates with flights:"
+            loadingLabel="Finding nearby dates…"
+            emptyLabel="No nearby dates found for this route."
+            useDateLabel={(d) =>
+              new Date(`${d}T12:00:00`).toLocaleDateString(undefined, {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            }
+            formatDaysOffset={(days) => {
+              if (days === 1) return "1 day later";
+              if (days === -1) return "1 day earlier";
+              if (days > 1) return `${days} days later`;
+              if (days < -1) return `${Math.abs(days)} days earlier`;
+              return "Same week";
+            }}
+            formatFlightCount={(count) =>
+              count > 1 ? `${count} flights available` : "1 flight available"
+            }
+            formatFromPrice={(amount) =>
+              `From ${formatMoney(Math.round(amount))}`
+            }
+            suggestions={departureSuggestions}
+            loading={loadingDepartureSuggestions}
+            checked={departureSuggestionsChecked}
+            onSelect={applyDepartureSuggestion}
+          />
+        </div>
+      ) : null}
 
       {flightResults.length > 0 && (
         <FormSection title="Available flights" className="mt-6">
-          <div className="space-y-2">
+          <div className="space-y-4">
             {flightResults.map((f) => (
-              <button
+              <FlightFareResultCard
                 key={f.schedule_id}
-                type="button"
-                onClick={() => selectFlight(f)}
-                className={`flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:border-gold hover:bg-muted/50 ${
-                  activeScheduleId === f.schedule_id ? "border-gold bg-gold/10" : ""
-                }`}
-              >
-                <div>
-                  <p className="font-medium">{f.flight_number}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {f.departure_time} → {f.arrival_time} · {f.available_seats} seats
-                  </p>
-                </div>
-                <span className="text-sm font-semibold text-gold">
-                  {formatMoney(f.prices?.[seatClass] ?? f.prices?.Economy)}
-                </span>
-              </button>
+                variant="portal"
+                flight={flightSearchResultToFareDisplay(f, origin, destination, departureDate)}
+                seatClasses={seatClasses}
+                cabinFilter={seatClass}
+                formatMoney={formatMoney}
+                formatDate={(iso) =>
+                  new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
+                labels={defaultFareCardLabels}
+                isSelected={activeScheduleId === f.schedule_id}
+                selectedClass={
+                  activeScheduleId === f.schedule_id ? activeSeatClass : null
+                }
+                onSelect={(chosenClass) => selectFlight(f, chosenClass)}
+              />
             ))}
           </div>
         </FormSection>

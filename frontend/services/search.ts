@@ -3,11 +3,44 @@ import { apiRequest, methodUrl } from "./apiClient";
 export interface FlightSearchResult {
   flight_number: string;
   schedule_id: string;
+  departure_date?: string;
+  arrival_date?: string;
   departure_time: string;
   arrival_time: string;
   available_seats: number;
   prices: Record<string, number>;
   route?: string;
+  is_multi_segment?: boolean;
+  stop_count?: number;
+  aircraft_model?: string | null;
+  operator?: string | null;
+  is_active?: number | boolean;
+  only_prepayment?: number | boolean;
+}
+
+export interface PublicCabinClassOption {
+  name: string;
+  cabin_name: string;
+  display_order?: number;
+  color_code?: string | null;
+  description?: string | null;
+  checked_baggage_kg: number;
+  checked_baggage_pieces?: number;
+  carry_on_kg?: number;
+}
+
+export interface PublicSeatClassOption {
+  name: string;
+  class_name: string;
+  cabin_class?: string;
+  cabin_name?: string;
+  use_on_aircraft_layout?: number | boolean;
+  price_multiplier?: number;
+  color_code?: string | null;
+  checked_baggage_kg: number;
+  checked_baggage_pieces?: number;
+  carry_on_kg?: number;
+  description?: string | null;
 }
 
 export interface FlightSearchResponse {
@@ -86,6 +119,28 @@ export async function fetchAllRoutes(): Promise<AvailableRoute[]> {
   });
 }
 
+export async function fetchPublicSeatClasses(): Promise<PublicSeatClassOption[]> {
+  const res = await apiRequest<{ seat_classes: PublicSeatClassOption[] }>(
+    methodUrl("search", "list_public_seat_classes"),
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
+  return res.seat_classes || [];
+}
+
+export async function fetchPublicCabinClasses(): Promise<PublicCabinClassOption[]> {
+  const res = await apiRequest<{ cabin_classes: PublicCabinClassOption[] }>(
+    methodUrl("search", "list_public_cabin_classes"),
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
+  return res.cabin_classes || [];
+}
+
 export async function getBookingSearchDefaults(): Promise<{
   origin_iata: string;
   destination_iata: string;
@@ -146,6 +201,7 @@ export interface NearestFlightDateSuggestion {
   date: string;
   flight_count: number;
   days_from_anchor: number;
+  min_fare?: number | null;
 }
 
 export async function suggestNearestFlightDates(params: {

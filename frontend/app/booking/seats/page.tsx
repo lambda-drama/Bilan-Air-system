@@ -79,6 +79,8 @@ function SeatSelectionContent() {
     legSelection?.flightScheduleId || searchParams.get('flight') || '';
   const seatClass =
     legSelection?.seatClass || searchParams.get('class') || 'Economy';
+  const cabinClass =
+    legSelection?.cabinClass || legSelection?.seatClass || searchParams.get('class') || 'Economy';
   const activeLeg = searchLegs[leg] || {
     origin: searchParams.get('origin') || '',
     destination: searchParams.get('destination') || '',
@@ -114,11 +116,11 @@ function SeatSelectionContent() {
       .finally(() => setLoading(false));
   }, [flightId, leg, legSelection?.selectedSeatIds, seatsParam]);
 
-  const visibleSeats = seats.filter((s) => s.seat_class === seatClass);
+  const visibleSeats = seats.filter((s) => s.seat_class === cabinClass);
 
   const toggleSeat = (seatId: string) => {
     const seat = seats.find((s) => s.name === seatId);
-    if (!seat || seat.status !== 'Available' || seat.seat_class !== seatClass) return;
+    if (!seat || seat.status !== 'Available' || seat.seat_class !== cabinClass) return;
 
     if (selectedSeats.includes(seatId)) {
       setSelectedSeats(selectedSeats.filter((s) => s !== seatId));
@@ -155,7 +157,7 @@ function SeatSelectionContent() {
     const params = new URLSearchParams({
       trip: tripType,
       flight: flightId,
-      class: seatClass,
+      class: cabinClass,
       seats: selectedSeats.join(','),
       seatLabels: labels.join(','),
       passengers: passengers.toString(),

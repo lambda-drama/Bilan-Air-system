@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:cabin_name",
+ "creation": "2026-06-13 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cabin_name",
+  "display_order",
+  "is_active",
+  "color_code",
+  "column_break_meta",
+  "description",
+  "baggage_section",
+  "checked_baggage_kg",
+  "checked_baggage_pieces",
+  "column_break_baggage",
+  "carry_on_kg",
+  "carry_on_pieces",
+  "excess_baggage_fee_per_kg"
+ ],
+ "fields": [
+  {
+   "fieldname": "cabin_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Cabin Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "description": "Used on seat maps and fare cards when no fare-class color is set.",
+   "fieldname": "color_code",
+   "fieldtype": "Data",
+   "label": "Color Code",
+   "placeholder": "#FFD700"
+  },
+  {
+   "fieldname": "column_break_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "baggage_section",
+   "fieldtype": "Section Break",
+   "label": "Default Baggage Allowance"
+  },
+  {
+   "description": "Default checked baggage for this cabin. Leave 0 to use BA Settings.",
+   "fieldname": "checked_baggage_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Checked Baggage (kg)"
+  },
+  {
+   "default": "1",
+   "fieldname": "checked_baggage_pieces",
+   "fieldtype": "Int",
+   "label": "Checked Bags (pieces)"
+  },
+  {
+   "fieldname": "column_break_baggage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Default cabin carry-on for this cabin. Leave 0 to use BA Settings.",
+   "fieldname": "carry_on_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Cabin Baggage (kg)"
+  },
+  {
+   "default": "1",
+   "fieldname": "carry_on_pieces",
+   "fieldtype": "Int",
+   "label": "Cabin Bags (pieces)"
+  },
+  {
+   "description": "Default excess fee per kg for this cabin. Leave 0 to use BA Settings.",
+   "fieldname": "excess_baggage_fee_per_kg",
+   "fieldtype": "Currency",
+   "label": "Excess Baggage Fee per KG",
+   "options": "currency"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-13 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Cabin Class",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Pricing Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": []
+}

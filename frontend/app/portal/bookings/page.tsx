@@ -124,10 +124,13 @@ function PortalBookingsPageContent() {
     confirmOnCreditDisabledReason,
   } = useBookingAgentCreditEligibility();
 
-  const creditActionEnabled = !agentCreditLoading && allowConfirmOnCredit;
+  const creditActionEnabled =
+    !agentCreditLoading && allowConfirmOnCredit && !detail?.flight?.only_prepayment;
   const creditActionDisabledReason = agentCreditLoading
     ? "Checking your booking agent profile…"
-    : confirmOnCreditDisabledReason;
+    : detail?.flight?.only_prepayment
+      ? "This flight requires pre-payment. Use Confirm payment instead."
+      : confirmOnCreditDisabledReason;
 
   useEffect(() => {
     clearPortalPointerLocks();

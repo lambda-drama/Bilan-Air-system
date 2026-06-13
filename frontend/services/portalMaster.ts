@@ -84,6 +84,8 @@ export async function listFlightRoutes(opts?: { limit?: number; offset?: number;
 export interface SeatClassRow {
   name: string;
   class_name: string;
+  cabin_class?: string;
+  use_on_aircraft_layout?: number | boolean;
   price_multiplier?: number;
   color_code?: string;
   is_active?: number | boolean;
@@ -95,10 +97,41 @@ export interface SeatClassRow {
   description?: string;
 }
 
-export async function listSeatClasses(activeOnly = true) {
+export async function listSeatClasses(activeOnly = true, layoutOnly?: boolean) {
   return apiRequest<SeatClassRow[]>(master("list_seat_classes"), {
     method: "POST",
+    body: JSON.stringify({
+      active_only: activeOnly ? 1 : 0,
+      layout_only: layoutOnly === undefined ? null : layoutOnly ? 1 : 0,
+    }),
+  });
+}
+
+export interface CabinClassRow {
+  name: string;
+  cabin_name: string;
+  display_order?: number;
+  color_code?: string;
+  is_active?: number | boolean;
+  checked_baggage_kg?: number;
+  checked_baggage_pieces?: number;
+  carry_on_kg?: number;
+  carry_on_pieces?: number;
+  excess_baggage_fee_per_kg?: number;
+  description?: string;
+}
+
+export async function listCabinClasses(activeOnly = true) {
+  return apiRequest<CabinClassRow[]>(master("list_cabin_classes"), {
+    method: "POST",
     body: JSON.stringify({ active_only: activeOnly ? 1 : 0 }),
+  });
+}
+
+export async function saveCabinClass(data: Partial<CabinClassRow> & { cabin_name: string }) {
+  return apiRequest<CabinClassRow>(master("save_cabin_class"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
   });
 }
 

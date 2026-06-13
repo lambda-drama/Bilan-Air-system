@@ -1,4 +1,14 @@
 import {
+  appendPassengerCountsToParams,
+  normalizePassengerCounts,
+  parsePassengerCountsFromParams,
+  parseSeatClassFromParams,
+  seatsRequired,
+  totalPassengers,
+  type PassengerSearchCounts,
+  type SeatClassOption,
+} from './passenger-search-counts';
+import {
   buildSearchLegs,
   decodeLegsParam,
   encodeLegsParam,
@@ -12,7 +22,9 @@ export function buildFlightsSearchUrl(options: {
   destination: string;
   departureDate: string;
   returnDate?: string;
-  passengers: number;
+  passengers?: number;
+  passengerCounts?: PassengerSearchCounts;
+  seatClass?: SeatClassOption;
   multiLegs?: TripSearchLeg[];
   leg?: number;
 }): string {
@@ -23,9 +35,16 @@ export function buildFlightsSearchUrl(options: {
     departureDate,
     returnDate,
     passengers,
+    passengerCounts,
+    seatClass,
     multiLegs,
     leg = 0,
   } = options;
+
+  const counts = normalizePassengerCounts(
+    passengerCounts ??
+      (passengers != null ? { adults: passengers, children: 0, infants: 0 } : undefined),
+  );
 
   const searchLegs = buildSearchLegs(
     tripType,
@@ -38,9 +57,12 @@ export function buildFlightsSearchUrl(options: {
 
   const params = new URLSearchParams({
     trip: tripType,
-    passengers: passengers.toString(),
     leg: leg.toString(),
   });
+  appendPassengerCountsToParams(params, counts);
+  if (seatClass && seatClass !== 'Economy') {
+    params.set('class', seatClass);
+  }
 
   if (tripType === 'multicity') {
     params.set('legs', encodeLegsParam(searchLegs));
@@ -64,7 +86,10 @@ export function buildFlightsSearchUrl(options: {
 
 export function parseFlightsSearchParams(searchParams: URLSearchParams) {
   const tripType = (searchParams.get('trip') || 'oneway') as TripType;
-  const passengers = parseInt(searchParams.get('passengers') || '1', 10);
+  const passengerCounts = parsePassengerCountsFromParams(searchParams);
+  const passengers = totalPassengers(passengerCounts);
+  const seatsNeeded = seatsRequired(passengerCounts);
+  const seatClass = parseSeatClassFromParams(searchParams);
   const leg = parseInt(searchParams.get('leg') || '0', 10);
   const origin = searchParams.get('origin') || '';
   const destination = searchParams.get('destination') || '';
@@ -86,6 +111,9 @@ export function parseFlightsSearchParams(searchParams: URLSearchParams) {
   return {
     tripType,
     passengers,
+    passengerCounts,
+    seatsNeeded,
+    seatClass,
     leg,
     origin: activeLeg?.origin || origin,
     destination: activeLeg?.destination || destination,

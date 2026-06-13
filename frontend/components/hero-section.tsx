@@ -22,10 +22,20 @@ import {
 import { cn } from '@/lib/utils';
 import { TripTypeSelector } from '@/components/trip-type-selector';
 import { SearchableSelect } from '@/components/portal/searchable-select';
+import { FlightSearchPassengersCabin } from '@/components/flight-search-passengers-cabin';
+import { NearestFlightDatesPanel } from '@/components/nearest-flight-dates-panel';
 import { buildFlightsSearchUrl } from '@/lib/flights-search-url';
+import {
+  DEFAULT_PASSENGER_COUNTS,
+  seatsRequired,
+  totalPassengers,
+  type PassengerSearchCounts,
+  type SeatClassOption,
+} from '@/lib/passenger-search-counts';
 import { buildSchedulesBrowseUrl } from '@/lib/schedules-browse-url';
 import type { TripSearchLeg, TripType } from '@/lib/trip-types';
 import { useLocale, useTranslations } from '@/contexts/locale-context';
+import { useCurrency } from '@/contexts/currency-context';
 
 const heroFieldClass =
   'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
@@ -37,6 +47,7 @@ export function HeroSection() {
   const router = useRouter();
   const { isRtl, locale } = useLocale();
   const t = useTranslations();
+  const { formatMoney } = useCurrency();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [tripType, setTripType] = useState<TripType>('oneway');
@@ -46,12 +57,18 @@ export function HeroSection() {
     { origin: '', destination: '', date: '' },
     { origin: '', destination: '', date: '' },
   ]);
-  const [passengers, setPassengers] = useState(1);
+  const [passengerCounts, setPassengerCounts] = useState<PassengerSearchCounts>({
+    ...DEFAULT_PASSENGER_COUNTS,
+  });
+  const [seatClass, setSeatClass] = useState<SeatClassOption>('Economy');
   const [bookingRef, setBookingRef] = useState('');
   const [loadingAirports, setLoadingAirports] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [searchError, setSearchError] = useState('');
   const [returnLegWarning, setReturnLegWarning] = useState(false);
+  const [departureSuggestions, setDepartureSuggestions] = useState<NearestFlightDateSuggestion[]>([]);
+  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] = useState(false);
+  const [departureSuggestionsChecked, setDepartureSuggestionsChecked] = useState(false);
   const [returnSuggestions, setReturnSuggestions] = useState<NearestFlightDateSuggestion[]>([]);
   const [loadingReturnSuggestions, setLoadingReturnSuggestions] = useState(false);
   const [returnSuggestionsChecked, setReturnSuggestionsChecked] = useState(false);
@@ -134,10 +151,16 @@ export function HeroSection() {
   const clearSearchFeedback = () => {
     if (searchError) setSearchError('');
     if (returnLegWarning) setReturnLegWarning(false);
+    if (departureSuggestions.length) setDepartureSuggestions([]);
+    if (loadingDepartureSuggestions) setLoadingDepartureSuggestions(false);
+    if (departureSuggestionsChecked) setDepartureSuggestionsChecked(false);
     if (returnSuggestions.length) setReturnSuggestions([]);
     if (loadingReturnSuggestions) setLoadingReturnSuggestions(false);
     if (returnSuggestionsChecked) setReturnSuggestionsChecked(false);
   };
+
+  const seatCount = seatsRequired(passengerCounts);
+  const totalPax = totalPassengers(passengerCounts);
 
   const formatSearchDate = (iso: string) =>
     new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'ar' ? 'ar-SO' : 'en-US', {
@@ -155,6 +178,31 @@ export function HeroSection() {
     return t.hero.sameWeekReturn;
   };
 
+  const formatFromPrice = (amount: number) =>
+    t.hero.fromPrice.replace('{price}', formatMoney(Math.round(amount)));
+
+  const loadDepartureDateSuggestions = async (anchorDate?: string) => {
+    const anchor = anchorDate || departureDate;
+    if (!origin || !destination || !anchor) return;
+    setLoadingDepartureSuggestions(true);
+    setDepartureSuggestionsChecked(false);
+    setDepartureSuggestions([]);
+    try {
+      const res = await suggestNearestFlightDates({
+        origin,
+        destination,
+        anchor_date: anchor,
+        passengers: seatCount,
+      });
+      setDepartureSuggestions(res.suggestions || []);
+    } catch {
+      setDepartureSuggestions([]);
+    } finally {
+      setLoadingDepartureSuggestions(false);
+      setDepartureSuggestionsChecked(true);
+    }
+  };
+
   const loadReturnDateSuggestions = async (anchorDate?: string) => {
     const anchor = anchorDate || returnDate;
     if (!origin || !destination || !anchor) return;
@@ -167,7 +215,7 @@ export function HeroSection() {
         destination: origin,
         anchor_date: anchor,
         min_date: departureDate,
-        passengers,
+        passengers: seatCount,
       });
       setReturnSuggestions(res.suggestions || []);
     } catch {
@@ -244,7 +292,7 @@ export function HeroSection() {
       origin: legOrigin,
       destination: legDestination,
       date: legDate,
-      passengers,
+      passengers: seatCount,
     });
     if (res.error || !res.flights?.length) {
       return { ok: false, error: res.error };
@@ -289,6 +337,7 @@ export function HeroSection() {
       ]);
       if (!result.ok) {
         setSearchError(t.hero.noFlightsFound);
+        void loadDepartureDateSuggestions();
         return;
       }
       navigateToFlights({
@@ -296,7 +345,8 @@ export function HeroSection() {
         origin: firstLeg.origin,
         destination: firstLeg.destination,
         departureDate: firstLeg.date,
-        passengers,
+        passengerCounts,
+        seatClass,
         multiLegs: validLegs,
       });
       return;
@@ -323,6 +373,7 @@ export function HeroSection() {
       const result = await runFlightSearch([{ origin, destination, date: departureDate }]);
       if (!result.ok) {
         setSearchError(t.hero.noFlightsFound);
+        void loadDepartureDateSuggestions();
         return;
       }
     }
@@ -333,7 +384,49 @@ export function HeroSection() {
       destination,
       departureDate,
       returnDate: tripType === 'return' ? returnDate : undefined,
-      passengers,
+      passengerCounts,
+      seatClass,
+    });
+  };
+
+  const applyDepartureSuggestion = async (suggestedDate: string) => {
+    setDepartureDate(suggestedDate);
+    setSearchError('');
+    setDepartureSuggestions([]);
+    setLoadingDepartureSuggestions(false);
+
+    if (tripType === 'return') {
+      const result = await runFlightSearch([
+        { origin, destination, date: suggestedDate },
+        { origin: destination, destination: origin, date: returnDate },
+      ]);
+      if (!result.ok) {
+        if (result.failedLeg === 0) {
+          setSearchError(t.hero.noOutboundFlightsFound);
+          void loadDepartureDateSuggestions(suggestedDate);
+        } else if (result.failedLeg === 1) {
+          setReturnLegWarning(true);
+          void loadReturnDateSuggestions();
+        }
+        return;
+      }
+    } else {
+      const result = await runFlightSearch([{ origin, destination, date: suggestedDate }]);
+      if (!result.ok) {
+        setSearchError(t.hero.noFlightsFound);
+        void loadDepartureDateSuggestions(suggestedDate);
+        return;
+      }
+    }
+
+    navigateToFlights({
+      tripType,
+      origin,
+      destination,
+      departureDate: suggestedDate,
+      returnDate: tripType === 'return' ? returnDate : undefined,
+      passengerCounts,
+      seatClass,
     });
   };
 
@@ -344,7 +437,8 @@ export function HeroSection() {
       destination,
       departureDate,
       returnDate,
-      passengers,
+      passengerCounts,
+      seatClass,
     });
   };
 
@@ -374,7 +468,8 @@ export function HeroSection() {
       destination,
       departureDate,
       returnDate: suggestedDate,
-      passengers,
+      passengerCounts,
+      seatClass,
     });
   };
 
@@ -398,7 +493,8 @@ export function HeroSection() {
             destination: first?.destination,
             dateFrom: first?.date,
             dateTo: last?.date,
-            passengers,
+            passengers: totalPax,
+            seatClass,
           };
         })()
       : tripType === 'return' && departureDate && returnDate
@@ -407,13 +503,15 @@ export function HeroSection() {
             destination,
             dateFrom: departureDate,
             dateTo: returnDate,
-            passengers,
+            passengers: totalPax,
+            seatClass,
           }
         : {
             origin: origin || undefined,
             destination: destination || undefined,
             date: departureDate || undefined,
-            passengers,
+            passengers: totalPax,
+            seatClass,
           },
   );
 
@@ -511,9 +609,33 @@ export function HeroSection() {
             )}
 
             {searchError && (
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
-                {searchError}
-              </p>
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4 space-y-3">
+                <p>{searchError}</p>
+                {(loadingDepartureSuggestions ||
+                  departureSuggestions.length > 0 ||
+                  departureSuggestionsChecked) && (
+                  <NearestFlightDatesPanel
+                    variant="hero"
+                    title={t.hero.nearestDateTitle}
+                    loadingLabel={t.hero.findingNearbyDates}
+                    emptyLabel={t.hero.noNearbyDates}
+                    useDateLabel={(date) =>
+                      t.hero.useDepartureDate.replace('{date}', formatSearchDate(date))
+                    }
+                    formatDaysOffset={formatDaysOffset}
+                    formatFlightCount={(count) =>
+                      count > 1
+                        ? t.hero.flightsAvailable.replace('{count}', String(count))
+                        : t.hero.oneFlightAvailable
+                    }
+                    formatFromPrice={formatFromPrice}
+                    suggestions={departureSuggestions}
+                    loading={loadingDepartureSuggestions}
+                    checked={departureSuggestionsChecked}
+                    onSelect={applyDepartureSuggestion}
+                  />
+                )}
+              </div>
             )}
 
             {returnLegWarning && (
@@ -523,50 +645,30 @@ export function HeroSection() {
                 </p>
                 <p className="text-amber-800/80">{t.hero.returnFlightsNotFoundHint}</p>
 
-                {loadingReturnSuggestions && (
-                  <p className="text-amber-800/70 inline-flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {t.hero.findingNearbyReturnDates}
-                  </p>
-                )}
-
-                {!loadingReturnSuggestions && returnSuggestions.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="font-semibold text-amber-900">{t.hero.nearestReturnTitle}</p>
-                    <div className={`flex flex-col gap-2 ${isRtl ? 'items-end' : ''}`}>
-                      {returnSuggestions.map((suggestion) => (
-                        <button
-                          key={suggestion.date}
-                          type="button"
-                          onClick={() => applyReturnSuggestion(suggestion.date)}
-                          className="w-full rounded-lg border border-amber-300/80 bg-white px-3 py-2 text-left hover:border-gold hover:bg-gold/10 transition-colors"
-                        >
-                          <span className="font-semibold text-navy">
-                            {t.hero.useReturnDate.replace(
-                              '{date}',
-                              formatSearchDate(suggestion.date),
-                            )}
-                          </span>
-                          <span className="block text-xs text-navy/60 mt-0.5">
-                            {formatDaysOffset(suggestion.days_from_anchor)}
-                            {' · '}
-                            {suggestion.flight_count > 1
-                              ? t.hero.flightsAvailable.replace(
-                                  '{count}',
-                                  String(suggestion.flight_count),
-                                )
-                              : t.hero.oneFlightAvailable}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {!loadingReturnSuggestions &&
-                  returnSuggestionsChecked &&
-                  returnSuggestions.length === 0 && (
-                  <p className="text-amber-800/70">{t.hero.noNearbyReturnDates}</p>
+                {(loadingReturnSuggestions ||
+                  returnSuggestions.length > 0 ||
+                  returnSuggestionsChecked) && (
+                  <NearestFlightDatesPanel
+                    variant="hero"
+                    title={t.hero.nearestReturnTitle}
+                    loadingLabel={t.hero.findingNearbyReturnDates}
+                    emptyLabel={t.hero.noNearbyReturnDates}
+                    useDateLabel={(date) =>
+                      t.hero.useReturnDate.replace('{date}', formatSearchDate(date))
+                    }
+                    formatDaysOffset={formatDaysOffset}
+                    formatFlightCount={(count) =>
+                      count > 1
+                        ? t.hero.flightsAvailable.replace('{count}', String(count))
+                        : t.hero.oneFlightAvailable
+                    }
+                    formatFromPrice={formatFromPrice}
+                    suggestions={returnSuggestions}
+                    loading={loadingReturnSuggestions}
+                    checked={returnSuggestionsChecked}
+                    onSelect={applyReturnSuggestion}
+                    className={isRtl ? 'items-end' : undefined}
+                  />
                 )}
 
                 <Button
@@ -754,17 +856,22 @@ export function HeroSection() {
                 </>
               )}
 
-              <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.passengers}</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={9}
-                  value={passengers}
-                  onChange={(e) => setPassengers(parseInt(e.target.value) || 1)}
-                  className={heroFieldClass}
-                />
-              </div>
+              <FlightSearchPassengersCabin
+                counts={passengerCounts}
+                onCountsChange={setPassengerCounts}
+                seatClass={seatClass}
+                onSeatClassChange={setSeatClass}
+                variant="hero"
+                disabled={loadingAirports || searching}
+                labels={{
+                  passengers: t.hero.passengers,
+                  adults: t.hero.adults,
+                  children: t.hero.children,
+                  infants: t.hero.infants,
+                  infantsHint: t.hero.infantsHint,
+                  cabin: t.hero.cabin,
+                }}
+              />
 
               <Button
                 onClick={handleSearch}

@@ -56,6 +56,7 @@ class AirBooking(Document):
 
     def before_save(self):
         """Run validations before saving"""
+        self.validate_schedule_bookable()
         self.validate_booking_cutoff()
         self.validate_passengers()
         self.validate_seat_availability()
@@ -114,25 +115,29 @@ class AirBooking(Document):
     
     def validate_booking_cutoff(self):
         """Prevent booking if within cutoff time"""
-        
         if self.reservation_status == CONFIRM:
             return  # Already paid, skip cutoff check
-        
-        # Get cutoff from settings
+        if not self.flight_schedule:
+            return
+
         settings = frappe.get_single("BA Settings")
         cutoff_hours = settings.booking_cutoff_hours
-        
-        # Get flight departure time
         flight = frappe.get_doc("Flight Schedule", self.flight_schedule)
         departure_datetime = get_datetime(f"{flight.departure_date} {flight.departure_time}")
-        
-        # Calculate cutoff datetime
+
         from frappe.utils import add_to_date
         cutoff_datetime = add_to_date(departure_datetime, hours=-cutoff_hours)
-        
-        # Check if current time is past cutoff
+
         if get_datetime(now()) > get_datetime(cutoff_datetime):
             frappe.throw(f"Cannot book. Booking cutoff was {cutoff_datetime}")
+
+    def validate_schedule_bookable(self):
+        from bilan_sky.bilan_air_booking_system.utils.flight_schedule_booking import (
+            assert_schedule_active_for_booking,
+        )
+
+        if self.flight_schedule:
+            assert_schedule_active_for_booking(self.flight_schedule)
     
     def validate_passengers(self):
         if not self.passengers:
@@ -192,11 +197,23 @@ class AirBooking(Document):
                     f"Seat {seat.seat_number} is no longer available ({seat.status})"
                 )
     
-    def _cabin_class_multiplier(self, cabin_class_name):
-        seat_class_name = frappe.db.get_value("Seat Class", {"class_name": cabin_class_name}, "name")
-        if not seat_class_name:
-            return 1.0
-        return flt(frappe.db.get_value("Seat Class", seat_class_name, "price_multiplier")) or 1.0
+    def _cabin_class_multiplier(self, cabin_class_name=None, fare_class_name=None):
+        from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import (
+            fare_multiplier_for_code,
+            multiplier_for_cabin_name,
+            resolve_seat_class_ref,
+        )
+
+        if fare_class_name:
+            return fare_multiplier_for_code(
+                frappe.db.get_value("Seat Class", fare_class_name, "class_name")
+            )
+        if cabin_class_name:
+            seat_class_name = resolve_seat_class_ref(cabin_class_name)
+            if seat_class_name:
+                return flt(frappe.db.get_value("Seat Class", seat_class_name, "price_multiplier")) or 1.0
+            return multiplier_for_cabin_name(cabin_class_name)
+        return 1.0
 
     # =========================================================
     # FARE CALCULATION
@@ -235,11 +252,16 @@ class AirBooking(Document):
                 seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
                 if seat_name:
                     passenger.seat_number = seat_name
-                    seat = frappe.get_doc("Seat Inventory", seat_name)
-                    seat_class = frappe.get_doc("Seat Class", seat.seat_class)
-                    class_multiplier = flt(seat_class.price_multiplier) or 1.0
+                    if self.fare_class:
+                        class_multiplier = self._cabin_class_multiplier(fare_class_name=self.fare_class)
+                    else:
+                        seat = frappe.get_doc("Seat Inventory", seat_name)
+                        seat_class = frappe.get_doc("Seat Class", seat.seat_class)
+                        class_multiplier = flt(seat_class.price_multiplier) or 1.0
+            elif self.fare_class:
+                class_multiplier = self._cabin_class_multiplier(fare_class_name=self.fare_class)
             elif self.cabin_class:
-                class_multiplier = self._cabin_class_multiplier(self.cabin_class)
+                class_multiplier = self._cabin_class_multiplier(cabin_class_name=self.cabin_class)
 
             passenger.fare_paid = round(base_fare * class_multiplier * fare_multiplier, 2)
 
@@ -344,6 +366,12 @@ class AirBooking(Document):
         """Confirm ticket: issue PNR + ticket numbers after payment or approved agent credit."""
         if self.reservation_status == VOID:
             frappe.throw("Cannot confirm a voided reservation.")
+        if via_credit:
+            from bilan_sky.bilan_air_booking_system.utils.flight_schedule_booking import (
+                assert_credit_confirmation_allowed,
+            )
+
+            assert_credit_confirmation_allowed(self.flight_schedule)
         self.calculate_total_fare()
         if via_credit:
             self._ensure_confirmable_fare_for_credit()

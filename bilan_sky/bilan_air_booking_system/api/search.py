@@ -28,6 +28,7 @@ def _bookable_schedule_filters(route_name, departure_date):
 		"route": route_name,
 		"departure_date": _normalize_departure_date(departure_date),
 		"status": ["in", ["Scheduled", "Delayed"]],
+		"is_active": 1,
 	}
 	if user_has_portal_access():
 		filters["docstatus"] = ["in", [0, 1]]
@@ -170,6 +171,81 @@ def _prices_for_schedule(schedule, route, route_name):
 	return payload["prices"]
 
 
+def _min_fare_from_flight_results(results):
+	"""Lowest adult cabin price across all flights in search results."""
+	from frappe.utils import flt
+
+	min_price = None
+	for item in results or []:
+		for price in (item.get("prices") or {}).values():
+			p = flt(price)
+			if p <= 0:
+				continue
+			if min_price is None or p < min_price:
+				min_price = p
+	return round(min_price, 2) if min_price is not None else None
+
+
+def _airplane_details(airplane_link):
+	if not airplane_link:
+		return {"aircraft_model": None, "operator": None}
+	row = frappe.db.get_value(
+		"Airplane",
+		airplane_link,
+		["aircraft_model", "airline"],
+		as_dict=True,
+	)
+	if not row:
+		return {"aircraft_model": None, "operator": None}
+	operator = None
+	if row.airline:
+		if frappe.db.exists("Airline", row.airline):
+			operator = (
+				frappe.db.get_value("Airline", row.airline, "airline_name") or row.airline
+			)
+		else:
+			operator = row.airline
+	return {"aircraft_model": row.aircraft_model, "operator": operator}
+
+
+def _public_seat_class_rows():
+	from frappe.utils import cint, flt
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import (
+		get_default_baggage_policy,
+	)
+	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_bookable_fare_classes
+
+	defaults = get_default_baggage_policy()
+	rows = list_bookable_fare_classes()
+	result = []
+	for row in rows:
+		checked_kg = flt(row.get("checked_baggage_kg")) or defaults["checked_kg"]
+		carry_on_kg = flt(row.get("carry_on_kg")) or defaults["carry_on_kg"]
+		checked_pieces = cint(row.get("checked_baggage_pieces")) or defaults["checked_pieces"]
+		result.append(
+			{
+				"name": row["name"],
+				"class_name": row["class_name"],
+				"cabin_class": row.get("cabin_class"),
+				"cabin_name": row.get("cabin_name"),
+				"use_on_aircraft_layout": cint(row.get("use_on_aircraft_layout")),
+				"price_multiplier": row.get("price_multiplier"),
+				"color_code": row.get("color_code"),
+				"checked_baggage_kg": checked_kg,
+				"checked_baggage_pieces": checked_pieces,
+				"carry_on_kg": carry_on_kg,
+				"description": row.get("description"),
+			}
+		)
+	return result
+
+
+def _public_cabin_class_rows():
+	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_public_cabin_classes
+
+	return list_public_cabin_classes()
+
+
 def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_airport=None, destination_airport=None):
 	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
 		get_schedule_segments,
@@ -197,21 +273,36 @@ def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_a
 	total_capacity = frappe.db.get_value("Flight Schedule", schedule_name, "total_aircraft_capacity") or 0
 	seats_released = frappe.db.get_value("Flight Schedule", schedule_name, "seats_released_count") or 0
 
+	plane = _airplane_details(_row_val(schedule, "airplane"))
+	is_multi = schedule_is_multi_segment(schedule_name)
+	segments = get_schedule_segments(schedule_name) if is_multi else []
+	stop_count = max(len(segments) - 1, 0) if is_multi else 0
+	from frappe.utils import cint
+
 	return {
 		"flight_number": _row_val(schedule, "flight_number"),
 		"schedule_id": schedule_name,
+		"departure_date": str(_row_val(schedule, "departure_date")),
+		"arrival_date": str(
+			_row_val(schedule, "arrival_date") or _row_val(schedule, "departure_date")
+		),
 		"departure_time": _row_val(schedule, "departure_time"),
 		"arrival_time": _row_val(schedule, "arrival_time"),
 		"available_seats": available,
 		"seats_released": seats_released,
 		"total_aircraft_capacity": total_capacity,
-		"is_multi_segment": schedule_is_multi_segment(schedule_name),
-		"segments": get_schedule_segments(schedule_name) if schedule_is_multi_segment(schedule_name) else [],
+		"is_multi_segment": is_multi,
+		"stop_count": stop_count,
+		"segments": segments,
 		"prices": _prices_for_schedule(schedule, route, route_name),
 		"base_fares": prices_for_schedule_search(schedule, route)["base_fares"],
 		"route": route_name,
 		"boarding_airport": board,
 		"deboarding_airport": deboard,
+		"aircraft_model": plane.get("aircraft_model"),
+		"operator": plane.get("operator"),
+		"is_active": cint(_row_val(schedule, "is_active", 1)),
+		"only_prepayment": cint(_row_val(schedule, "only_prepayment", 0)),
 	}
 
 
@@ -401,10 +492,14 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 @frappe.whitelist(allow_guest=True)
 def get_schedule_for_office_booking(schedule_id, passengers=1):
 	"""Load one flight schedule for portal office booking (skip search step)."""
+	from frappe.utils import cint
+
 	if not schedule_id or not frappe.db.exists("Flight Schedule", schedule_id):
 		return {"error": "Flight schedule not found"}
 
 	schedule = frappe.get_doc("Flight Schedule", schedule_id, ignore_permissions=True)
+	if not cint(schedule.is_active):
+		return {"error": "This flight is not open for booking."}
 	if schedule.status not in ("Scheduled", "Delayed"):
 		return {
 			"error": f"Cannot book: flight status is {schedule.status}",
@@ -424,6 +519,18 @@ def get_schedule_for_office_booking(schedule_id, passengers=1):
 		"destination_iata": get_airport_iata(route.destination_airport),
 		"date": schedule.departure_date,
 	}
+
+
+@frappe.whitelist(allow_guest=True)
+def list_public_seat_classes():
+	"""Active fare classes with baggage allowance for public fare cards."""
+	return {"seat_classes": _public_seat_class_rows()}
+
+
+@frappe.whitelist(allow_guest=True)
+def list_public_cabin_classes():
+	"""Active cabin types for search filters and seat maps."""
+	return {"cabin_classes": _public_cabin_class_rows()}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -816,6 +923,7 @@ def suggest_nearest_flight_dates(
 				"date": str(candidate),
 				"flight_count": len(results),
 				"days_from_anchor": day_offset,
+				"min_fare": _min_fare_from_flight_results(results),
 			}
 		)
 		if len(suggestions) >= max_suggestions:

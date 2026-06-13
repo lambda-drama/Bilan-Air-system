@@ -17,6 +17,8 @@ import {
   Ticket,
 } from 'lucide-react';
 import { loadBookingDraft, clearBookingDraft } from '@/lib/booking-store';
+import { loadTripContext } from '@/lib/trip-store';
+import { fetchFlightDetails } from '@/services/flightSchedule';
 import { bookingLookupRef, createBooking, processPayment } from '@/services/airBooking';
 import { getPublicBookingSettings } from '@/services/websiteAuth';
 import { useCurrency } from '@/contexts/currency-context';
@@ -38,6 +40,7 @@ function PaymentContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [holdLabel, setHoldLabel] = useState('15 minutes');
+  const [onlyPrepayment, setOnlyPrepayment] = useState(false);
   const draft = loadBookingDraft();
   const legCount = draft?.legs?.length || 1;
   const passengerCount = parseInt(searchParams.get('passengers') || '1', 10);
@@ -56,6 +59,17 @@ function PaymentContent() {
     getPublicBookingSettings()
       .then((s) => setHoldLabel(s.hold_label))
       .catch(() => {});
+
+    const trip = loadTripContext();
+    const scheduleId =
+      trip?.selections?.[0]?.flightScheduleId ||
+      draft?.legs?.[0]?.flightScheduleId ||
+      draft?.flightScheduleId;
+    if (scheduleId) {
+      fetchFlightDetails(scheduleId)
+        .then((details) => setOnlyPrepayment(!!details.only_prepayment))
+        .catch(() => setOnlyPrepayment(false));
+    }
   }, []);
 
   const buildBookingPayloads = () => {
@@ -77,6 +91,7 @@ function PaymentContent() {
       booking_source: 'online' as const,
       flight_schedule: leg.flightScheduleId,
       seat_class: leg.seatClass,
+      cabin_class: leg.cabinClass || leg.seatClass,
       payer_name: draft.payer_name,
       payer_email: draft.payer_email,
       payer_phone: draft.payer_phone,
@@ -171,7 +186,11 @@ function PaymentContent() {
         searchParams={searchParams}
         enableSeatSelection={enableSeatSelection}
         title="Review & confirm"
-        description={`Reserve your seats now — pay within ${holdLabel}. Your PNR is issued when payment is confirmed.`}
+        description={
+          onlyPrepayment
+            ? 'Payment is required before your PNR and tickets are issued for this flight.'
+            : `Reserve your seats now — pay within ${holdLabel}. Your PNR is issued when payment is confirmed.`
+        }
       />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -183,6 +202,8 @@ function PaymentContent() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            {!onlyPrepayment ? (
+            <>
             <div className="bg-white rounded-xl p-6 border-2 border-gold">
               <div className="flex items-start gap-4">
                 <Ticket className="w-10 h-10 text-gold shrink-0" />
@@ -209,6 +230,8 @@ function PaymentContent() {
             </div>
 
             <p className="text-center text-navy/40 text-sm">or pay now</p>
+            </>
+            ) : null}
 
             <div
               className={`bg-white rounded-xl p-6 border-2 cursor-pointer ${

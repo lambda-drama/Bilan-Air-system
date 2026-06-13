@@ -91,7 +91,7 @@ export default function PortalAirplanesPage() {
     listAirlines({ limit: 200 }).then((r) =>
       setAirlines(r.data as { name: string; airline_name: string }[]),
     );
-    listSeatClasses().then(setSeatClasses).catch(() => setSeatClasses([]));
+    listSeatClasses(true, true).then(setSeatClasses).catch(() => setSeatClasses([]));
   }, []);
 
   const airlineOptions = useMemo(

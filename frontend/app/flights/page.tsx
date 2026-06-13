@@ -6,10 +6,17 @@ import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Users, ArrowRight, ArrowUpRight, Check } from 'lucide-react';
+import { Plane, ArrowRight, ArrowUpRight } from 'lucide-react';
 import type { FlightSchedule } from '@/lib/types';
 import { buildIataLabelMapFromRoutes, labelForIata } from '@/lib/format-airport';
-import { findFlights, fetchAllRoutes, type FlightSearchResponse } from '@/services/search';
+import { findFlights, fetchAllRoutes, fetchPublicSeatClasses, fetchPublicCabinClasses, suggestNearestFlightDates, type FlightSearchResponse, type NearestFlightDateSuggestion, type PublicSeatClassOption } from '@/services/search';
+import { cabinOptionsFromApi } from '@/lib/cabin-classes';
+import { NearestFlightDatesPanel } from '@/components/nearest-flight-dates-panel';
+import {
+  FlightFareResultCard,
+  scheduleRowToFareDisplay,
+} from '@/components/flight-fare-result-card';
+import { passengerCountsSummary, SEAT_CLASS_OPTIONS } from '@/lib/passenger-search-counts';
 import { useCurrency } from '@/contexts/currency-context';
 import { parseFlightsSearchParams, buildFlightsSearchUrl } from '@/lib/flights-search-url';
 import { buildSchedulesBrowseUrl } from '@/lib/schedules-browse-url';
@@ -19,12 +26,17 @@ import { initTripContext, upsertLegSelection, getLegSelection } from '@/lib/trip
 import { getBookingSearchDefaults } from '@/services/search';
 import { tripLegLabel, type TripSearchLeg } from '@/lib/trip-types';
 import { RevealItem, RevealStagger } from '@/components/motion/reveal';
-import { cn } from '@/lib/utils';
 
 type SeatClass = 'Economy' | 'Business' | 'First Class';
 
+type DisplayFlight = FlightSchedule & {
+  aircraft_model?: string | null;
+  operator?: string | null;
+  stop_count?: number;
+};
+
 type LegResults = {
-  flights: FlightSchedule[];
+  flights: DisplayFlight[];
   prices: Record<string, Record<string, number>>;
   loading: boolean;
   error: string;
@@ -35,9 +47,9 @@ function mapFlightResults(
   origin: string,
   destination: string,
   date: string,
-): { flights: FlightSchedule[]; prices: Record<string, Record<string, number>> } {
+): { flights: DisplayFlight[]; prices: Record<string, Record<string, number>> } {
   const prices: Record<string, Record<string, number>> = {};
-  const flights: FlightSchedule[] = (res.flights || []).map((f) => {
+  const flights: DisplayFlight[] = (res.flights || []).map((f) => {
     prices[f.schedule_id] = f.prices || {};
     return {
       name: f.schedule_id,
@@ -45,11 +57,14 @@ function mapFlightResults(
       route: `${origin}-${destination}`,
       origin_code: origin,
       destination_code: destination,
-      departure_date: date,
+      departure_date: f.departure_date || date,
       departure_time: f.departure_time,
-      arrival_date: date,
+      arrival_date: f.arrival_date || date,
       arrival_time: f.arrival_time,
-      aircraft: '',
+      aircraft: f.aircraft_model || '',
+      aircraft_model: f.aircraft_model,
+      operator: f.operator,
+      stop_count: f.stop_count,
       available_seats: f.available_seats,
       status: 'Scheduled',
       base_fare: f.prices?.Economy ?? 0,
@@ -68,8 +83,6 @@ function FlightSearchContent() {
   const { locale } = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [selectedClass, setSelectedClass] = useState<SeatClass>('Economy');
-  const [iataLabels, setIataLabels] = useState<Map<string, string>>(new Map());
 
   const tripParam = searchParams.get('trip') || 'oneway';
   const passengersParam = searchParams.get('passengers') || '1';
@@ -83,6 +96,9 @@ function FlightSearchContent() {
   const {
     tripType,
     passengers,
+    passengerCounts,
+    seatsNeeded,
+    seatClass,
     leg,
     origin,
     destination,
@@ -100,8 +116,34 @@ function FlightSearchContent() {
       dateParam,
       returnDateParam,
       legsParam,
+      searchParams.get('adults'),
+      searchParams.get('children'),
+      searchParams.get('infants'),
+      searchParams.get('class'),
     ],
   );
+
+  const [iataLabels, setIataLabels] = useState<Map<string, string>>(new Map());
+  const [seatClasses, setSeatClasses] = useState<PublicSeatClassOption[]>([]);
+  const [cabinOptions, setCabinOptions] = useState(SEAT_CLASS_OPTIONS);
+  const [nearestByLeg, setNearestByLeg] = useState<
+    Record<number, { suggestions: NearestFlightDateSuggestion[]; loading: boolean; checked: boolean }>
+  >({});
+
+  const fareCardLabels = {
+    adultFare: t.flights.adultFare,
+    checkedBaggage: t.flights.checkedBaggage,
+    changeFee: t.flights.changeFee,
+    refundFee: t.flights.refundFee,
+    noShowFee: t.flights.noShowFee,
+    select: t.flights.selectFare,
+    selected: t.flights.selectedFare,
+    direct: t.flights.direct,
+    stops: t.flights.stops,
+    operatedBy: t.flights.operatedBy,
+    standardPolicy: t.flights.standardPolicy,
+    seatsAvailable: t.flights.seatsAvailable,
+  };
 
   const searchLegsKey = useMemo(() => JSON.stringify(searchLegs), [searchLegs]);
 
@@ -127,6 +169,12 @@ function FlightSearchContent() {
     fetchAllRoutes()
       .then((routes) => setIataLabels(buildIataLabelMapFromRoutes(routes)))
       .catch(() => setIataLabels(new Map()));
+    fetchPublicSeatClasses()
+      .then(setSeatClasses)
+      .catch(() => setSeatClasses([]));
+    fetchPublicCabinClasses()
+      .then((rows) => setCabinOptions(cabinOptionsFromApi(rows)))
+      .catch(() => setCabinOptions(SEAT_CLASS_OPTIONS));
   }, []);
 
   useEffect(() => {
@@ -149,7 +197,7 @@ function FlightSearchContent() {
           legInfo.origin,
           legInfo.destination,
           legInfo.date,
-          passengers,
+          seatsNeeded,
         );
         if (cancelled) return;
 
@@ -166,6 +214,43 @@ function FlightSearchContent() {
           ...prev,
           [legIndex]: { ...mapped, loading: false, error: '' },
         }));
+
+        if (!mapped.flights.length) {
+          setNearestByLeg((prev) => ({
+            ...prev,
+            [legIndex]: { suggestions: [], loading: true, checked: false },
+          }));
+          suggestNearestFlightDates({
+            origin: legInfo.origin,
+            destination: legInfo.destination,
+            anchor_date: legInfo.date,
+            passengers: seatsNeeded,
+          })
+            .then((near) => {
+              if (cancelled) return;
+              setNearestByLeg((prev) => ({
+                ...prev,
+                [legIndex]: {
+                  suggestions: near.suggestions || [],
+                  loading: false,
+                  checked: true,
+                },
+              }));
+            })
+            .catch(() => {
+              if (cancelled) return;
+              setNearestByLeg((prev) => ({
+                ...prev,
+                [legIndex]: { suggestions: [], loading: false, checked: true },
+              }));
+            });
+        } else {
+          setNearestByLeg((prev) => {
+            const next = { ...prev };
+            delete next[legIndex];
+            return next;
+          });
+        }
       } catch (e: unknown) {
         if (cancelled) return;
         const message = e instanceof Error ? e.message : 'Failed to search flights';
@@ -201,7 +286,7 @@ function FlightSearchContent() {
     return () => {
       cancelled = true;
     };
-  }, [isReturnCombined, searchLegsKey, leg, origin, destination, date, passengers]);
+  }, [isReturnCombined, searchLegsKey, leg, origin, destination, date, seatsNeeded]);
 
   const formatLegDate = (dateStr: string) =>
     dateStr
@@ -213,9 +298,9 @@ function FlightSearchContent() {
         })
       : '';
 
-  const getFare = (flight: FlightSchedule, legIndex: number) => {
+  const getFare = (flight: DisplayFlight, legIndex: number, seatClassName: string) => {
     const prices = legResults[legIndex]?.prices[flight.name];
-    if (prices?.[selectedClass] != null) return prices[selectedClass];
+    if (prices?.[seatClassName] != null) return prices[seatClassName];
     return flight.base_fare || 0;
   };
 
@@ -228,7 +313,6 @@ function FlightSearchContent() {
 
     const params = new URLSearchParams({
       trip: tripType,
-      passengers: passengers.toString(),
       leg: '0',
     });
     if (tripType === 'multicity') {
@@ -241,18 +325,36 @@ function FlightSearchContent() {
         params.set('returnDate', returnDate);
       }
     }
+    params.set('adults', String(passengerCounts.adults));
+    params.set('children', String(passengerCounts.children));
+    params.set('infants', String(passengerCounts.infants));
+    params.set('passengers', String(passengers));
+    const firstLeg = getLegSelection(0);
+    const cabinForSeats =
+      firstLeg?.cabinClass ||
+      seatClasses.find((sc) => sc.class_name === firstLeg?.seatClass)?.cabin_name ||
+      firstLeg?.seatClass ||
+      seatClass;
+    if (cabinForSeats && cabinForSeats !== 'Economy') {
+      params.set('class', cabinForSeats);
+    }
     if (!enableSeatSelection) {
-      const firstLeg = getLegSelection(0);
       if (firstLeg) {
         params.set('flight', firstLeg.flightScheduleId);
-        params.set('class', firstLeg.seatClass);
+        if (cabinForSeats) params.set('class', cabinForSeats);
       }
     }
     router.push(websiteBookingAfterFlightPath(params, enableSeatSelection));
   };
 
-  const handleSelectFlight = (flight: FlightSchedule, legIndex: number, legInfo: TripSearchLeg) => {
-    const fare = getFare(flight, legIndex);
+  const handleSelectFlight = (
+    flight: DisplayFlight,
+    legIndex: number,
+    legInfo: TripSearchLeg,
+    fareClassCode: string,
+    fare: number,
+    cabinClassName: string,
+  ) => {
     upsertLegSelection(
       {
         legIndex,
@@ -261,7 +363,8 @@ function FlightSearchContent() {
         date: legInfo.date,
         flightScheduleId: flight.name,
         flightNumber: flight.flight_number,
-        seatClass: selectedClass,
+        seatClass: fareClassCode,
+        cabinClass: cabinClassName,
         selectedSeatIds: [],
         selectedSeatLabels: [],
         farePerPerson: fare,
@@ -290,7 +393,8 @@ function FlightSearchContent() {
           destination: searchLegs[0].destination,
           departureDate: searchLegs[0].date,
           returnDate: tripType === 'return' ? returnDate : undefined,
-          passengers,
+          passengerCounts,
+          seatClass: seatClass,
           multiLegs: tripType === 'multicity' ? searchLegs : undefined,
           leg: nextLeg,
         }),
@@ -304,96 +408,109 @@ function FlightSearchContent() {
   const outboundSelection = getLegSelection(0);
   const returnSelection = getLegSelection(1);
 
+  const formatDaysOffset = (days: number) => {
+    if (days === 1) return t.hero.dayLater;
+    if (days === -1) return t.hero.dayEarlier;
+    if (days > 1) return t.hero.daysLater.replace('{count}', String(days));
+    if (days < -1) return t.hero.daysEarlier.replace('{count}', String(Math.abs(days)));
+    return t.hero.sameWeekReturn;
+  };
+
+  const applyNearestDate = (legIndex: number, legInfo: TripSearchLeg, suggestedDate: string) => {
+    if (tripType === 'multicity') {
+      const nextLegs = searchLegs.map((l, i) =>
+        i === legIndex ? { ...l, date: suggestedDate } : l,
+      );
+      router.push(
+        buildFlightsSearchUrl({
+          tripType,
+          origin: nextLegs[0].origin,
+          destination: nextLegs[0].destination,
+          departureDate: nextLegs[0].date,
+          passengerCounts,
+          seatClass: seatClass,
+          multiLegs: nextLegs,
+          leg: legIndex,
+        }),
+      );
+      return;
+    }
+
+    if (tripType === 'return' && legIndex === 1) {
+      router.push(
+        buildFlightsSearchUrl({
+          tripType,
+          origin,
+          destination,
+          departureDate: date,
+          returnDate: suggestedDate,
+          passengerCounts,
+          seatClass: seatClass,
+        }),
+      );
+      return;
+    }
+
+    router.push(
+      buildFlightsSearchUrl({
+        tripType,
+        origin,
+        destination,
+        departureDate: suggestedDate,
+        returnDate: tripType === 'return' ? returnDate : undefined,
+        passengerCounts,
+        seatClass: seatClass,
+        leg: legIndex,
+      }),
+    );
+  };
+
   const renderFlightCard = (
-    flight: FlightSchedule,
+    flight: DisplayFlight,
     legIndex: number,
     legInfo: TripSearchLeg,
     index: number,
   ) => {
-    const isSelected = selectedByLeg[legIndex] === flight.name;
+    const legSelection = getLegSelection(legIndex);
+    const isSelected = legSelection?.flightScheduleId === flight.name;
+    const selectedClassName = isSelected ? legSelection?.seatClass : null;
+    const prices = legResults[legIndex]?.prices[flight.name] || {};
 
     return (
       <RevealItem key={flight.name} index={index}>
-        <div
-          className={cn(
-            'bg-white border rounded-xl p-6 bilan-lift transition-colors',
-            isSelected ? 'border-gold ring-2 ring-gold/30' : 'border-navy/10 hover:border-gold/50',
-          )}
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-gold font-semibold">{flight.flight_number}</span>
-                {isSelected && (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                    <Check className="w-3 h-3" />
-                    {t.flights.selected}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-8">
-                <div className="text-center">
-                  <p className="text-navy text-2xl font-bold">{flight.departure_time}</p>
-                  <p className="text-navy/60 text-sm">
-                    {labelForIata(flight.origin_code, iataLabels)}
-                  </p>
-                </div>
-
-                <div className="flex-1 flex flex-col items-center">
-                  <div className="w-full flex items-center gap-2">
-                    <div className="flex-1 h-px bg-navy/20" />
-                    <Plane className="w-4 h-4 text-gold -rotate-90" />
-                    <div className="flex-1 h-px bg-navy/20" />
-                  </div>
-                  <p className="text-navy/40 text-xs mt-2">{t.flights.direct}</p>
-                </div>
-
-                <div className="text-center">
-                  <p className="text-navy text-2xl font-bold">{flight.arrival_time}</p>
-                  <p className="text-navy/60 text-sm">
-                    {labelForIata(flight.destination_code, iataLabels)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6 lg:border-l lg:border-navy/10 lg:pl-6">
-              <div className="text-center">
-                <p className="text-navy/60 text-sm flex items-center gap-1">
-                  <Users className="w-4 h-4" />
-                  {flight.available_seats} {t.flights.seats}
-                </p>
-              </div>
-
-              <div className="text-right">
-                <p className="text-navy text-2xl font-bold">
-                  {formatMoney(Math.round(getFare(flight, legIndex)))}
-                </p>
-                <p className="text-navy/60 text-sm">{t.flights.perPerson}</p>
-              </div>
-
-              <Button
-                onClick={() => handleSelectFlight(flight, legIndex, legInfo)}
-                variant={isSelected ? 'outline' : 'default'}
-                className={cn(
-                  'font-semibold px-6',
-                  isSelected
-                    ? 'border-gold text-navy hover:bg-gold/10'
-                    : 'bg-gold hover:bg-gold-dark text-navy',
-                )}
-              >
-                {isSelected ? t.flights.selected : t.flights.select}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <FlightFareResultCard
+          variant="website"
+          flight={scheduleRowToFareDisplay(flight, prices, {
+            aircraftModel: flight.aircraft_model || flight.aircraft,
+            operator: flight.operator,
+            stopCount: flight.stop_count,
+          })}
+          seatClasses={seatClasses}
+          cabinFilter={seatClass}
+          iataLabels={iataLabels}
+          formatMoney={formatMoney}
+          formatDate={formatLegDate}
+          labels={fareCardLabels}
+          isSelected={isSelected}
+          selectedClass={selectedClassName}
+          onSelect={(fareClassCode) =>
+            handleSelectFlight(
+              flight,
+              legIndex,
+              legInfo,
+              fareClassCode,
+              getFare(flight, legIndex, fareClassCode),
+              seatClasses.find((sc) => sc.class_name === fareClassCode)?.cabin_name || seatClass,
+            )
+          }
+        />
       </RevealItem>
     );
   };
 
   const renderLegSection = (legIndex: number, legInfo: TripSearchLeg) => {
     const results = legResults[legIndex] || emptyLegResults(false);
+    const nearest = nearestByLeg[legIndex];
     const label =
       legIndex === 0
         ? t.flights.outbound
@@ -411,8 +528,7 @@ function FlightSearchContent() {
             {labelForIata(legInfo.destination, iataLabels)}
           </h2>
           <p className="text-navy/60 text-sm mt-1">
-            {formatLegDate(legInfo.date)} · {passengers}{' '}
-            {passengers > 1 ? 'passengers' : 'passenger'}
+            {formatLegDate(legInfo.date)} · {passengerCountsSummary(passengerCounts)}
           </p>
         </div>
 
@@ -426,10 +542,35 @@ function FlightSearchContent() {
             <p className="text-red-700">{results.error}</p>
           </div>
         ) : results.flights.length === 0 ? (
-          <div className="text-center py-12 rounded-xl border border-navy/10 bg-white">
+          <div className="text-center py-12 rounded-xl border border-navy/10 bg-white space-y-4">
             <Plane className="w-10 h-10 text-navy/20 mx-auto mb-3" />
             <h3 className="text-navy font-semibold mb-1">{t.flights.noFlights}</h3>
             <p className="text-navy/60 text-sm">{t.flights.noFlightsBody}</p>
+            {nearest ? (
+              <div className="max-w-md mx-auto text-left px-4">
+                <NearestFlightDatesPanel
+                  title={t.hero.nearestDateTitle}
+                  loadingLabel={t.hero.findingNearbyDates}
+                  emptyLabel={t.hero.noNearbyDates}
+                  useDateLabel={(d) =>
+                    t.hero.useDepartureDate.replace('{date}', formatLegDate(d))
+                  }
+                  formatDaysOffset={formatDaysOffset}
+                  formatFlightCount={(count) =>
+                    count > 1
+                      ? t.hero.flightsAvailable.replace('{count}', String(count))
+                      : t.hero.oneFlightAvailable
+                  }
+                  formatFromPrice={(amount) =>
+                    t.hero.fromPrice.replace('{price}', formatMoney(Math.round(amount)))
+                  }
+                  suggestions={nearest.suggestions}
+                  loading={nearest.loading}
+                  checked={nearest.checked}
+                  onSelect={(d) => applyNearestDate(legIndex, legInfo, d)}
+                />
+              </div>
+            ) : null}
           </div>
         ) : (
           <RevealStagger className="space-y-4">
@@ -453,9 +594,10 @@ function FlightSearchContent() {
         destination: searchLegs[0]?.destination,
         dateFrom: searchLegs[0]?.date,
         dateTo: searchLegs[1]?.date,
-        passengers,
+        passengers: seatsNeeded,
+        seatClass: seatClass,
       })
-    : buildSchedulesBrowseUrl({ origin, destination, date, passengers });
+    : buildSchedulesBrowseUrl({ origin, destination, date, passengers: seatsNeeded, seatClass });
 
   return (
     <main className="min-h-screen bg-cream">
@@ -503,8 +645,7 @@ function FlightSearchContent() {
                     {labelForIata(destination, iataLabels)}
                   </h1>
                   <p className="text-cream/60 mt-2">
-                    {formatLegDate(date)} · {passengers}{' '}
-                    {passengers > 1 ? 'passengers' : 'passenger'}
+                    {formatLegDate(date)} · {passengerCountsSummary(passengerCounts)}
                     {tripType === 'multicity' && ` · ${totalLegs} flights`}
                   </p>
                 </>
@@ -531,22 +672,7 @@ function FlightSearchContent() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28">
-        <div className="flex items-center gap-4 mb-8">
-          <span className="text-navy/60 text-sm">{t.flights.class}:</span>
-          {SEAT_CLASSES.map((cls) => (
-            <button
-              key={cls}
-              onClick={() => setSelectedClass(cls)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                selectedClass === cls
-                  ? 'bg-navy text-cream'
-                  : 'bg-navy/10 text-navy hover:bg-navy/20'
-              }`}
-            >
-              {cls}
-            </button>
-          ))}
-        </div>
+        <p className="mb-6 text-sm text-navy/60">{t.flights.chooseFare}</p>
 
         {!isReturnCombined && !date && !origin && !destination ? (
           <div className="text-center py-20">
@@ -620,8 +746,6 @@ function FlightSearchContent() {
     </main>
   );
 }
-
-const SEAT_CLASSES: SeatClass[] = ['Economy', 'Business', 'First Class'];
 
 export default function FlightsPage() {
   return (

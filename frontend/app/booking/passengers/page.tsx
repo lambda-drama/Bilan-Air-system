@@ -14,6 +14,7 @@ import { WebsiteBookingFlowHeader } from '@/components/website-booking-flow-head
 import { useAuth } from '@/contexts/auth-context';
 import { SearchableSelect } from '@/components/portal/searchable-select';
 import { parseFlightsSearchParams } from '@/lib/flights-search-url';
+import { passengerTypesFromCounts } from '@/lib/passenger-search-counts';
 import { loadTripContext } from '@/lib/trip-store';
 import { tripLegLabel } from '@/lib/trip-types';
 import { PayerIsTravelingToggle } from '@/components/booking/payer-is-traveling-toggle';
@@ -45,7 +46,30 @@ function PassengerDetailsContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { enableSeatSelection } = useBookingSettings();
 
-  const { tripType, searchLegs } = parseFlightsSearchParams(searchParams);
+  const { tripType, searchLegs, passengerCounts, passengers: passengerTotal } =
+    parseFlightsSearchParams(searchParams);
+  const typeDefaults = passengerTypesFromCounts(passengerCounts);
+  const passengerCount = passengerTotal;
+  const isSingleTraveler = passengerCount === 1;
+  const [submitting, setSubmitting] = useState(false);
+  const [payer, setPayer] = useState<PayerContact>({ name: '', email: '', phone: '' });
+  const [payerIsTraveling, setPayerIsTraveling] = useState(isSingleTraveler);
+
+  const accountPath = bookingFlowPath('/booking/account', searchParams);
+
+  const [passengers, setPassengers] = useState<PassengerForm[]>(
+    Array(passengerCount)
+      .fill(null)
+      .map((_, i) => ({
+        full_name: '',
+        id_number: '',
+        date_of_birth: '',
+        phone_number: '',
+        email: '',
+        passenger_type: (typeDefaults[i] || 'Adult') as PassengerForm['passenger_type'],
+      })),
+  );
+
   const tripCtx = loadTripContext();
   const isMultiLeg = tripType !== 'oneway' && (tripCtx?.selections.length || 0) > 1;
   const legSelections = tripCtx?.selections || [];
@@ -58,26 +82,6 @@ function PassengerDetailsContent() {
   const seatLabels = searchParams.get('seatLabels')?.split(',').filter(Boolean) ||
     legSelections[0]?.selectedSeatLabels ||
     [];
-  const passengerCount = parseInt(searchParams.get('passengers') || '1');
-  const isSingleTraveler = passengerCount === 1;
-  const [submitting, setSubmitting] = useState(false);
-  const [payer, setPayer] = useState<PayerContact>({ name: '', email: '', phone: '' });
-  const [payerIsTraveling, setPayerIsTraveling] = useState(isSingleTraveler);
-
-  const accountPath = bookingFlowPath('/booking/account', searchParams);
-
-  const [passengers, setPassengers] = useState<PassengerForm[]>(
-    Array(passengerCount)
-      .fill(null)
-      .map(() => ({
-        full_name: '',
-        id_number: '',
-        date_of_birth: '',
-        phone_number: '',
-        email: '',
-        passenger_type: 'Adult' as const,
-      })),
-  );
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

@@ -14,6 +14,8 @@ export interface TripLegSelection {
   flightScheduleId: string;
   flightNumber?: string;
   seatClass: string;
+  /** Cabin name (Economy) — used for seat map filtering; fare code is in seatClass. */
+  cabinClass?: string;
   selectedSeatIds: string[];
   selectedSeatLabels: string[];
   farePerPerson?: number;

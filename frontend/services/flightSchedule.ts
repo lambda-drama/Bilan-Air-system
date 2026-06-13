@@ -21,6 +21,8 @@ export interface FlightScheduleRow {
   arrival_date: string;
   arrival_time: string;
   status: string;
+  is_active?: number | boolean;
+  only_prepayment?: number | boolean;
 }
 
 export async function fetchSeatMap(flight_schedule_name: string): Promise<SeatMap> {
@@ -50,6 +52,8 @@ export async function getFlightSchedule(schedule_name: string) {
     status: string;
     captain: string;
     first_officer: string;
+    is_active?: number | boolean;
+    only_prepayment?: number | boolean;
     base_fare_override?: number | null;
     base_fares?: { adult: number; child: number; infant: number };
     route_base_fares?: { adult: number; child: number; infant: number };

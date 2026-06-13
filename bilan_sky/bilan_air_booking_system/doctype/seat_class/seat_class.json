@@ -7,6 +7,8 @@
  "engine": "InnoDB",
  "field_order": [
   "class_name",
+  "cabin_class",
+  "use_on_aircraft_layout",
   "price_multiplier",
   "color_code",
   "is_active",
@@ -22,12 +24,28 @@
  ],
  "fields": [
   {
+   "description": "Booking / fare class code (e.g. L, M, Y, J). Also used as the document name.",
    "fieldname": "class_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Class Name",
+   "label": "Fare Class Code",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "fieldname": "cabin_class",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Cabin Class",
+   "options": "Cabin Class",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "When enabled, this fare class can be assigned to airplane seat layout rows (physical cabin zones).",
+   "fieldname": "use_on_aircraft_layout",
+   "fieldtype": "Check",
+   "label": "Use on Aircraft Layout"
   },
   {
    "default": "1.0",

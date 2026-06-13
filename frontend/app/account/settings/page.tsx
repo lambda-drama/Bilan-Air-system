@@ -96,7 +96,7 @@ function AccountSettingsContent() {
         <div className="bilan-light-card rounded-2xl shadow-lg p-6">
           <h2 className="text-navy font-semibold text-lg mb-1">Appearance</h2>
           <p className="text-navy/60 text-sm mb-4">
-            Choose light, dark, or match your device.
+            Click to cycle between light, dark, and system (match your device).
           </p>
           <ThemeSelector />
         </div>

@@ -1,3 +1,4 @@
+import type { PassengerSearchCounts } from "@/lib/passenger-search-counts";
 import type { FlightSearchResult } from "@/services/search";
 
 export interface OfficeBookingPassengerDraft {
@@ -12,8 +13,12 @@ export interface OfficeBookingPassengerDraft {
 export interface OfficeBookingDraft {
   scheduleId: string;
   flightNumber: string;
+  /** Fare class code sold (e.g. L, Y). */
   seatClass: string;
+  /** Cabin name for seat map (Economy, Business, …). */
+  cabinClass?: string;
   passengerCount: number;
+  passengerCounts?: PassengerSearchCounts;
   selectedSeatIds: string[];
   origin?: string;
   destination?: string;
@@ -27,6 +32,8 @@ export interface OfficeBookingDraft {
   };
   passengers?: OfficeBookingPassengerDraft[];
   markPaid?: boolean;
+  /** Flight requires payment before confirmation. */
+  onlyPrepayment?: boolean;
   /** When true, Traveler 1 name/phone/email mirror the payer. */
   payerIsTraveling?: boolean;
 }
@@ -58,7 +65,9 @@ export function draftFromFlight(
   flight: FlightSearchResult,
   opts: {
     seatClass: string;
+    cabinClass?: string;
     passengerCount: number;
+    passengerCounts?: PassengerSearchCounts;
     origin?: string;
     destination?: string;
     departureDate?: string;
@@ -69,7 +78,9 @@ export function draftFromFlight(
     scheduleId: flight.schedule_id,
     flightNumber: flight.flight_number,
     seatClass: opts.seatClass,
+    cabinClass: opts.cabinClass,
     passengerCount: opts.passengerCount,
+    passengerCounts: opts.passengerCounts,
     selectedSeatIds: [],
     origin: opts.origin,
     destination: opts.destination,

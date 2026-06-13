@@ -74,6 +74,7 @@ export interface BookingDetails {
     destination: string;
     departure_date: string;
     departure_time: string;
+    only_prepayment?: number | boolean;
   };
   baggage?: BaggageRecord[];
   baggage_policy?: BaggagePolicy;

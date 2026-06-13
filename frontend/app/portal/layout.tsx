@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react"
 import { PortalSidebar } from "@/components/portal/portal-sidebar"
+import { ThemeDropdownSubmenu } from "@/components/theme-dropdown-items"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -252,6 +253,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
                     Settings
                   </Link>
                 </DropdownMenuItem>
+                <ThemeDropdownSubmenu />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"

@@ -38,7 +38,8 @@ function SeatsStepContent() {
   const [scheduleId, setScheduleId] = useState<string | null>(null);
 
   const scheduleFromUrl = searchParams.get("schedule");
-  const seatClass = draft?.seatClass ?? "Economy";
+  const fareClass = draft?.seatClass ?? "Economy";
+  const cabinClass = draft?.cabinClass || fareClass;
   const minSeatsRequired = Math.max(
     draft?.passengerCount ?? 1,
     draft?.passengers?.length ?? 0,
@@ -104,7 +105,7 @@ function SeatsStepContent() {
         const flat = await loadSeatRows(scheduleId);
         if (cancelled) return;
         setSeatRows(flat);
-        const classForSeats = current.seatClass ?? "Economy";
+        const classForSeats = current.cabinClass || current.seatClass || "Economy";
         const savedSeatIds = (current.selectedSeatIds || []).filter((id) => {
           const seat = flat.find((s) => s.name === id);
           return seat && seat.seat_class === classForSeats;
@@ -128,7 +129,7 @@ function SeatsStepContent() {
     };
   }, [router, scheduleFromUrl, searchParams, settingsLoading, enableSeatSelection]);
 
-  const visibleSeats = seatRows.filter((s) => s.seat_class === seatClass);
+  const visibleSeats = seatRows.filter((s) => s.seat_class === cabinClass);
 
   const seatsByRow = useMemo(() => {
     const grouped: Record<number, SeatRow[]> = {};
@@ -180,7 +181,7 @@ function SeatsStepContent() {
 
   const toggleSeat = (seatId: string) => {
     const seat = seatRows.find((s) => s.name === seatId);
-    if (!seat || seat.status !== "Available" || seat.seat_class !== seatClass) return;
+    if (!seat || seat.status !== "Available" || seat.seat_class !== cabinClass) return;
     if (selectedSeatIds.includes(seatId)) {
       setSelectedSeatIds(selectedSeatIds.filter((id) => id !== seatId));
     } else if (selectedSeatIds.length < MAX_TRAVELERS) {
@@ -210,7 +211,7 @@ function SeatsStepContent() {
       title="Select seats"
       description={
         draft
-          ? `Flight ${draft.flightNumber} · ${seatClass} cabin · select one seat per traveler (up to ${MAX_TRAVELERS})`
+          ? `Flight ${draft.flightNumber} · ${cabinClass} cabin (${fareClass}) · select one seat per traveler (up to ${MAX_TRAVELERS})`
           : undefined
       }
     >
@@ -255,7 +256,7 @@ function SeatsStepContent() {
         </p>
       ) : visibleSeats.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No {seatClass} seats on this flight. Go back and choose another cabin or flight.
+          No {cabinClass} seats on this flight. Go back and choose another cabin or flight.
         </p>
       ) : (
         <div className="space-y-2">
