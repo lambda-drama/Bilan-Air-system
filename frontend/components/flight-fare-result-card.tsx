@@ -32,18 +32,31 @@ const BRAND_FARE_THEMES: FareCardTheme[] = [
   { headerClass: "bg-navy text-gold", priceClass: "text-gold", accentStrong: true },
 ];
 
-function fareCardTheme(seatClass: PublicSeatClassOption, index: number): FareCardTheme {
+/** Portal / dark-theme fare tiers — use semantic tokens, not fixed white cards */
+const PORTAL_FARE_THEMES: FareCardTheme[] = [
+  { headerClass: "bg-gold/15 text-foreground border-b border-gold/25", priceClass: "text-gold", accentStrong: false },
+  { headerClass: "bg-gold/30 text-foreground", priceClass: "text-gold", accentStrong: false },
+  { headerClass: "bg-gold text-navy", priceClass: "text-navy", accentStrong: true },
+  { headerClass: "bg-navy text-gold", priceClass: "text-gold", accentStrong: true },
+];
+
+function fareCardTheme(
+  seatClass: PublicSeatClassOption,
+  index: number,
+  isWebsite: boolean,
+): FareCardTheme {
+  const themes = isWebsite ? BRAND_FARE_THEMES : PORTAL_FARE_THEMES;
   const name = (seatClass.cabin_name || seatClass.class_name).toLowerCase();
   if (name.includes("first")) {
-    return BRAND_FARE_THEMES[3];
+    return themes[3];
   }
   if (name.includes("business")) {
-    return BRAND_FARE_THEMES[2];
+    return themes[2];
   }
   if (name.includes("economy")) {
-    return BRAND_FARE_THEMES[0];
+    return themes[0];
   }
-  return BRAND_FARE_THEMES[index % BRAND_FARE_THEMES.length];
+  return themes[index % themes.length];
 }
 
 export type FlightFareDisplay = {
@@ -164,14 +177,20 @@ export function FlightFareResultCard({
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-xl border bg-white shadow-sm transition-colors",
+        "overflow-hidden rounded-xl border shadow-sm transition-colors",
         isWebsite
-          ? isSelected
-            ? "border-gold ring-2 ring-gold/30"
-            : "border-navy/10 hover:border-gold/40"
-          : isSelected
-            ? "border-gold ring-2 ring-gold/20"
-            : "border-border hover:border-gold/40",
+          ? cn(
+              "bg-white",
+              isSelected
+                ? "border-gold ring-2 ring-gold/30"
+                : "border-navy/10 hover:border-gold/40",
+            )
+          : cn(
+              "bg-card text-card-foreground",
+              isSelected
+                ? "border-gold ring-2 ring-gold/20"
+                : "border-border hover:border-gold/40",
+            ),
       )}
     >
       <div
@@ -200,7 +219,14 @@ export function FlightFareResultCard({
 
               <div className="flex flex-col items-center px-2">
                 <ArrowRight className="h-5 w-5 text-gold" />
-                <p className="mt-1 text-xs font-medium text-navy/60">{stopLabel}</p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs font-medium",
+                    isWebsite ? "text-navy/60" : "text-muted-foreground",
+                  )}
+                >
+                  {stopLabel}
+                </p>
               </div>
 
               <div className="sm:text-right">
@@ -216,7 +242,12 @@ export function FlightFareResultCard({
               </div>
 
               <div className="hidden sm:block sm:text-right">
-                <span className="inline-flex rounded-md bg-gold/20 px-2 py-1 text-xs font-bold text-navy">
+                <span
+                  className={cn(
+                    "inline-flex rounded-md bg-gold/20 px-2 py-1 text-xs font-bold",
+                    isWebsite ? "text-navy" : "text-gold",
+                  )}
+                >
                   {flight.flightNumber}
                 </span>
                 {flight.aircraftModel ? (
@@ -240,7 +271,10 @@ export function FlightFareResultCard({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className={cn(
-              "shrink-0 rounded-md p-1.5 transition-colors text-navy/60 hover:bg-gold/10 hover:text-gold-dark",
+              "shrink-0 rounded-md p-1.5 transition-colors",
+              isWebsite
+                ? "text-navy/60 hover:bg-gold/10 hover:text-gold-dark"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
             aria-expanded={expanded}
             aria-label={expanded ? "Collapse fares" : "Expand fares"}
@@ -250,7 +284,12 @@ export function FlightFareResultCard({
         </div>
 
         <div className="sm:hidden">
-          <span className="inline-flex rounded-md bg-gold/20 px-2 py-1 text-xs font-bold text-navy">
+          <span
+            className={cn(
+              "inline-flex rounded-md bg-gold/20 px-2 py-1 text-xs font-bold",
+              isWebsite ? "text-navy" : "text-gold",
+            )}
+          >
             {flight.flightNumber}
           </span>
           {flight.aircraftModel ? (
@@ -266,7 +305,12 @@ export function FlightFareResultCard({
               <button
                 type="button"
                 onClick={() => scrollCards("left")}
-                className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border bg-white p-2 shadow-md hover:bg-muted sm:flex"
+                className={cn(
+                  "absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border p-2 shadow-md sm:flex",
+                  isWebsite
+                    ? "bg-white hover:bg-muted"
+                    : "border-border bg-card hover:bg-accent",
+                )}
                 aria-label="Scroll fares left"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -274,7 +318,12 @@ export function FlightFareResultCard({
               <button
                 type="button"
                 onClick={() => scrollCards("right")}
-                className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border bg-white p-2 shadow-md hover:bg-muted sm:flex"
+                className={cn(
+                  "absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border p-2 shadow-md sm:flex",
+                  isWebsite
+                    ? "bg-white hover:bg-muted"
+                    : "border-border bg-card hover:bg-accent",
+                )}
                 aria-label="Scroll fares right"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -288,7 +337,7 @@ export function FlightFareResultCard({
           >
             {fareOptions.map((seatClass, index) => {
               const price = flight.prices[seatClass.class_name] ?? 0;
-              const theme = fareCardTheme(seatClass, index);
+              const theme = fareCardTheme(seatClass, index, isWebsite);
               const isCheapest = price > 0 && price === cheapestPrice;
               const cardSelected = isSelected && selectedClass === seatClass.class_name;
               const useFilledButton = cardSelected || isCheapest || theme.accentStrong;
@@ -297,8 +346,13 @@ export function FlightFareResultCard({
                 <div
                   key={seatClass.class_name}
                   className={cn(
-                    "flex w-[220px] shrink-0 snap-start flex-col overflow-hidden rounded-lg border bg-white shadow-sm",
-                    cardSelected ? "ring-2 ring-gold" : "border-navy/10",
+                    "flex w-[220px] shrink-0 snap-start flex-col overflow-hidden rounded-lg border shadow-sm",
+                    isWebsite ? "bg-white" : "bg-muted/40",
+                    cardSelected
+                      ? "ring-2 ring-gold"
+                      : isWebsite
+                        ? "border-navy/10"
+                        : "border-border",
                   )}
                 >
                   <div className={cn("px-3 py-2 text-center text-sm font-bold", theme.headerClass)}>
@@ -317,7 +371,12 @@ export function FlightFareResultCard({
                       {formatMoney(Math.round(price))}
                     </p>
 
-                    <ul className="mt-4 space-y-2.5 text-xs text-navy/60">
+                    <ul
+                      className={cn(
+                        "mt-4 space-y-2.5 text-xs",
+                        isWebsite ? "text-navy/60" : "text-muted-foreground",
+                      )}
+                    >
                       <li className="flex items-start gap-2">
                         <Luggage className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
                         <span>
@@ -356,7 +415,9 @@ export function FlightFareResultCard({
                           ? theme.headerClass.includes("bg-navy")
                             ? "bg-navy text-gold hover:bg-navy-light"
                             : "bg-gold text-navy hover:bg-gold-dark"
-                          : "border border-gold/40 bg-white text-navy hover:bg-gold/10",
+                          : isWebsite
+                            ? "border border-gold/40 bg-white text-navy hover:bg-gold/10"
+                            : "border border-gold/40 bg-transparent text-foreground hover:bg-gold/10",
                       )}
                       variant={useFilledButton ? "default" : "outline"}
                     >
