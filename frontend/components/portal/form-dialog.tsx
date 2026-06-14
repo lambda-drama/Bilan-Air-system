@@ -26,6 +26,8 @@ interface BilanFormDialogProps {
   onDismissAlerts?: () => void;
   /** Use 1 when this dialog opens on top of another dialog. */
   stackLevel?: number;
+  /** Scrollable body area (default max-h-[65vh]). */
+  bodyClassName?: string;
 }
 
 export function BilanFormDialog({
@@ -41,6 +43,7 @@ export function BilanFormDialog({
   validationTitle,
   onDismissAlerts,
   stackLevel = 0,
+  bodyClassName,
 }: BilanFormDialogProps) {
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -55,12 +58,13 @@ export function BilanFormDialog({
       <DialogContent
         stackLevel={stackLevel}
         className={cn("gap-0 overflow-hidden p-0 sm:max-w-lg", className)}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="bilan-panel-header space-y-1 text-left">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <div className="max-h-[65vh] overflow-y-auto px-6 py-4">
+        <div className={cn("max-h-[65vh] overflow-y-auto px-6 py-4", bodyClassName)}>
           <FormAlerts
             validationErrors={validationErrors}
             submitError={submitError}

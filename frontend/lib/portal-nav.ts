@@ -3,6 +3,7 @@ import {
   Armchair,
   BarChart3,
   Building2,
+  Calendar,
   ClipboardCheck,
   FileText,
   IdCard,
@@ -12,6 +13,7 @@ import {
   MessageSquare,
   Percent,
   Plane,
+  Repeat,
   Settings,
   Ticket,
   UserCog,
@@ -21,7 +23,6 @@ import {
 } from "lucide-react";
 
 export type PortalNavLink = {
-  type: "link";
   href: string;
   label: string;
   icon: LucideIcon;
@@ -38,7 +39,16 @@ export type PortalNavItem = PortalNavLink | PortalNavGroup;
 
 export const portalNavItems: PortalNavItem[] = [
   { type: "link", href: "/portal", label: "Dashboard", icon: LayoutDashboard },
-  { type: "link", href: "/portal/flights", label: "Flight schedule", icon: Plane },
+  {
+    type: "group",
+    label: "Flights",
+    icon: Plane,
+    items: [
+      { href: "/portal/flights/setup", label: "Flight setup", icon: Settings },
+      { href: "/portal/flights/recurring", label: "Recurring", icon: Repeat },
+      { href: "/portal/flights", label: "All departures", icon: Calendar },
+    ],
+  },
   { type: "link", href: "/portal/seat-inventory", label: "Seat inventory", icon: Armchair },
   { type: "link", href: "/portal/bookings", label: "Bookings", icon: Ticket },
   { type: "link", href: "/portal/check-in", label: "Check-in", icon: ClipboardCheck },
@@ -84,11 +94,28 @@ export const portalNavItems: PortalNavItem[] = [
   { type: "link", href: "/portal/settings", label: "Settings", icon: Settings },
 ];
 
-export function isNavItemActive(pathname: string, href: string) {
+function pathnameMatchesNav(pathname: string, href: string) {
   if (href === "/portal") return pathname === "/portal";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** When several nav links share a prefix, pick the longest matching href. */
+export function resolveActiveNavHref(pathname: string, hrefs: string[]): string | null {
+  const sorted = [...hrefs].sort((a, b) => b.length - a.length);
+  for (const href of sorted) {
+    if (pathnameMatchesNav(pathname, href)) return href;
+  }
+  return null;
+}
+
+export function isNavItemActive(pathname: string, href: string, siblingHrefs?: string[]) {
+  if (siblingHrefs?.length) {
+    return resolveActiveNavHref(pathname, siblingHrefs) === href;
+  }
+  return pathnameMatchesNav(pathname, href);
+}
+
 export function isNavGroupActive(pathname: string, group: PortalNavGroup) {
-  return group.items.some((item) => isNavItemActive(pathname, item.href));
+  const hrefs = group.items.map((item) => item.href);
+  return resolveActiveNavHref(pathname, hrefs) !== null;
 }

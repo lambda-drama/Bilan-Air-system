@@ -37,6 +37,28 @@ class FlightSchedulePlan(Document):
 				frappe.throw(_("Select at least one weekday for a weekly plan."))
 		if self.frequency == "Monthly" and not cint(self.monthly_day):
 			self.monthly_day = getdate(self.start_date).day
+		self._validate_plan_seat_classes()
+
+	def _validate_plan_seat_classes(self):
+		if not self.seat_classes or not self.airplane:
+			return
+		from bilan_sky.bilan_air_booking_system.utils.seat_release import layout_seat_counts_by_class
+
+		layout_caps = layout_seat_counts_by_class(self.airplane)
+		for row in self.seat_classes:
+			if not row.seat_class:
+				continue
+			qty = cint(row.number_of_seats)
+			if qty <= 0:
+				continue
+			cap = layout_caps.get(row.seat_class, 0)
+			if qty > cap:
+				label = frappe.db.get_value("Seat Class", row.seat_class, "class_name") or row.seat_class
+				frappe.throw(
+					_("{0}: cannot release {1} seats — airplane layout only has {2} for this class.").format(
+						label, qty, cap
+					)
+				)
 
 	def generate_schedules(self, submit: bool = True):
 		from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (

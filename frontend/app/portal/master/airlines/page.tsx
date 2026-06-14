@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Pencil } from "lucide-react";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { ListSearch } from "@/components/portal/list-search";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
@@ -165,7 +166,9 @@ export default function PortalAirlinesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(r)}>Edit</DropdownMenuItem>
+                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                              Edit
+                            </RowActionMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>

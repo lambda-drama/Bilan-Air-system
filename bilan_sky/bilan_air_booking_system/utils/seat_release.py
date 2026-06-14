@@ -45,6 +45,89 @@ def effective_release_count(schedule) -> int:
 	return min(max(target, 0), capacity)
 
 
+def layout_seat_counts_by_class(airplane_name: str) -> dict[str, int]:
+	"""Total layout slots per Seat Class link on an airplane."""
+	if not airplane_name:
+		return {}
+	airplane = frappe.get_doc("Airplane", airplane_name)
+	counts: dict[str, int] = {}
+	for _seat_number, seat_class in iter_layout_seat_slots(airplane):
+		counts[seat_class] = counts.get(seat_class, 0) + 1
+	return counts
+
+
+def _seat_has_active_booking(seat_inventory_name: str) -> bool:
+	if frappe.db.get_value("Seat Inventory", seat_inventory_name, "booking_reference"):
+		return True
+	return bool(
+		frappe.db.exists(
+			"Seat Segment Allocation",
+			{"seat_inventory": seat_inventory_name, "status": ["in", ["Hold", "Booked"]]},
+		)
+	)
+
+
+def apply_plan_seat_class_release(schedule, plan) -> int:
+	"""Release bookable seats per recurring plan class quotas (layout order within each class)."""
+	quotas: dict[str, int] = {}
+	for row in plan.seat_classes or []:
+		qty = cint(getattr(row, "number_of_seats", 0))
+		seat_class = getattr(row, "seat_class", None)
+		if seat_class and qty > 0:
+			quotas[seat_class] = qty
+	if not quotas:
+		if plan.seat_classes:
+			for seat_number, _seat_class in slots:
+				inv = inventories.get(seat_number)
+				if inv and inv.status == "Available" and not _seat_has_active_booking(inv.name):
+					frappe.db.set_value("Seat Inventory", inv.name, "status", "Unreleased", update_modified=False)
+			frappe.db.set_value(
+				"Flight Schedule",
+				schedule.name,
+				{"seats_released_count": 0, "total_aircraft_capacity": len(slots)},
+				update_modified=False,
+			)
+			return 0
+		return apply_release_status_to_schedule(schedule, only_unreleased=False)
+
+	airplane = frappe.get_doc("Airplane", schedule.airplane)
+	slots = iter_layout_seat_slots(airplane)
+	inventories = {
+		row.seat_number: row
+		for row in frappe.get_all(
+			"Seat Inventory",
+			filters={"flight_schedule": schedule.name},
+			fields=["name", "seat_number", "seat_class", "status"],
+		)
+	}
+	released_by_class = {seat_class: 0 for seat_class in quotas}
+	total_released = 0
+
+	for seat_number, seat_class in slots:
+		inv = inventories.get(seat_number)
+		if not inv:
+			continue
+		quota = quotas.get(seat_class)
+		if quota is not None and released_by_class[seat_class] < quota:
+			if inv.status == "Unreleased":
+				frappe.db.set_value("Seat Inventory", inv.name, "status", "Available", update_modified=False)
+			released_by_class[seat_class] += 1
+			total_released += 1
+		elif inv.status == "Available" and not _seat_has_active_booking(inv.name):
+			frappe.db.set_value("Seat Inventory", inv.name, "status", "Unreleased", update_modified=False)
+
+	frappe.db.set_value(
+		"Flight Schedule",
+		schedule.name,
+		{
+			"seats_released_count": total_released,
+			"total_aircraft_capacity": len(slots),
+		},
+		update_modified=False,
+	)
+	return total_released
+
+
 def apply_release_status_to_schedule(schedule, *, only_unreleased: bool = False) -> int:
 	"""Set Available vs Unreleased on seats according to release count. Returns newly released."""
 	if not schedule.airplane:

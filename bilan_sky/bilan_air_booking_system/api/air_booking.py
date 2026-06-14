@@ -3,6 +3,7 @@
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, flt, get_datetime, now, strip_html
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 
 from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
     prepare_seat_for_new_booking,
@@ -472,7 +473,7 @@ def _default_ticket_terms():
 		return {"title": "", "terms_html": ""}
 	return {
 		"title": row[0].title,
-		"terms_html": strip_html(row[0].terms_conditions or "").strip(),
+		"terms_html": rich_text_to_plain(row[0].terms_conditions),
 	}
 
 

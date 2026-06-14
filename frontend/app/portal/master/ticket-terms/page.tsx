@@ -1,13 +1,17 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import {
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+} from "@/components/portal/row-action-menu";
 import { ListSearch } from "@/components/portal/list-search";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
@@ -37,21 +41,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { richTextPreview, richTextToPlain } from "@/lib/rich-text";
 
 const emptyForm = {
   title: "",
   terms_conditions: "",
   default: false,
 };
-
-function termsPreview(html: string, maxLen = 80): string {
-  const text = html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) return "—";
-  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
-}
 
 export default function PortalTicketTermsPage() {
   const fetchRows = useCallback(async (search: string) => {
@@ -79,7 +75,7 @@ export default function PortalTicketTermsPage() {
     setEditing(row);
     setForm({
       title: String(row.title || row.name || ""),
-      terms_conditions: String(row.terms_conditions || ""),
+      terms_conditions: richTextToPlain(String(row.terms_conditions || "")),
       default: !!row.default,
     });
     setOpen(true);
@@ -165,7 +161,7 @@ export default function PortalTicketTermsPage() {
                   >
                     <TableCell className="font-medium">{String(r.title || r.name)}</TableCell>
                     <TableCell className="max-w-md truncate text-muted-foreground">
-                      {termsPreview(String(r.terms_conditions || ""))}
+                      {richTextPreview(String(r.terms_conditions || ""))}
                     </TableCell>
                     <TableCell>
                       {r.default ? (
@@ -183,15 +179,18 @@ export default function PortalTicketTermsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(r)}>Edit</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
+                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                              Edit
+                            </RowActionMenuItem>
+                            <RowActionMenuSeparator />
+                            <RowActionMenuItem
+                              icon={Trash2}
+                              variant="destructive"
                               disabled={deleteLoading}
                               onClick={() => setDeleteConfirmName(String(r.name))}
                             >
                               Delete
-                            </DropdownMenuItem>
+                            </RowActionMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>
@@ -296,10 +295,7 @@ export default function PortalTicketTermsPage() {
             </DetailSection>
             <DetailSection title="Terms & conditions">
               {selected.terms_conditions ? (
-                <div
-                  className="prose prose-sm max-w-none text-sm dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: String(selected.terms_conditions) }}
-                />
+                <p className="whitespace-pre-wrap text-sm">{richTextToPlain(String(selected.terms_conditions))}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">No content.</p>
               )}

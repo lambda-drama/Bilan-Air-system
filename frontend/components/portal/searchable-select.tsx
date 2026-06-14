@@ -146,8 +146,10 @@ export function SearchableSelect({
             handleSearchChange(e.target.value);
             if (!open) setOpen(true);
           }}
+          onPointerDown={() => {
+            if (!disabled) setOpen(true);
+          }}
           onFocus={() => {
-            setOpen(true);
             if (selectedOption) setSearch("");
           }}
           onKeyDown={handleKeyDown}

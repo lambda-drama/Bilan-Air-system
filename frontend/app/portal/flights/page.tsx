@@ -2,7 +2,19 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { MoreHorizontal, Plane, Plus, Repeat } from "lucide-react";
+import {
+  Armchair,
+  CalendarClock,
+  FilePenLine,
+  MoreHorizontal,
+  Plane,
+  Plus,
+  Repeat,
+  Ticket,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import {
   amendFlightSchedule,
@@ -24,6 +36,7 @@ import { flightScheduleStatusStyle } from "@/lib/portal-status-styles";
 import { toast } from "sonner";
 import { fetchAllRoutes } from "@/services/flightRoute";
 import { fetchAllAirplanes } from "@/services/airplane";
+import { getFlightSchedulePlan } from "@/services/flightSchedulePlan";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import {
   BilanFormDialog,
@@ -37,14 +50,16 @@ import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
 import { ListSearch } from "@/components/portal/list-search";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -56,7 +71,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/portal/searchable-select";
@@ -145,6 +159,9 @@ function PortalFlightsPageContent() {
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
   const [departureDateFilter, setDepartureDateFilter] = useState("");
   const [departureTimeFilter, setDepartureTimeFilter] = useState("");
+  const [flightNumberFilter, setFlightNumberFilter] = useState("");
+  const [schedulePlanFilter, setSchedulePlanFilter] = useState("");
+  const [schedulePlanTitle, setSchedulePlanTitle] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get("view") === "upcoming") {
@@ -154,13 +171,28 @@ function PortalFlightsPageContent() {
     if (status) {
       setStatusFilter(status);
     }
+    const flightNumber = searchParams.get("flight_number");
+    setFlightNumberFilter(flightNumber || "");
+    setSchedulePlanFilter(searchParams.get("schedule_plan") || "");
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!schedulePlanFilter) {
+      setSchedulePlanTitle(null);
+      return;
+    }
+    getFlightSchedulePlan(schedulePlanFilter)
+      .then((doc) => setSchedulePlanTitle(String(doc.plan_title || schedulePlanFilter)))
+      .catch(() => setSchedulePlanTitle(schedulePlanFilter));
+  }, [schedulePlanFilter]);
 
   const fetchSchedules = useCallback(
     async (search: string) => {
       const res = await listSchedules({
         limit: 100,
         search: search.trim() || undefined,
+        flight_number: schedulePlanFilter.trim() ? undefined : flightNumberFilter.trim() || undefined,
+        schedule_plan: schedulePlanFilter.trim() || undefined,
         status:
           statusFilter === ALL_STATUSES_VALUE || statusFilter === UPCOMING_STATUSES_VALUE
             ? undefined
@@ -171,9 +203,9 @@ function PortalFlightsPageContent() {
       });
       return res.data;
     },
-    [statusFilter, departureDateFilter, departureTimeFilter],
+    [statusFilter, departureDateFilter, departureTimeFilter, flightNumberFilter, schedulePlanFilter],
   );
-  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}`;
+  const listReloadKey = `${statusFilter}|${departureDateFilter}|${departureTimeFilter}|${flightNumberFilter}|${schedulePlanFilter}`;
   const {
     search: searchQuery,
     setSearch: setSearchQuery,
@@ -186,7 +218,9 @@ function PortalFlightsPageContent() {
     !!searchQuery.trim() ||
     statusFilter !== ALL_STATUSES_VALUE ||
     !!departureDateFilter ||
-    !!departureTimeFilter;
+    !!departureTimeFilter ||
+    !!flightNumberFilter ||
+    !!schedulePlanFilter;
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyScheduleForm);
   const [arrivalTouched, setArrivalTouched] = useState(false);
@@ -534,8 +568,6 @@ function PortalFlightsPageContent() {
       { key: "departure_time", label: "Departure time" },
       { key: "arrival_date", label: "Arrival date" },
       { key: "arrival_time", label: "Arrival time" },
-      { key: "captain", label: "Captain" },
-      { key: "first_officer", label: "First officer" },
     ]);
     if (missing.length) {
       amendAlerts.showValidation(missing);
@@ -772,8 +804,6 @@ function PortalFlightsPageContent() {
       { key: "arrival_date", label: "Arrival date" },
       { key: "arrival_time", label: "Arrival time" },
       { key: "status", label: "Status" },
-      { key: "captain", label: "Captain" },
-      { key: "first_officer", label: "First officer" },
     ]);
     if (missing.length) {
       formAlerts.showValidation(missing);
@@ -830,10 +860,22 @@ function PortalFlightsPageContent() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex items-center justify-between gap-3 sm:block">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold">Flight schedule</h1>
+            <h1 className="text-2xl font-bold">
+              {flightNumberFilter ? `Flight schedule — ${flightNumberFilter}` : "Flight schedule"}
+            </h1>
             <p className="hidden text-muted-foreground sm:block">
-              View, create, and manage departures
+              {flightNumberFilter
+                ? "All dated departures for this flight number"
+                : "View, create, and manage departures"}
             </p>
+            {flightNumberFilter ? (
+              <Link
+                href="/portal/flights/setup"
+                className="mt-1 inline-block text-sm text-gold hover:underline"
+              >
+                ← Back to flight setup
+              </Link>
+            ) : null}
           </div>
           <Button
             type="button"
@@ -849,6 +891,9 @@ function PortalFlightsPageContent() {
           </Button>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button variant="outline" asChild className="h-10">
+            <Link href="/portal/flights/setup">Flight setup</Link>
+          </Button>
           <Button
             asChild
             className="h-10 w-full bg-gold text-navy hover:bg-gold-dark sm:hidden"
@@ -883,36 +928,35 @@ function PortalFlightsPageContent() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Plane className="h-5 w-5 text-gold" />
-              All departures
-            </CardTitle>
+        <CardHeader className="space-y-3 pb-4">
+          {schedulePlanFilter ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1 font-normal">
+                Recurring plan: {schedulePlanTitle || schedulePlanFilter}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => router.push("/portal/flights")}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Clear plan filter
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                <label htmlFor="flight-status-filter" className="text-sm font-medium text-muted-foreground shrink-0">
-                  Status
-                </label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger id="flight-status-filter" className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
-                    <SelectItem value={UPCOMING_STATUSES_VALUE}>Upcoming</SelectItem>
-                    {FLIGHT_STATUS_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+              <ListSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search flight no. or ID..."
+                className="w-full sm:w-[240px] sm:max-w-none"
+              />
+              <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="flight-departure-date-filter"
-                  className="text-sm font-medium text-muted-foreground shrink-0"
+                  className="text-xs font-medium text-muted-foreground"
                 >
                   Departure date
                 </label>
@@ -921,13 +965,13 @@ function PortalFlightsPageContent() {
                   type="date"
                   value={departureDateFilter}
                   onChange={(e) => setDepartureDateFilter(e.target.value)}
-                  className="w-full sm:w-[160px]"
+                  className="h-9 w-full sm:w-[160px]"
                 />
               </div>
-              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+              <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="flight-departure-time-filter"
-                  className="text-sm font-medium text-muted-foreground shrink-0"
+                  className="text-xs font-medium text-muted-foreground"
                 >
                   Time <span className="font-normal">(optional)</span>
                 </label>
@@ -936,15 +980,31 @@ function PortalFlightsPageContent() {
                   type="time"
                   value={departureTimeFilter}
                   onChange={(e) => setDepartureTimeFilter(e.target.value)}
-                  className="w-full sm:w-[140px]"
+                  className="h-9 w-full sm:w-[140px]"
                 />
               </div>
-              <ListSearch
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search flight no. or ID..."
-                className="w-full sm:max-w-sm"
-              />
+            </div>
+            <div className="flex flex-col gap-1.5 xl:ml-auto xl:shrink-0">
+              <label
+                htmlFor="flight-status-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Status
+              </label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger id="flight-status-filter" className="h-9 w-full sm:w-[180px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
+                  <SelectItem value={UPCOMING_STATUSES_VALUE}>Upcoming</SelectItem>
+                  {FLIGHT_STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -1012,44 +1072,52 @@ function PortalFlightsPageContent() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {canEditPrices(s.status) && (
-                                <DropdownMenuItem onClick={() => openEditPrices(s)}>
-                                  Edit
-                                </DropdownMenuItem>
+                                <RowActionMenuItem icon={FilePenLine} onClick={() => openEditPrices(s)}>
+                                  Edit prices
+                                </RowActionMenuItem>
                               )}
-                              <DropdownMenuItem onClick={() => openSeatInventory(s.name)}>
+                              <RowActionMenuItem
+                                icon={Armchair}
+                                accent
+                                onClick={() => openSeatInventory(s.name)}
+                              >
                                 View seat map
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
+                              </RowActionMenuItem>
+                              <RowActionMenuItem
+                                icon={Ticket}
+                                accent
                                 onClick={() => openOfficeBooking(s.name)}
                                 disabled={!canRescheduleFlight(s.status)}
                               >
                                 Book flight
-                              </DropdownMenuItem>
+                              </RowActionMenuItem>
                               {canRescheduleFlight(s.status) && (
-                                <DropdownMenuItem onClick={() => openReschedule(s)}>
+                                <RowActionMenuItem icon={CalendarClock} onClick={() => openReschedule(s)}>
                                   Reschedule
-                                </DropdownMenuItem>
+                                </RowActionMenuItem>
                               )}
                               {canCancelFlight(s.status) && (
-                                <DropdownMenuItem
+                                <RowActionMenuItem
+                                  icon={XCircle}
                                   variant="destructive"
                                   onClick={() => openCancel(s)}
                                 >
                                   Cancel flight schedule
-                                </DropdownMenuItem>
+                                </RowActionMenuItem>
                               )}
                               {canAmendFlight(s.status) && (
-                                <DropdownMenuItem onClick={() => openAmend(s)}>
+                                <RowActionMenuItem icon={Repeat} onClick={() => openAmend(s)}>
                                   Amend schedule
-                                </DropdownMenuItem>
+                                </RowActionMenuItem>
                               )}
                               {canDeleteFlight(s.status) && (
-                                <DropdownMenuItem
+                                <RowActionMenuItem
+                                  icon={Trash2}
                                   variant="destructive"
                                   onClick={() => setDeleteTarget(s)}
                                 >
                                   Delete schedule
-                                </DropdownMenuItem>
+                                </RowActionMenuItem>
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1176,7 +1244,7 @@ function PortalFlightsPageContent() {
 
         <FormSection title="Crew" className="mt-4">
           <FormGrid className="grid-cols-2">
-            <FormField label="Captain" required>
+            <FormField label="Captain">
               <SearchableSelect
                 options={captainOptions}
                 value={form.captain}
@@ -1193,7 +1261,7 @@ function PortalFlightsPageContent() {
                 clearable={false}
               />
             </FormField>
-            <FormField label="First officer" required>
+            <FormField label="First officer">
               <SearchableSelect
                 options={createFirstOfficerOptions}
                 value={form.first_officer}
@@ -1536,7 +1604,7 @@ function PortalFlightsPageContent() {
             </FormSection>
             <FormSection title="Crew" className="mt-4">
               <FormGrid className="grid-cols-2">
-                <FormField label="Captain" required>
+                <FormField label="Captain">
                   <SearchableSelect
                     options={captainOptions}
                     value={amendForm.captain}
@@ -1556,7 +1624,7 @@ function PortalFlightsPageContent() {
                     clearable={false}
                   />
                 </FormField>
-                <FormField label="First officer" required>
+                <FormField label="First officer">
                   <SearchableSelect
                     options={amendFirstOfficerOptions}
                     value={amendForm.first_officer}

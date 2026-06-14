@@ -25,6 +25,28 @@ export interface FlightScheduleRow {
   only_prepayment?: number | boolean;
 }
 
+/** One row per flight number — master “Flight Setup” view. */
+export interface FlightSetupRow {
+  flight_number: string;
+  route?: string | null;
+  route_label?: string | null;
+  origin_label?: string | null;
+  destination_label?: string | null;
+  airplane?: string | null;
+  airplane_label?: string | null;
+  schedule_count: number;
+  first_departure?: string | null;
+  last_departure?: string | null;
+  next_departure?: string | null;
+  next_departure_time?: string | null;
+  updated_on?: string | null;
+  updated_by?: string | null;
+  plan_count?: number;
+  has_master?: number | boolean;
+  terms_and_conditions?: string;
+  is_active?: number | boolean;
+}
+
 export async function fetchSeatMap(flight_schedule_name: string): Promise<SeatMap> {
   return apiRequest(methodUrl("flight_schedule", "fetch_seat_map"), {
     method: "POST",
@@ -74,6 +96,8 @@ export async function listSchedules(opts?: {
   search?: string;
   departure_date?: string;
   departure_time?: string;
+  flight_number?: string;
+  schedule_plan?: string;
 }) {
   return apiRequest<PaginatedResponse<FlightScheduleRow>>(
     methodUrl("portal", "list_flight_schedules"),
@@ -87,6 +111,26 @@ export async function listSchedules(opts?: {
         search: opts?.search ?? null,
         departure_date: opts?.departure_date ?? null,
         departure_time: opts?.departure_time ?? null,
+        flight_number: opts?.flight_number ?? null,
+        schedule_plan: opts?.schedule_plan ?? null,
+      }),
+    },
+  );
+}
+
+export async function listFlightSetups(opts?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}) {
+  return apiRequest<PaginatedResponse<FlightSetupRow>>(
+    methodUrl("portal", "list_flight_setups"),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        limit: opts?.limit ?? 100,
+        offset: opts?.offset ?? 0,
+        search: opts?.search ?? null,
       }),
     },
   );
