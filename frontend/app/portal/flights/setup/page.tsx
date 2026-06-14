@@ -1,11 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Calendar, Plane, Repeat } from "lucide-react";
+import { DollarSign, LayoutGrid, Pencil, Plane, Scale } from "lucide-react";
+import { BilanFormDialog, FormField, FormGrid, FormSection } from "@/components/portal/form-dialog";
 import { ListSearch } from "@/components/portal/list-search";
+import { PortalAddButton } from "@/components/portal/portal-add-button";
+import { RowActionMenu, RowActionMenuItem } from "@/components/portal/row-action-menu";
+import { SearchableSelect } from "@/components/portal/searchable-select";
+import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -14,7 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { fetchAllRoutes } from "@/services/flightRoute";
+import { fetchAllAirplanes } from "@/services/airplane";
 import { listFlightSetups, type FlightSetupRow } from "@/services/flightSchedule";
+import {
+  flightSetupPath,
+  getFlightSetup,
+  saveFlightSetup,
+} from "@/services/flightSetup";
+import { richTextToPlain } from "@/lib/rich-text";
+import { toast } from "sonner";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
@@ -27,8 +46,7 @@ function formatDate(iso?: string | null) {
 
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -37,6 +55,14 @@ function formatDateTime(iso?: string | null) {
   });
 }
 
+const emptyForm = {
+  flight_number: "",
+  route: "",
+  airplane: "",
+  terms_and_conditions: "",
+  is_active: true,
+};
+
 export default function FlightSetupPage() {
   const {
     search,
@@ -44,32 +70,130 @@ export default function FlightSetupPage() {
     rows,
     loading,
     error,
+    refresh,
   } = useLiveListQuery<FlightSetupRow>(
     (query) => listFlightSetups({ limit: 200, search: query.trim() || undefined }).then((r) => r.data),
   );
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editTarget, setEditTarget] = useState<string | null>(null);
+  const [isCreate, setIsCreate] = useState(false);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [routes, setRoutes] = useState<
+    Array<{
+      value: string;
+      label: string;
+      origin_label?: string;
+      destination_label?: string;
+    }>
+  >([]);
+  const [airplanes, setAirplanes] = useState<Array<{ value: string; label: string }>>([]);
+  const [routeEndpoints, setRouteEndpoints] = useState({ origin: "", destination: "" });
+  const formAlerts = useFormDialogAlerts();
+
+  const selectedRoute = routes.find((r) => r.value === editForm.route);
+  const fromLabel = selectedRoute?.origin_label || routeEndpoints.origin;
+  const toLabel = selectedRoute?.destination_label || routeEndpoints.destination;
+
+  useEffect(() => {
+    Promise.all([fetchAllRoutes(), fetchAllAirplanes()]).then(([r, a]) => {
+      setRoutes(
+        r.map((x) => ({
+          value: x.name,
+          label: x.route_name || x.name,
+          origin_label: x.origin_airport_label,
+          destination_label: x.destination_airport_label,
+        })),
+      );
+      setAirplanes(
+        a.map((x) => ({
+          value: x.name,
+          label: [x.registration_number, x.aircraft_model].filter(Boolean).join(" · ") || x.name,
+        })),
+      );
+    });
+  }, []);
+
+  const openCreate = () => {
+    formAlerts.clearAlerts();
+    setIsCreate(true);
+    setEditTarget(null);
+    setEditForm(emptyForm);
+    setRouteEndpoints({ origin: "", destination: "" });
+    setEditOpen(true);
+  };
+
+  const openEdit = async (flightNumber: string) => {
+    formAlerts.clearAlerts();
+    setIsCreate(false);
+    setEditTarget(flightNumber);
+    setEditLoading(true);
+    setEditOpen(true);
+    try {
+      const detail = await getFlightSetup(flightNumber);
+      setEditForm({
+        flight_number: flightNumber,
+        route: detail.route || "",
+        airplane: detail.airplane || "",
+        terms_and_conditions: richTextToPlain(detail.terms_and_conditions),
+        is_active: detail.is_active !== 0 && detail.is_active !== false,
+      });
+      setRouteEndpoints({
+        origin: detail.origin_label || "",
+        destination: detail.destination_label || "",
+      });
+    } catch (e) {
+      formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to load flight");
+      setEditOpen(false);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const saveForm = async () => {
+    const flightNumber = (isCreate ? editForm.flight_number : editTarget)?.trim();
+    if (!flightNumber) {
+      formAlerts.showValidation(["Flight number"]);
+      return;
+    }
+    if (!editForm.route || !editForm.airplane) {
+      const missing: string[] = [];
+      if (!editForm.route) missing.push("Route");
+      if (!editForm.airplane) missing.push("Aircraft");
+      formAlerts.showValidation(missing);
+      return;
+    }
+    formAlerts.clearAlerts();
+    setEditLoading(true);
+    try {
+      await saveFlightSetup({
+        flight_number: flightNumber,
+        route: editForm.route,
+        airplane: editForm.airplane,
+        terms_and_conditions: editForm.terms_and_conditions,
+        is_active: editForm.is_active ? 1 : 0,
+      });
+      toast.success(isCreate ? `Flight setup ${flightNumber} created` : `Flight ${flightNumber} updated`);
+      setEditOpen(false);
+      refresh();
+    } catch (e) {
+      formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Flight setup</h1>
-          <p className="text-muted-foreground">
-            One row per flight number. The same number runs on many dates — open schedules to see each
-            departure.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <PortalAddButton onClick={openCreate}>New flight setup</PortalAddButton>
           <Button variant="outline" asChild>
             <Link href="/portal/flights">All departures</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/portal/flights/recurring">
-              <Repeat className="mr-2 h-4 w-4" />
-              Recurring plans
-            </Link>
-          </Button>
-          <Button className="bg-gold text-navy hover:bg-gold-dark" asChild>
-            <Link href="/portal/flights">New departure</Link>
           </Button>
         </div>
       </div>
@@ -102,6 +226,7 @@ export default function FlightSetupPage() {
                     <TableHead>From</TableHead>
                     <TableHead>To</TableHead>
                     <TableHead>Aircraft</TableHead>
+                    <TableHead>Recurring</TableHead>
                     <TableHead>Schedules</TableHead>
                     <TableHead>Next departure</TableHead>
                     <TableHead>Updated</TableHead>
@@ -111,10 +236,10 @@ export default function FlightSetupPage() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                         {search.trim()
-                          ? "No flight numbers match your filter."
-                          : "No flight schedules yet — create a departure or recurring plan."}
+                          ? "No flight setup records match your filter."
+                          : "No flight setup records yet. Click + New flight setup to add one."}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -126,6 +251,7 @@ export default function FlightSetupPage() {
                         <TableCell className="max-w-[180px] truncate">
                           {row.airplane_label || row.airplane || "—"}
                         </TableCell>
+                        <TableCell>{row.plan_count ?? 0}</TableCell>
                         <TableCell>
                           <span className="font-medium">{row.schedule_count}</span>
                           {row.first_departure && row.last_departure ? (
@@ -156,47 +282,42 @@ export default function FlightSetupPage() {
                           </p>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gold hover:text-gold-dark"
-                              asChild
-                              title="View departures for this flight number"
+                          <RowActionMenu>
+                            <RowActionMenuItem
+                              icon={Pencil}
+                              onClick={() => openEdit(row.flight_number)}
                             >
-                              <Link
-                                href={`/portal/flights?flight_number=${encodeURIComponent(row.flight_number)}`}
-                              >
-                                <Plane className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                            {row.schedule_plan ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                asChild
-                                title="Recurring plan"
-                              >
-                                <Link href="/portal/flights/recurring">
-                                  <Repeat className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                            ) : null}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              asChild
-                              title="All departures (calendar view)"
+                              Edit flight setup
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={DollarSign}
+                              accent
+                              href={flightSetupPath(row.flight_number, "pricing")}
                             >
-                              <Link
-                                href={`/portal/flights?flight_number=${encodeURIComponent(row.flight_number)}`}
-                              >
-                                <Calendar className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </div>
+                              Flight pricing
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={Scale}
+                              accent
+                              href={flightSetupPath(row.flight_number, "penalties")}
+                            >
+                              Flight penalties
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={Plane}
+                              accent
+                              href={flightSetupPath(row.flight_number, "schedules")}
+                            >
+                              View departures
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={LayoutGrid}
+                              accent
+                              href={flightSetupPath(row.flight_number, "plans")}
+                            >
+                              Recurring plans
+                            </RowActionMenuItem>
+                          </RowActionMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -207,6 +328,99 @@ export default function FlightSetupPage() {
           )}
         </CardContent>
       </Card>
+
+      <BilanFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={
+          isCreate
+            ? "New flight setup"
+            : editTarget
+              ? `Edit flight ${editTarget}`
+              : "Edit flight"
+        }
+        description="Flight number, route, default aircraft, and terms for this flight setup (step 1)."
+        validationErrors={formAlerts.validationErrors}
+        submitError={formAlerts.submitError}
+        onDismissAlerts={formAlerts.clearAlerts}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editLoading}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-gold text-navy hover:bg-gold-dark"
+              onClick={saveForm}
+              disabled={editLoading}
+            >
+              {isCreate ? "Create" : "Save"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-8">
+          <FormSection title="Flight details">
+            <FormGrid>
+              {isCreate ? (
+                <FormField label="Flight number" required fullWidth hint="e.g. KQ100">
+                  <Input
+                    value={editForm.flight_number}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, flight_number: e.target.value.toUpperCase() }))
+                    }
+                    placeholder="KQ100"
+                  />
+                </FormField>
+              ) : null}
+              <FormField label="Route" required fullWidth>
+                <SearchableSelect
+                  options={routes}
+                  value={editForm.route}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, route: v }))}
+                  placeholder="Select route..."
+                  clearable={false}
+                />
+              </FormField>
+              <FormField label="From" fullWidth>
+                <Input readOnly value={fromLabel || "—"} className="bg-muted/50" />
+              </FormField>
+              <FormField label="To" fullWidth>
+                <Input readOnly value={toLabel || "—"} className="bg-muted/50" />
+              </FormField>
+              <FormField label="Default aircraft" required fullWidth>
+                <SearchableSelect
+                  options={airplanes}
+                  value={editForm.airplane}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, airplane: v }))}
+                  placeholder="Select aircraft..."
+                  clearable={false}
+                />
+              </FormField>
+            </FormGrid>
+            <div className="mt-6 flex items-center justify-between rounded-lg border p-4">
+              <Label htmlFor="flight-setup-active" className="text-sm font-normal">
+                Active for booking
+              </Label>
+              <Switch
+                id="flight-setup-active"
+                checked={editForm.is_active}
+                onCheckedChange={(v) => setEditForm((f) => ({ ...f, is_active: v }))}
+              />
+            </div>
+          </FormSection>
+          <FormSection title="Terms & conditions">
+            <Textarea
+              value={editForm.terms_and_conditions}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, terms_and_conditions: e.target.value }))
+              }
+              rows={8}
+              placeholder="Ticket and booking terms shown for this flight number..."
+              className="min-h-[180px]"
+            />
+          </FormSection>
+        </div>
+      </BilanFormDialog>
     </div>
   );
 }

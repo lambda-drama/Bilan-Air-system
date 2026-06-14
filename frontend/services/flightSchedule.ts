@@ -41,7 +41,10 @@ export interface FlightSetupRow {
   next_departure_time?: string | null;
   updated_on?: string | null;
   updated_by?: string | null;
-  schedule_plan?: string | null;
+  plan_count?: number;
+  has_master?: number | boolean;
+  terms_and_conditions?: string;
+  is_active?: number | boolean;
 }
 
 export async function fetchSeatMap(flight_schedule_name: string): Promise<SeatMap> {
@@ -94,6 +97,7 @@ export async function listSchedules(opts?: {
   departure_date?: string;
   departure_time?: string;
   flight_number?: string;
+  schedule_plan?: string;
 }) {
   return apiRequest<PaginatedResponse<FlightScheduleRow>>(
     methodUrl("portal", "list_flight_schedules"),
@@ -108,6 +112,7 @@ export async function listSchedules(opts?: {
         departure_date: opts?.departure_date ?? null,
         departure_time: opts?.departure_time ?? null,
         flight_number: opts?.flight_number ?? null,
+        schedule_plan: opts?.schedule_plan ?? null,
       }),
     },
   );

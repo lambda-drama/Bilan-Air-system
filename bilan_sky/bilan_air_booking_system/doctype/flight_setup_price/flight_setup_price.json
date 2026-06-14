@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "creation": "2026-06-15 00:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "seat_class",
+  "passenger_type",
+  "column_break_fare",
+  "fare",
+  "tax_group_name",
+  "surcharge_group_name",
+  "section_break_commissions",
+  "non_base_agent_commission",
+  "base_agent_commission",
+  "section_break_baggage",
+  "baggage_pieces",
+  "baggage_weight_kg",
+  "column_break_hand_carry",
+  "hand_carry_pieces",
+  "hand_carry_weight_kg"
+ ],
+ "fields": [
+  {
+   "fieldname": "seat_class",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Ticket Type",
+   "options": "Seat Class",
+   "reqd": 1
+  },
+  {
+   "fieldname": "passenger_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Passenger Type",
+   "options": "Adult\nChild\nInfant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_fare",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "fare",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Fare",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tax_group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tax Group Name"
+  },
+  {
+   "fieldname": "surcharge_group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Surcharge Group Name"
+  },
+  {
+   "fieldname": "section_break_commissions",
+   "fieldtype": "Section Break",
+   "label": "Agent commission"
+  },
+  {
+   "fieldname": "non_base_agent_commission",
+   "fieldtype": "Currency",
+   "label": "Non Base Agent Commission"
+  },
+  {
+   "fieldname": "base_agent_commission",
+   "fieldtype": "Currency",
+   "label": "Base Agent Commission"
+  },
+  {
+   "fieldname": "section_break_baggage",
+   "fieldtype": "Section Break",
+   "label": "Baggage & hand carry"
+  },
+  {
+   "default": "0",
+   "fieldname": "baggage_pieces",
+   "fieldtype": "Int",
+   "label": "Baggage Pieces"
+  },
+  {
+   "fieldname": "baggage_weight_kg",
+   "fieldtype": "Int",
+   "label": "Baggage Weight (kg)"
+  },
+  {
+   "fieldname": "column_break_hand_carry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "hand_carry_pieces",
+   "fieldtype": "Int",
+   "label": "Hand Carry Pieces"
+  },
+  {
+   "fieldname": "hand_carry_weight_kg",
+   "fieldtype": "Int",
+   "label": "Hand Carry Weight (kg)"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-15 00:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Flight Setup Price",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "states": []
+}

@@ -177,7 +177,7 @@ class FlightSchedule(Document):
         return aircraft_capacity(self.airplane)
 
     def _ensure_flight_number(self):
-        if self.flight_number and not self.is_new():
+        if self.flight_number:
             return
 
         if not (self.airplane and self.route and self.departure_date):

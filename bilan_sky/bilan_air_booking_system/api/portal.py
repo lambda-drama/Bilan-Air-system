@@ -2,14 +2,26 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, cint, flt, now
+from frappe.utils import add_to_date, cint, flt, format_datetime, get_datetime, now
 
 from bilan_sky.bilan_air_booking_system.utils.airports import (
 	enrich_route_airport_labels,
 	format_route_label,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.flight_setup import flight_setup_available
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, FLIGHT_TAKEN, VOID
+
+
+def _format_reservation_datetime(value) -> str:
+	"""Portal display: date + 12-hour time with am/pm (no microseconds)."""
+	if not value:
+		return ""
+	dt = get_datetime(value)
+	if not dt:
+		return str(value)
+	return format_datetime(dt, "yyyy-MM-dd hh:mm a").lower()
 
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
@@ -38,10 +50,13 @@ def list_flight_schedules(
 	departure_date=None,
 	departure_time=None,
 	flight_number=None,
+	schedule_plan=None,
 ):
 	filters = {}
 	if flight_number:
 		filters["flight_number"] = str(flight_number).strip()
+	if schedule_plan:
+		filters["schedule_plan"] = str(schedule_plan).strip()
 
 	if frappe.utils.cint(upcoming):
 		filters["status"] = ["in", ["Scheduled", "Boarding", "Delayed"]]
@@ -108,71 +123,80 @@ def list_flight_schedules(
 
 @frappe.whitelist()
 def list_flight_setups(limit=50, offset=0, search=None):
-	"""Master list grouped by flight number (same number, many dated schedules)."""
+	"""Flight Setup doctype records with linked schedule and plan counts."""
 	require_portal_staff()
+
+	if not flight_setup_available():
+		return {"data": [], "total": 0}
+
 	limit = int(limit)
 	offset = int(offset)
-	params = {"limit": limit, "offset": offset}
-	where = ""
+	filters = {}
 	if search:
-		where = "WHERE flight_number LIKE %(search)s"
-		params["search"] = f"%{str(search).strip()}%"
+		filters["flight_number"] = ["like", f"%{str(search).strip()}%"]
 
-	rows = frappe.db.sql(
-		f"""
-		SELECT
-			flight_number,
-			COUNT(name) AS schedule_count,
-			MIN(departure_date) AS first_departure,
-			MAX(departure_date) AS last_departure
-		FROM `tabFlight Schedule`
-		{where}
-		GROUP BY flight_number
-		ORDER BY flight_number ASC
-		LIMIT %(limit)s OFFSET %(offset)s
-		""",
-		params,
-		as_dict=True,
+	rows = frappe.get_all(
+		"Flight Setup",
+		filters=filters or None,
+		fields=[
+			"flight_number",
+			"route",
+			"airplane",
+			"is_active",
+			"modified",
+			"modified_by",
+			"terms_and_conditions",
+		],
+		order_by="flight_number asc",
+		limit=limit,
+		start=offset,
+		ignore_permissions=True,
 	)
-	total_row = frappe.db.sql(
-		f"SELECT COUNT(DISTINCT flight_number) FROM `tabFlight Schedule` {where}",
-		params,
-	)
-	total = cint(total_row[0][0] if total_row else 0)
+	total = frappe.db.count("Flight Setup", filters=filters or None)
 
+	for row in rows:
+		row["has_master"] = 1
+		row["updated_on"] = row.pop("modified", None)
+		row["updated_by"] = row.pop("modified_by", None)
+		row["terms_and_conditions"] = rich_text_to_plain(row.get("terms_and_conditions"))
+
+	_attach_flight_setup_schedule_stats(rows)
+	_enrich_flight_setup_rows(rows)
+
+	return {"data": rows, "total": total}
+
+
+def _attach_flight_setup_schedule_stats(rows):
 	today = frappe.utils.getdate()
 	for row in rows:
-		latest = frappe.get_all(
-			"Flight Schedule",
-			filters={"flight_number": row.flight_number},
-			fields=[
-				"route",
-				"airplane",
-				"modified",
-				"modified_by",
-				"schedule_plan",
-			],
-			order_by="modified desc",
-			limit=1,
+		fn = row.get("flight_number")
+		if not fn:
+			continue
+		stats = frappe.db.sql(
+			"""
+			SELECT
+				COUNT(name) AS schedule_count,
+				MIN(departure_date) AS first_departure,
+				MAX(departure_date) AS last_departure
+			FROM `tabFlight Schedule`
+			WHERE flight_number = %s
+			""",
+			fn,
+			as_dict=True,
 		)
-		if latest:
-			latest_row = latest[0]
-			row["route"] = latest_row.route
-			row["airplane"] = latest_row.airplane
-			row["updated_on"] = latest_row.modified
-			row["updated_by"] = latest_row.modified_by
-			row["schedule_plan"] = latest_row.schedule_plan
-		else:
-			row["route"] = None
-			row["airplane"] = None
-			row["updated_on"] = None
-			row["updated_by"] = None
-			row["schedule_plan"] = None
-
+		s = stats[0] if stats else {}
+		row["schedule_count"] = cint(s.get("schedule_count"))
+		row["first_departure"] = (
+			str(s["first_departure"]) if s.get("first_departure") else None
+		)
+		row["last_departure"] = (
+			str(s["last_departure"]) if s.get("last_departure") else None
+		)
+		row["plan_count"] = frappe.db.count("Flight Schedule Plan", {"flight_number": fn})
 		upcoming = frappe.get_all(
 			"Flight Schedule",
 			filters={
-				"flight_number": row.flight_number,
+				"flight_number": fn,
 				"departure_date": [">=", today],
 				"status": ["in", ["Scheduled", "Boarding", "Delayed"]],
 			},
@@ -187,6 +211,8 @@ def list_flight_setups(limit=50, offset=0, search=None):
 			row["next_departure"] = None
 			row["next_departure_time"] = None
 
+
+def _enrich_flight_setup_rows(rows):
 	route_names = {row["route"] for row in rows if row.get("route")}
 	route_labels = {}
 	route_endpoints = {}
@@ -228,7 +254,241 @@ def list_flight_setups(limit=50, offset=0, search=None):
 		row["destination_label"] = endpoints.get("destination_label")
 		row["airplane_label"] = airplane_labels.get(row.get("airplane")) or row.get("airplane")
 
+
+@frappe.whitelist()
+def list_flight_setup_masters(limit=200, offset=0, search=None):
+	"""Flight Setup doctype records for linking recurring plans and other forms."""
+	require_portal_staff()
+
+	if not flight_setup_available():
+		return {"data": [], "total": 0}
+
+	limit = int(limit)
+	offset = int(offset)
+	filters = {}
+	if search:
+		filters["flight_number"] = ["like", f"%{str(search).strip()}%"]
+
+	rows = frappe.get_all(
+		"Flight Setup",
+		filters=filters or None,
+		fields=[
+			"flight_number",
+			"route",
+			"airplane",
+			"is_active",
+			"modified",
+			"modified_by",
+		],
+		order_by="flight_number asc",
+		limit=limit,
+		start=offset,
+		ignore_permissions=True,
+	)
+	total = frappe.db.count("Flight Setup", filters=filters or None)
+
+	for row in rows:
+		row["has_master"] = 1
+
+	_enrich_flight_setup_rows(rows)
+
 	return {"data": rows, "total": total}
+
+
+@frappe.whitelist()
+def get_flight_setup(flight_number):
+	"""Flight number master (route, aircraft, terms). Creates from schedules if missing."""
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+
+	if flight_setup_available() and frappe.db.exists("Flight Setup", flight_number):
+		doc = frappe.get_doc("Flight Setup", flight_number)
+		return _flight_setup_payload(doc)
+
+	latest = frappe.get_all(
+		"Flight Schedule",
+		filters={"flight_number": flight_number},
+		fields=["route", "airplane"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if not latest:
+		return {
+			"flight_number": flight_number,
+			"route": "",
+			"airplane": "",
+			"terms_and_conditions": "",
+			"is_active": 1,
+			"has_master": 0,
+		}
+
+	return {
+		"flight_number": flight_number,
+		"route": latest[0].route,
+		"airplane": latest[0].airplane,
+		"terms_and_conditions": "",
+		"is_active": 1,
+		"has_master": 0,
+	}
+
+
+def _flight_setup_payload(doc):
+	route_label = None
+	origin_label = destination_label = None
+	if doc.route:
+		route_row = frappe.db.get_value(
+			"Flight Route",
+			doc.route,
+			["origin_airport", "destination_airport"],
+			as_dict=True,
+		)
+		if route_row:
+			route_label = format_route_label(
+				route_row.origin_airport, route_row.destination_airport
+			)
+			origin_label = (
+				frappe.db.get_value("Airport", route_row.origin_airport, "city")
+				or route_row.origin_airport
+			)
+			destination_label = (
+				frappe.db.get_value("Airport", route_row.destination_airport, "city")
+				or route_row.destination_airport
+			)
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import (
+		flight_setup_penalties_for_api,
+		flight_setup_prices_for_api,
+	)
+
+	return {
+		"flight_number": doc.flight_number,
+		"route": doc.route,
+		"route_label": route_label,
+		"origin_label": origin_label,
+		"destination_label": destination_label,
+		"airplane": doc.airplane,
+		"terms_and_conditions": rich_text_to_plain(doc.terms_and_conditions),
+		"is_active": doc.is_active,
+		"has_master": 1,
+		"modified": doc.modified,
+		"modified_by": doc.modified_by,
+		"flight_prices": flight_setup_prices_for_api(doc),
+		"flight_penalties": flight_setup_penalties_for_api(doc),
+		"price_count": len(doc.get("flight_prices") or []),
+		"penalty_count": len(doc.get("flight_penalties") or []),
+	}
+
+
+@frappe.whitelist()
+def list_seat_class_options(for_pricing=0):
+	"""Seat Class records for portal dropdowns. Pricing uses bookable fare classes only."""
+	require_portal_staff()
+	if cint(for_pricing):
+		from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_bookable_fare_classes
+
+		return [
+			{
+				"name": row["name"],
+				"class_name": row["class_name"],
+				"cabin_class": row.get("cabin_class"),
+				"is_active": 1,
+			}
+			for row in list_bookable_fare_classes()
+		]
+
+	return frappe.get_all(
+		"Seat Class",
+		fields=["name", "class_name", "cabin_class", "is_active"],
+		order_by="class_name asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def save_flight_setup(data):
+	require_portal_staff()
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	data = data or {}
+
+	flight_number = (data.get("flight_number") or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+	if not data.get("route"):
+		frappe.throw(_("Route is required"))
+	if not data.get("airplane"):
+		frappe.throw(_("Aircraft is required"))
+
+	if frappe.db.exists("Flight Setup", flight_number):
+		doc = frappe.get_doc("Flight Setup", flight_number)
+	else:
+		doc = frappe.new_doc("Flight Setup")
+		doc.flight_number = flight_number
+
+	doc.route = data.get("route")
+	doc.airplane = data.get("airplane")
+	doc.terms_and_conditions = data.get("terms_and_conditions") or ""
+	doc.is_active = cint(data.get("is_active", 1))
+
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import (
+		apply_flight_setup_penalties,
+		apply_flight_setup_prices,
+	)
+
+	if "flight_prices" in data:
+		apply_flight_setup_prices(doc, data.get("flight_prices"))
+	if "flight_penalties" in data:
+		apply_flight_setup_penalties(doc, data.get("flight_penalties"))
+
+	doc.save(ignore_permissions=True)
+	return _flight_setup_payload(doc)
+
+
+@frappe.whitelist()
+def save_flight_setup_prices(flight_number, flight_prices=None):
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+	if not frappe.db.exists("Flight Setup", flight_number):
+		frappe.throw(_("Flight setup not found for {0}.").format(flight_number))
+
+	if isinstance(flight_prices, str):
+		import json
+
+		flight_prices = json.loads(flight_prices)
+
+	doc = frappe.get_doc("Flight Setup", flight_number)
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import apply_flight_setup_prices
+
+	apply_flight_setup_prices(doc, flight_prices or [])
+	doc.save(ignore_permissions=True)
+	return _flight_setup_payload(doc)
+
+
+@frappe.whitelist()
+def save_flight_setup_penalties(flight_number, flight_penalties=None):
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+	if not frappe.db.exists("Flight Setup", flight_number):
+		frappe.throw(_("Flight setup not found for {0}.").format(flight_number))
+
+	if isinstance(flight_penalties, str):
+		import json
+
+		flight_penalties = json.loads(flight_penalties)
+
+	doc = frappe.get_doc("Flight Setup", flight_number)
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import apply_flight_setup_penalties
+
+	apply_flight_setup_penalties(doc, flight_penalties or [])
+	doc.save(ignore_permissions=True)
+	return _flight_setup_payload(doc)
 
 
 @frappe.whitelist()
@@ -1678,7 +1938,7 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 				"origin": airport_display_label(origin_airport),
 				"destination": airport_display_label(dest_airport),
 				"phone": row.profile_phone or row.payer_phone or "",
-				"reservation_date": str(row.booking_date) if row.booking_date else "",
+				"reservation_date": _format_reservation_datetime(row.booking_date),
 				"status": row.reservation_status or "",
 			}
 		)

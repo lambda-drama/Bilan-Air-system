@@ -231,39 +231,50 @@ class AirBooking(Document):
         from bilan_sky.bilan_air_booking_system.utils.fare_pricing import (
             base_fare_for_passenger,
             fare_rule_multiplier,
+            resolve_ticket_fare,
         )
-
-        fare_multiplier = fare_rule_multiplier(flight.route, flight.departure_date)
-
-        # Calculate fare per passenger
         from bilan_sky.bilan_air_booking_system.utils.seat_inventory_resolve import (
             resolve_seat_inventory_ref,
         )
 
+        fare_multiplier = fare_rule_multiplier(flight.route, flight.departure_date)
+
         for passenger in self.passengers:
-            base_fare = base_fare_for_passenger(
-                flight,
-                route,
-                self._get_passenger_type(passenger),
-            )
+            seat_class_link = None
             class_multiplier = 1.0
 
             if passenger.seat_number:
                 seat_name = resolve_seat_inventory_ref(passenger.seat_number, self.flight_schedule)
                 if seat_name:
                     passenger.seat_number = seat_name
-                    if self.fare_class:
-                        class_multiplier = self._cabin_class_multiplier(fare_class_name=self.fare_class)
-                    else:
-                        seat = frappe.get_doc("Seat Inventory", seat_name)
+                    seat = frappe.get_doc("Seat Inventory", seat_name)
+                    seat_class_link = seat.seat_class
+                    if not self.fare_class:
                         seat_class = frappe.get_doc("Seat Class", seat.seat_class)
                         class_multiplier = flt(seat_class.price_multiplier) or 1.0
             elif self.fare_class:
+                seat_class_link = self.fare_class
                 class_multiplier = self._cabin_class_multiplier(fare_class_name=self.fare_class)
             elif self.cabin_class:
                 class_multiplier = self._cabin_class_multiplier(cabin_class_name=self.cabin_class)
 
-            passenger.fare_paid = round(base_fare * class_multiplier * fare_multiplier, 2)
+            amount, source = resolve_ticket_fare(
+                flight,
+                route,
+                self._get_passenger_type(passenger),
+                seat_class=seat_class_link or self.fare_class,
+            )
+            if source == "flight_setup":
+                passenger.fare_paid = amount
+            elif seat_class_link or self.fare_class:
+                passenger.fare_paid = amount
+            else:
+                base_fare = base_fare_for_passenger(
+                    flight,
+                    route,
+                    self._get_passenger_type(passenger),
+                )
+                passenger.fare_paid = round(base_fare * class_multiplier * fare_multiplier, 2)
 
         # Calculate total
         self.total_fare = sum([flt(p.fare_paid) for p in self.passengers])

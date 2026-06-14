@@ -203,6 +203,32 @@ def resolve_base_fares(schedule: Any, route: Any) -> dict[str, float]:
 	return merged
 
 
+def resolve_ticket_fare(
+	schedule: Any,
+	route: Any,
+	passenger_type: str | None,
+	*,
+	seat_class: str | None = None,
+) -> tuple[float, str]:
+	"""Return (amount, source). Flight Setup price wins when configured."""
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import flight_setup_fare
+
+	flight_number = _row_val(schedule, "flight_number")
+	if flight_number and seat_class:
+		setup_fare = flight_setup_fare(flight_number, seat_class, passenger_type)
+		if setup_fare is not None:
+			return setup_fare, "flight_setup"
+
+	base = base_fare_for_passenger(schedule, route, passenger_type)
+	multiplier = 1.0
+	if seat_class:
+		from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import fare_multiplier_for_code
+
+		multiplier = fare_multiplier_for_code(seat_class) or 1.0
+	fare_mult = fare_rule_multiplier(_row_val(route, "name"), _row_val(schedule, "departure_date"))
+	return round(base * multiplier * fare_mult, 2), "computed"
+
+
 def passenger_type_to_fare_key(passenger_type: str | None) -> str:
 	key = (passenger_type or "Adult").strip().lower()
 	return PASSENGER_TYPE_TO_KEY.get(key, "adult")
@@ -241,24 +267,40 @@ def economy_price_for_passenger(
 	passenger_type: str | None,
 	*,
 	seat_class_multiplier: float = 1.0,
+	seat_class: str | None = None,
 ) -> float:
+	if seat_class:
+		amount, _source = resolve_ticket_fare(
+			schedule, route, passenger_type, seat_class=seat_class
+		)
+		return amount
 	base = base_fare_for_passenger(schedule, route, passenger_type)
 	multiplier = fare_rule_multiplier(_row_val(route, "name"), _row_val(schedule, "departure_date"))
 	return round(base * seat_class_multiplier * multiplier, 2)
 
 
 def prices_for_schedule_search(schedule: Any, route: Any) -> dict[str, Any]:
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import flight_setup_fare
 	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_bookable_fare_classes
 
 	fares = resolve_base_fares(schedule, route)
 	fare_mult = fare_rule_multiplier(_row_val(route, "name"), _row_val(schedule, "departure_date"))
+	flight_number = _row_val(schedule, "flight_number")
 	seat_classes = list_bookable_fare_classes()
 	prices = {}
 	for seat_class in seat_classes:
-		prices[seat_class["class_name"]] = round(
-			fares["adult"] * flt(seat_class.get("price_multiplier")) * fare_mult,
-			2,
-		)
+		class_code = seat_class["class_name"]
+		class_link = seat_class.get("name") or class_code
+		setup_fare = flight_setup_fare(flight_number, class_link, "Adult") if flight_number else None
+		if setup_fare is None:
+			setup_fare = flight_setup_fare(flight_number, class_code, "Adult") if flight_number else None
+		if setup_fare is not None:
+			prices[class_code] = setup_fare
+		else:
+			prices[class_code] = round(
+				fares["adult"] * flt(seat_class.get("price_multiplier")) * fare_mult,
+				2,
+			)
 	passenger_base = {key: round(fares[key] * fare_mult, 2) for key in PASSENGER_FARE_KEYS}
 	return {"prices": prices, "base_fares": passenger_base}
 

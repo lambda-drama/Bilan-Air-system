@@ -12,6 +12,6 @@ def fetch_all_airplanes():
 
 @frappe.whitelist(allow_guest=True)
 def fetch_airplane_seat_config(airplane_name):
-    """Get seat configuration for an airplane"""
-    airplane = frappe.get_doc("Airplane", airplane_name)
-    return airplane.seat_config
+	"""Get seat configuration for an airplane."""
+	airplane = frappe.get_doc("Airplane", airplane_name)
+	return [r.as_dict() for r in airplane.seat_config or []]

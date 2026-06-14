@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Pencil, UserCheck, UserX } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions, type AirportSelectRow } from "@/lib/airport-select";
@@ -11,6 +11,7 @@ import { listCrewRoles } from "@/services/lookups";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { ListSearch } from "@/components/portal/list-search";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
@@ -285,13 +286,16 @@ export default function PortalCrewMembersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(r)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem
+                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                              Edit
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={inactive ? UserCheck : UserX}
                               variant={inactive ? "default" : "destructive"}
                               onClick={() => toggleDeactivated(r)}
                             >
                               {inactive ? "Reactivate" : "Deactivate"}
-                            </DropdownMenuItem>
+                            </RowActionMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>

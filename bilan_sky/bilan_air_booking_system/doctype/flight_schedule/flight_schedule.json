@@ -120,21 +120,21 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "1",
+   "description": "When unchecked, this flight is hidden from search and cannot be booked.",
    "fieldname": "is_active",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Active for Booking",
-   "allow_on_submit": 1,
-   "description": "When unchecked, this flight is hidden from search and cannot be booked."
+   "label": "Active for Booking"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
+   "description": "When enabled, bookings must be paid before confirmation. Pay-later reservation and agent credit confirmation are not allowed.",
    "fieldname": "only_prepayment",
    "fieldtype": "Check",
-   "label": "Only Pre-Payment",
-   "allow_on_submit": 1,
-   "description": "When enabled, bookings must be paid before confirmation. Pay-later reservation and agent credit confirmation are not allowed."
+   "label": "Only Pre-Payment"
   },
   {
    "fieldname": "crew_section",
@@ -145,15 +145,13 @@
    "fieldname": "captain",
    "fieldtype": "Link",
    "label": "Captain",
-   "options": "Crew Member",
-   "reqd": 1
+   "options": "Crew Member"
   },
   {
    "fieldname": "first_officer",
    "fieldtype": "Link",
    "label": "First Officer",
-   "options": "Crew Member",
-   "reqd": 1
+   "options": "Crew Member"
   },
   {
    "fieldname": "cabin_crew",
@@ -284,7 +282,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-09 02:13:12.917692",
+ "modified": "2026-06-14 22:11:23.004103",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Schedule",

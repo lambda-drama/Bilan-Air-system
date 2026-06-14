@@ -30,8 +30,18 @@ def get_flight_schedule_plan_defaults():
 
 
 @frappe.whitelist()
-def list_flight_schedule_plans(limit=50, offset=0, search=None):
+def list_flight_schedule_plans(limit=50, offset=0, search=None, flight_number=None):
 	require_portal_staff()
+	filters = {}
+	if flight_number:
+		fn = str(flight_number).strip()
+		filters["flight_number"] = fn
+		if not frappe.db.count("Flight Schedule Plan", filters):
+			setup_route = None
+			if frappe.db.exists("Flight Setup", fn):
+				setup_route = frappe.db.get_value("Flight Setup", fn, "route")
+			if setup_route:
+				filters = {"route": setup_route}
 	or_filters = None
 	if search:
 		q = f"%{search.strip()}%"
@@ -39,26 +49,44 @@ def list_flight_schedule_plans(limit=50, offset=0, search=None):
 			"plan_title": ["like", q],
 			"route": ["like", q],
 			"name": ["like", q],
+			"flight_number": ["like", q],
 		}
-	return _paginated(
+	result = _paginated(
 		"Flight Schedule Plan",
 		[
 			"name",
 			"plan_title",
+			"plan_type",
 			"frequency",
 			"start_date",
 			"end_date",
 			"route",
 			"airplane",
+			"flight_number",
 			"plan_status",
+			"departure_time",
+			"arrival_time",
+			"status",
 			"generated_count",
 			"last_generated_on",
+			"modified",
+			"modified_by",
 		],
+		filters=filters or None,
 		or_filters=or_filters,
 		limit=limit,
 		offset=offset,
 		order_by="modified desc",
 	)
+	for row in result["data"]:
+		row["type_label"] = _plan_type_label(row)
+	return result
+
+
+def _plan_type_label(row):
+	frequency = row.get("frequency") or "Weekly"
+	plan_type = row.get("plan_type") or "Schedule"
+	return f"{plan_type} ({frequency})"
 
 
 @frappe.whitelist()
@@ -74,10 +102,13 @@ def get_flight_schedule_plan(name):
 
 @frappe.whitelist()
 def save_flight_schedule_plan(data):
-	"""Create or update a recurring flight plan (does not generate flights until generate is called)."""
+	"""Create or update a recurring flight plan. New plans auto-generate dated schedules."""
 	require_portal_staff()
 	data = _parse_data(data)
 	name = data.get("name")
+	is_new = not name
+	auto_generate = cint(data.pop("auto_generate", 1 if is_new else 0))
+	submit = cint(data.pop("submit", 1))
 	seat_classes = data.pop("seat_classes", None)
 	cabin_crew = data.pop("cabin_crew", None)
 	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_schedule_override_payload
@@ -95,17 +126,34 @@ def save_flight_schedule_plan(data):
 			doc.set("seat_classes", seat_classes)
 		if cabin_crew is not None:
 			doc.set("cabin_crew", cabin_crew)
-		doc.save(ignore_permissions=True)
 	else:
 		doc = frappe.get_doc({"doctype": "Flight Schedule Plan", **payload})
 		if seat_classes is not None:
 			doc.set("seat_classes", seat_classes)
 		if cabin_crew is not None:
 			doc.set("cabin_crew", cabin_crew)
+
+	from bilan_sky.bilan_air_booking_system.utils.flight_setup import ensure_flight_setup
+
+	if doc.flight_number:
+		ensure_flight_setup(
+			doc.flight_number,
+			route=doc.route,
+			airplane=doc.airplane,
+			terms_and_conditions=getattr(doc, "terms_and_conditions", None),
+		)
+
+	if name:
+		doc.save(ignore_permissions=True)
+	else:
 		doc.insert(ignore_permissions=True)
 
 	frappe.db.commit()
-	return get_flight_schedule_plan(doc.name)
+
+	result = get_flight_schedule_plan(doc.name)
+	if is_new and auto_generate:
+		result["generation"] = generate_flight_schedules_from_plan(doc.name, submit=submit)
+	return result
 
 
 @frappe.whitelist()
@@ -125,3 +173,24 @@ def generate_plan_schedules(plan_name, submit=1):
 	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
 		frappe.throw(_("Flight Schedule Plan not found"))
 	return generate_flight_schedules_from_plan(plan_name, submit=cint(submit))
+
+
+@frappe.whitelist()
+def delete_flight_schedule_plan(plan_name):
+	"""Delete a recurring plan when it has not generated any flight schedules."""
+	require_portal_staff()
+	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
+		frappe.throw(_("Flight Schedule Plan not found"))
+
+	linked = frappe.db.count("Flight Schedule", {"schedule_plan": plan_name})
+	if linked:
+		frappe.throw(
+			_(
+				"Cannot delete this plan: {0} flight schedule(s) were generated from it. "
+				"Remove or cancel those schedules first."
+			).format(linked)
+		)
+
+	frappe.delete_doc("Flight Schedule Plan", plan_name, ignore_permissions=True)
+	frappe.db.commit()
+	return {"deleted": plan_name}

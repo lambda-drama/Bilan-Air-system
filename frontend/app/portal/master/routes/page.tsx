@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions, type AirportSelectRow } from "@/lib/airport-select";
@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { ListSearch } from "@/components/portal/list-search";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { useCurrency } from "@/contexts/currency-context";
@@ -429,7 +430,9 @@ export default function PortalRoutesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(r)}>Edit</DropdownMenuItem>
+                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                              Edit
+                            </RowActionMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>

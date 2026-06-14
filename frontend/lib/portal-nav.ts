@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 
 export type PortalNavLink = {
-  type: "link";
   href: string;
   label: string;
   icon: LucideIcon;
@@ -46,8 +45,8 @@ export const portalNavItems: PortalNavItem[] = [
     icon: Plane,
     items: [
       { href: "/portal/flights/setup", label: "Flight setup", icon: Settings },
+      { href: "/portal/flights/recurring", label: "Recurring", icon: Repeat },
       { href: "/portal/flights", label: "All departures", icon: Calendar },
-      { href: "/portal/flights/recurring", label: "Recurring plans", icon: Repeat },
     ],
   },
   { type: "link", href: "/portal/seat-inventory", label: "Seat inventory", icon: Armchair },

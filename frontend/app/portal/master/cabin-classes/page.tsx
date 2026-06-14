@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Pencil } from "lucide-react";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { getMissingRequired } from "@/lib/validate-form";
@@ -182,7 +183,9 @@ export default function PortalCabinClassesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(row)}>Edit</DropdownMenuItem>
+                          <RowActionMenuItem icon={Pencil} onClick={() => openEdit(row)}>
+                            Edit
+                          </RowActionMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </ListRowActions>

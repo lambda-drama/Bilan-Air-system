@@ -1,0 +1,128 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:flight_number",
+ "creation": "2026-06-14 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "flight_number",
+  "route",
+  "airplane",
+  "column_break_meta",
+  "is_active",
+  "section_break_terms",
+  "terms_and_conditions",
+  "section_break_pricing",
+  "flight_prices",
+  "section_break_penalties",
+  "flight_penalties"
+ ],
+ "fields": [
+  {
+   "fieldname": "flight_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Flight Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Route",
+   "options": "Flight Route",
+   "reqd": 1
+  },
+  {
+   "fieldname": "airplane",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Default Aircraft",
+   "options": "Airplane",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active for booking"
+  },
+  {
+   "fieldname": "section_break_terms",
+   "fieldtype": "Section Break",
+   "label": "Terms & conditions"
+  },
+  {
+   "description": "Shown on tickets and booking confirmations for this flight number.",
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions"
+  },
+  {
+   "fieldname": "section_break_pricing",
+   "fieldtype": "Section Break",
+   "label": "Flight pricing"
+  },
+  {
+   "description": "Per seat class and passenger type. Used before route/schedule pricing when booking this flight number.",
+   "fieldname": "flight_prices",
+   "fieldtype": "Table",
+   "label": "Flight Prices",
+   "options": "Flight Setup Price"
+  },
+  {
+   "fieldname": "section_break_penalties",
+   "fieldtype": "Section Break",
+   "label": "Flight penalties"
+  },
+  {
+   "fieldname": "flight_penalties",
+   "fieldtype": "Table",
+   "label": "Penalties",
+   "options": "Flight Setup Penalty"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-14 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bilan Air Booking System",
+ "name": "Flight Setup",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Booking Agent",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "flight_number"
+}

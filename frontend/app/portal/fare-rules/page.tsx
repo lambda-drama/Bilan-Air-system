@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { PortalMasterPageHeader } from "@/components/portal/portal-master-page-header";
@@ -22,6 +22,10 @@ import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import {
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+} from "@/components/portal/row-action-menu";
 import { ListSearch } from "@/components/portal/list-search";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { Button } from "@/components/ui/button";
@@ -312,18 +316,21 @@ export default function PortalFareRulesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(rule)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toggleActive(rule)}>
+                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(rule)}>
+                              Edit
+                            </RowActionMenuItem>
+                            <RowActionMenuItem icon={Power} onClick={() => toggleActive(rule)}>
                               {rule.is_active ? "Deactivate" : "Activate"}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
+                            </RowActionMenuItem>
+                            <RowActionMenuSeparator />
+                            <RowActionMenuItem
+                              icon={Trash2}
+                              variant="destructive"
                               disabled={deleteLoading}
                               onClick={() => setDeleteConfirmName(rule.name)}
                             >
                               Delete
-                            </DropdownMenuItem>
+                            </RowActionMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </ListRowActions>

@@ -7,14 +7,33 @@ const planApi = (method: string) =>
 export type FlightSchedulePlanRow = {
   name: string;
   plan_title: string;
+  plan_type?: string;
   frequency: "Daily" | "Weekly" | "Monthly";
   start_date: string;
   end_date: string;
   route: string;
   airplane: string;
+  flight_number?: string;
   plan_status?: string;
+  departure_time?: string;
+  arrival_time?: string;
+  status?: string;
+  type_label?: string;
   generated_count?: number;
+  modified?: string;
+  modified_by?: string;
 };
+
+/** Open dated departures filtered to schedules generated from this recurring plan. */
+export function recurringPlanSchedulesPath(
+  plan: Pick<FlightSchedulePlanRow, "name" | "flight_number">,
+): string {
+  const params = new URLSearchParams({ schedule_plan: plan.name });
+  if (plan.flight_number) {
+    return `/portal/flights/setup/schedules?${params.toString()}`;
+  }
+  return `/portal/flights?${params.toString()}`;
+}
 
 export async function getFlightSchedulePlanDefaults() {
   return apiRequest<{ suggested_plan_title: string }>(
@@ -23,9 +42,17 @@ export async function getFlightSchedulePlanDefaults() {
   );
 }
 
+export async function getFlightSchedulePlan(name: string) {
+  return apiRequest<Record<string, unknown>>(planApi("get_flight_schedule_plan"), {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function listFlightSchedulePlans(opts?: {
   limit?: number;
   search?: string;
+  flight_number?: string;
 }) {
   return apiRequest<PaginatedResponse<FlightSchedulePlanRow>>(planApi("list_flight_schedule_plans"), {
     method: "POST",
@@ -33,6 +60,7 @@ export async function listFlightSchedulePlans(opts?: {
       limit: opts?.limit ?? 100,
       offset: 0,
       search: opts?.search ?? null,
+      flight_number: opts?.flight_number ?? null,
     }),
   });
 }
@@ -60,5 +88,12 @@ export async function generatePlanSchedules(planName: string, submit = 1) {
   }>(planApi("generate_plan_schedules"), {
     method: "POST",
     body: JSON.stringify({ plan_name: planName, submit }),
+  });
+}
+
+export async function deleteFlightSchedulePlan(planName: string) {
+  return apiRequest<{ deleted: string }>(planApi("delete_flight_schedule_plan"), {
+    method: "POST",
+    body: JSON.stringify({ plan_name: planName }),
   });
 }

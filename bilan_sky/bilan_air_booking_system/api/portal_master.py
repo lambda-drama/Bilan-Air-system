@@ -6,7 +6,7 @@ from frappe.utils import cint
 
 from bilan_sky.bilan_air_booking_system.api.portal import _paginated
 from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
-from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.agent_address import (
 	create_or_update_agent_address,
 	default_address_country,
@@ -921,7 +921,7 @@ def list_ticket_terms(limit=50, offset=0, search=None):
 			"title": ["like", q],
 			"name": ["like", q],
 		}
-	return _paginated(
+	result = _paginated(
 		"Ticket Terms",
 		["name", "title", "default", "terms_conditions", "modified"],
 		or_filters=or_filters,
@@ -929,6 +929,9 @@ def list_ticket_terms(limit=50, offset=0, search=None):
 		offset=offset,
 		order_by="default desc, title asc",
 	)
+	for row in result["data"]:
+		row["terms_conditions"] = rich_text_to_plain(row.get("terms_conditions"))
+	return result
 
 
 @frappe.whitelist()
@@ -945,7 +948,9 @@ def save_ticket_terms(data):
 		doc = frappe.get_doc({"doctype": "Ticket Terms", **payload})
 		doc.insert(ignore_permissions=True)
 	frappe.db.commit()
-	return doc.as_dict()
+	row = doc.as_dict()
+	row["terms_conditions"] = rich_text_to_plain(row.get("terms_conditions"))
+	return row
 
 
 @frappe.whitelist()

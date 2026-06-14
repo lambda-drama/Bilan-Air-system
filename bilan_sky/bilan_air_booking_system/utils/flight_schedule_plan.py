@@ -97,6 +97,14 @@ def _arrival_date_for_departure(plan, departure_date):
 	return add_days(getdate(departure_date), offset)
 
 
+def _plan_initial_seats_released(plan) -> int:
+	if plan.seat_classes:
+		total = sum(cint(getattr(row, "number_of_seats", 0)) for row in plan.seat_classes)
+		if total > 0:
+			return total
+	return cint(getattr(plan, "initial_seats_released", 0) or 0)
+
+
 def _schedule_payload_from_plan(plan, departure_date: date) -> dict:
 	arrival_date = _arrival_date_for_departure(plan, departure_date)
 	payload = {
@@ -108,12 +116,14 @@ def _schedule_payload_from_plan(plan, departure_date: date) -> dict:
 		"arrival_date": arrival_date,
 		"arrival_time": plan.arrival_time,
 		"status": plan.status or "Scheduled",
-		"initial_seats_released": cint(getattr(plan, "initial_seats_released", 0) or 0),
+		"initial_seats_released": _plan_initial_seats_released(plan),
 		"schedule_plan": plan.name,
 		"captain": plan.captain,
 		"first_officer": plan.first_officer,
 		"cabin_crew": [],
 	}
+	if getattr(plan, "flight_number", None):
+		payload["flight_number"] = plan.flight_number
 	for row in plan.cabin_crew or []:
 		payload["cabin_crew"].append(
 			{
@@ -175,6 +185,10 @@ def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) 
 		_apply_fare_override(doc, plan)
 		doc.insert(ignore_permissions=True)
 		seats = doc.generate_seat_inventory(raise_on_error=False)
+		if plan.seat_classes:
+			from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_plan_seat_class_release
+
+			apply_plan_seat_class_release(doc, plan)
 
 		if submit and doc.docstatus == 0:
 			doc.submit()
