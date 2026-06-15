@@ -8,8 +8,9 @@ from bilan_sky.bilan_air_booking_system.api.portal import _paginated
 from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
 from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 	count_plan_occurrences,
-	generate_flight_schedules_from_plan,
+	enqueue_plan_schedule_generation,
 	next_plan_title,
+	read_plan_generation_status,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
@@ -152,7 +153,7 @@ def save_flight_schedule_plan(data):
 
 	result = get_flight_schedule_plan(doc.name)
 	if is_new and auto_generate:
-		result["generation"] = generate_flight_schedules_from_plan(doc.name, submit=submit)
+		result["generation"] = enqueue_plan_schedule_generation(doc.name, submit=submit)
 	return result
 
 
@@ -172,7 +173,15 @@ def generate_plan_schedules(plan_name, submit=1):
 	require_portal_staff()
 	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
 		frappe.throw(_("Flight Schedule Plan not found"))
-	return generate_flight_schedules_from_plan(plan_name, submit=cint(submit))
+	return enqueue_plan_schedule_generation(plan_name, submit=cint(submit))
+
+
+@frappe.whitelist()
+def get_plan_generation_status(plan_name):
+	require_portal_staff()
+	if not plan_name:
+		frappe.throw(_("Plan name is required"))
+	return read_plan_generation_status(plan_name)
 
 
 @frappe.whitelist()

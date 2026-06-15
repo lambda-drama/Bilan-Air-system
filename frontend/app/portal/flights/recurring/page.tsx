@@ -14,6 +14,7 @@ import {
   RowActionMenuSeparator,
 } from "@/components/portal/row-action-menu";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { useFlightPlanGeneration } from "@/contexts/flight-plan-generation-context";
 import {
   deleteFlightSchedulePlan,
   generatePlanSchedules,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/table";
 
 function RecurringFlightPlansContent() {
+  const { trackGeneration } = useFlightPlanGeneration();
   const searchParams = useSearchParams();
   const fetchRows = useCallback(async (search: string) => {
     const res = await listFlightSchedulePlans({ search: search.trim() || undefined });
@@ -80,10 +82,18 @@ function RecurringFlightPlansContent() {
   }, [searchParams]);
 
   const handleGenerate = async (planName: string) => {
+    const plan = rows.find((row) => row.name === planName);
     try {
       const gen = await generatePlanSchedules(planName);
-      toast.success(`Created ${gen.created_count} flight(s), skipped ${gen.skipped_count}.`);
-      refresh();
+      toast.info("Generating in the background", {
+        description: `${plan?.plan_title || planName} — creating ${gen.expected_count} flight schedule(s).`,
+      });
+      trackGeneration({
+        planName,
+        planTitle: plan?.plan_title,
+        expectedCount: gen.expected_count,
+        onComplete: refresh,
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Generate failed");
     }

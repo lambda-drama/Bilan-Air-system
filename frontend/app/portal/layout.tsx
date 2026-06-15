@@ -21,7 +21,9 @@ import {
   X,
 } from "lucide-react"
 import { PortalSidebar } from "@/components/portal/portal-sidebar"
+import { PortalGenerationBanner } from "@/components/portal/portal-generation-banner"
 import { ThemeDropdownSubmenu } from "@/components/theme-dropdown-items"
+import { FlightPlanGenerationProvider } from "@/contexts/flight-plan-generation-context"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -135,6 +137,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <FlightPlanGenerationProvider>
     <div className="flex h-svh overflow-hidden bg-muted/30">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
@@ -171,27 +174,31 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Main content area — only this column scrolls */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top navbar */}
-        <header className="z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background px-4 lg:gap-4 lg:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="shrink-0 lg:hidden"
-              aria-label="Open menu"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-            <h1 className="flex min-w-0 items-baseline gap-1.5 truncate">
-              <span className="shrink-0 font-serif text-xs font-normal tracking-wide text-muted-foreground lg:hidden">
-                Welcome back,
-              </span>
-              <span className="truncate text-base font-semibold text-foreground lg:hidden">
-                {firstName}
-              </span>
-              <span className="hidden truncate text-lg font-semibold text-foreground lg:inline">
-                Welcome back, {firstName}
-              </span>
-            </h1>
+        <header className="z-30 flex min-h-16 shrink-0 flex-col gap-2 border-b bg-background px-4 py-2 lg:gap-3 lg:px-6 lg:py-3">
+          <div className="flex items-center gap-3 lg:gap-4">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
+            <div className="flex min-w-0 items-center gap-2 lg:gap-4">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="shrink-0 lg:hidden"
+                aria-label="Open menu"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+              <h1 className="flex min-w-0 shrink-0 items-baseline gap-1.5 truncate">
+                <span className="shrink-0 font-serif text-xs font-normal tracking-wide text-muted-foreground lg:hidden">
+                  Welcome back,
+                </span>
+                <span className="truncate text-base font-semibold text-foreground lg:hidden">
+                  {firstName}
+                </span>
+                <span className="hidden truncate text-lg font-semibold text-foreground lg:inline">
+                  Welcome back, {firstName}
+                </span>
+              </h1>
+            </div>
+            <PortalGenerationBanner />
           </div>
 
           <div className="flex shrink-0 items-center gap-2 lg:gap-4">
@@ -285,6 +292,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          </div>
         </header>
 
         {/* Page content */}
@@ -297,5 +305,6 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </FlightPlanGenerationProvider>
   )
 }

@@ -8,7 +8,7 @@ from datetime import date
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_months, cint, getdate  # cint used in payload
+from frappe.utils import add_days, add_months, cint, cstr, getdate  # cint used in payload
 
 from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_overrides
 from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
@@ -18,6 +18,8 @@ from bilan_sky.bilan_air_booking_system.utils.flight_numbering import (
 
 MAX_OCCURRENCES = 400
 PLAN_TITLE_SERIES = "RFP-.######"
+GENERATION_STATUS_CACHE_PREFIX = "flight_plan_gen_status:"
+GENERATION_STATUS_TTL = 3600
 
 
 def next_plan_title() -> str:
@@ -143,7 +145,9 @@ def _apply_fare_override(doc, plan):
 	)
 
 
-def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) -> dict:
+def generate_flight_schedules_from_plan(
+	plan_name: str, *, submit: bool = True, track_progress: bool = False
+) -> dict:
 	"""Create one Flight Schedule per plan occurrence."""
 	plan = frappe.get_doc("Flight Schedule Plan", plan_name)
 	occurrences = count_plan_occurrences(plan)
@@ -159,11 +163,26 @@ def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) 
 	created = []
 	skipped = []
 
-	for departure_date in iter_plan_departure_dates(plan):
+	def report_progress(processed: int) -> None:
+		if not track_progress:
+			return
+		set_plan_generation_status(
+			plan_name,
+			{
+				"status": "running",
+				"plan": plan_name,
+				"plan_title": plan.plan_title,
+				"expected_count": occurrences,
+				"processed_count": processed,
+			},
+		)
+
+	for index, departure_date in enumerate(iter_plan_departure_dates(plan), start=1):
 		doc = frappe.get_doc(_schedule_payload_from_plan(plan, departure_date))
 		doc._ensure_flight_number()
 		if not doc.flight_number:
 			skipped.append({"departure_date": str(departure_date), "reason": "Could not assign flight number"})
+			report_progress(index)
 			continue
 
 		expected_name = schedule_document_name(doc.flight_number, doc.departure_date)
@@ -174,12 +193,14 @@ def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) 
 					"reason": f"Schedule {expected_name} already exists",
 				}
 			)
+			report_progress(index)
 			continue
 
 		try:
 			assert_unique_flight_number(doc.flight_number, doc.departure_date)
 		except frappe.ValidationError as exc:
 			skipped.append({"departure_date": str(departure_date), "reason": str(exc)})
+			report_progress(index)
 			continue
 
 		_apply_fare_override(doc, plan)
@@ -200,6 +221,7 @@ def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) 
 				"seats_created": seats,
 			}
 		)
+		report_progress(index)
 
 	plan.db_set(
 		{
@@ -217,3 +239,86 @@ def generate_flight_schedules_from_plan(plan_name: str, *, submit: bool = True) 
 		"created": created,
 		"skipped": skipped,
 	}
+
+
+def validate_plan_can_generate(plan_name: str) -> int:
+	"""Validate a plan can generate schedules; return occurrence count."""
+	plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+	occurrences = count_plan_occurrences(plan)
+	if occurrences > MAX_OCCURRENCES:
+		frappe.throw(
+			_("This plan would create {0} flights (max {1}). Narrow the date range or frequency.").format(
+				occurrences, MAX_OCCURRENCES
+			)
+		)
+	if occurrences == 0:
+		frappe.throw(_("No flight dates match this plan. Check the date range and frequency settings."))
+	return occurrences
+
+
+def _generation_status_key(plan_name: str) -> str:
+	return f"{GENERATION_STATUS_CACHE_PREFIX}{plan_name}"
+
+
+def set_plan_generation_status(plan_name: str, status: dict) -> None:
+	frappe.cache.set_value(_generation_status_key(plan_name), status, expires_in_sec=GENERATION_STATUS_TTL)
+
+
+def read_plan_generation_status(plan_name: str) -> dict:
+	return frappe.cache.get_value(_generation_status_key(plan_name)) or {"status": "idle"}
+
+
+def _notify_plan_generation(user: str | None, payload: dict) -> None:
+	if not user:
+		return
+	frappe.publish_realtime("flight_plan_generation", payload, user=user)
+
+
+def _generate_flight_schedules_from_plan_job(plan_name: str, submit: bool = True, user: str | None = None):
+	try:
+		result = generate_flight_schedules_from_plan(plan_name, submit=submit, track_progress=True)
+		plan_title = frappe.db.get_value("Flight Schedule Plan", plan_name, "plan_title")
+		payload = {
+			"status": "complete",
+			"plan": plan_name,
+			"plan_title": plan_title,
+			"created_count": result["created_count"],
+			"skipped_count": result["skipped_count"],
+		}
+		set_plan_generation_status(plan_name, payload)
+		_notify_plan_generation(user, payload)
+	except Exception as exc:
+		frappe.log_error(title=f"Flight plan generation failed ({plan_name})")
+		payload = {
+			"status": "failed",
+			"plan": plan_name,
+			"message": cstr(exc) or _("Flight schedule generation failed."),
+		}
+		set_plan_generation_status(plan_name, payload)
+		_notify_plan_generation(user, payload)
+
+
+def enqueue_plan_schedule_generation(plan_name: str, *, submit: bool = True) -> dict:
+	"""Queue dated flight schedule generation for a plan."""
+	occurrences = validate_plan_can_generate(plan_name)
+	user = frappe.session.user
+	plan_title = frappe.db.get_value("Flight Schedule Plan", plan_name, "plan_title")
+	set_plan_generation_status(
+		plan_name,
+		{
+			"status": "running",
+			"plan": plan_name,
+			"plan_title": plan_title,
+			"expected_count": occurrences,
+			"processed_count": 0,
+		},
+	)
+	frappe.enqueue(
+		"bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan._generate_flight_schedules_from_plan_job",
+		queue="long" if occurrences > 20 else "default",
+		plan_name=plan_name,
+		submit=submit,
+		user=user,
+		job_id=f"flight-plan-gen-{plan_name}",
+	)
+	return {"queued": True, "plan": plan_name, "expected_count": occurrences}

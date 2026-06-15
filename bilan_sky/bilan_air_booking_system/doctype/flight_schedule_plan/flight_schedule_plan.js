@@ -32,18 +32,16 @@ frappe.ui.form.on('Flight Schedule Plan', {
 					frappe.call({
 						method: 'bilan_sky.bilan_air_booking_system.api.flight_schedule_plan.generate_plan_schedules',
 						args: { plan_name: frm.doc.name, submit: 1 },
-						freeze: true,
-						freeze_message: __('Generating flights...'),
 						callback(r) {
 							if (!r.message) {
 								return;
 							}
-							const msg = __('Created {0} flight(s), skipped {1}.', [
-								r.message.created_count,
-								r.message.skipped_count,
-							]);
-							frappe.msgprint(msg, __('Generation complete'));
-							frm.reload_doc();
+							frappe.show_alert({
+								message: __('Generating {0} flight schedule(s) in the background.', [
+									r.message.expected_count,
+								]),
+								indicator: 'blue',
+							});
 						},
 					});
 				}

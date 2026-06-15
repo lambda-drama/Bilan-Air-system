@@ -79,13 +79,32 @@ export async function previewPlanOccurrences(data: Record<string, unknown>) {
   });
 }
 
+export type PlanGenerationStatus = {
+  status: "idle" | "running" | "complete" | "failed";
+  plan?: string;
+  plan_title?: string;
+  expected_count?: number;
+  processed_count?: number;
+  created_count?: number;
+  skipped_count?: number;
+  message?: string;
+};
+
+export type PlanScheduleGenerationResult = {
+  queued: boolean;
+  plan: string;
+  expected_count: number;
+};
+
+export async function getPlanGenerationStatus(planName: string) {
+  return apiRequest<PlanGenerationStatus>(planApi("get_plan_generation_status"), {
+    method: "POST",
+    body: JSON.stringify({ plan_name: planName }),
+  });
+}
+
 export async function generatePlanSchedules(planName: string, submit = 1) {
-  return apiRequest<{
-    created_count: number;
-    skipped_count: number;
-    created: Array<{ name: string; departure_date: string }>;
-    skipped: Array<{ departure_date: string; reason: string }>;
-  }>(planApi("generate_plan_schedules"), {
+  return apiRequest<PlanScheduleGenerationResult>(planApi("generate_plan_schedules"), {
     method: "POST",
     body: JSON.stringify({ plan_name: planName, submit }),
   });
