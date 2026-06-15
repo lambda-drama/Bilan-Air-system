@@ -293,12 +293,7 @@ function FlightSetupPricingContent() {
         }
       >
         <FormGrid>
-          <FormField
-            label="Fare class"
-            required
-            fullWidth
-            hint="Ticket fare code (e.g. L, M, Y) — not the cabin layout class used on the aircraft map."
-          >
+          <FormField label="Fare class" required fullWidth>
             <SearchableSelect
               value={form.seat_class}
               onValueChange={(v) => setForm({ ...form, seat_class: v })}
@@ -307,7 +302,7 @@ function FlightSetupPricingContent() {
               emptyMessage={
                 seatClassesLoading
                   ? "Loading fare classes..."
-                  : "No fare classes found — add ticket fare classes under Master → Fare classes (leave “Use on aircraft layout” unchecked)"
+                  : "No active fare classes found — add them under Master → Fare classes"
               }
               isLoading={seatClassesLoading}
               clearable={false}
