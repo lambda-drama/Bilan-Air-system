@@ -382,10 +382,10 @@ def _flight_setup_payload(doc):
 
 @frappe.whitelist()
 def list_seat_class_options(for_pricing=0):
-	"""Seat Class records for portal dropdowns. Pricing uses bookable fare classes only."""
+	"""Seat Class records for portal dropdowns."""
 	require_portal_staff()
 	if cint(for_pricing):
-		from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_bookable_fare_classes
+		from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_active_seat_classes
 
 		return [
 			{
@@ -394,7 +394,7 @@ def list_seat_class_options(for_pricing=0):
 				"cabin_class": row.get("cabin_class"),
 				"is_active": 1,
 			}
-			for row in list_bookable_fare_classes()
+			for row in list_active_seat_classes()
 		]
 
 	return frappe.get_all(

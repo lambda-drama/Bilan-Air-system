@@ -16,6 +16,8 @@ import {
   writeCachedPortalUser,
 } from "@/lib/portal-auth-cache";
 
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 15000;
+
 interface AuthContextValue {
   user: FrappeUser | null;
   isLoading: boolean;
@@ -36,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkSession = useCallback(async () => {
     const cached = readCachedPortalUser();
     if (cached) {
-      setUser(cached);
+      setUser((current) => current ?? cached);
       setIsLoading(false);
     } else {
       setIsLoading(true);
@@ -53,8 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(profile);
       writeCachedPortalUser(profile);
     } catch {
-      setUser(null);
-      writeCachedPortalUser(null);
+      if (!cached) {
+        setUser(null);
+        writeCachedPortalUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +73,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    checkSession();
+    let cancelled = false;
+    const safetyTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setIsLoading(false);
+      }
+    }, SESSION_BOOTSTRAP_TIMEOUT_MS);
+
+    void checkSession().finally(() => {
+      if (!cancelled) {
+        window.clearTimeout(safetyTimer);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(safetyTimer);
+    };
   }, [checkSession]);
 
   const login = async (email: string, password: string) => {
