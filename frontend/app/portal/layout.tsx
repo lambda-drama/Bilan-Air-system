@@ -122,16 +122,16 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
     return <>{children}</>
   }
 
-  if (isLoading || !isAuthenticated || !portalAccess) {
+  const bootstrapping = isLoading && !user;
+
+  if (bootstrapping) {
+    return <PortalLoadingScreen message="Signing you in" />
+  }
+
+  if (!isAuthenticated || !portalAccess) {
     return (
       <PortalLoadingScreen
-        message={
-          isLoading
-            ? "Signing you in"
-            : !portalAccess
-              ? "Checking access"
-              : "Loading portal"
-        }
+        message={!portalAccess ? "Checking access" : "Loading portal"}
       />
     )
   }

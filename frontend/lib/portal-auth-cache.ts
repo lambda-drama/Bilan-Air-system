@@ -8,30 +8,35 @@ type CachedAuth = {
   at: number;
 };
 
-export function readCachedPortalUser(): FrappeUser | null {
-  if (typeof window === "undefined") return null;
+function readFromStorage(storage: Storage): FrappeUser | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const raw = storage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CachedAuth;
     if (!parsed?.user?.name || Date.now() - parsed.at > TTL_MS) {
-      sessionStorage.removeItem(CACHE_KEY);
+      storage.removeItem(CACHE_KEY);
       return null;
     }
     return parsed.user;
   } catch {
+    storage.removeItem(CACHE_KEY);
     return null;
   }
+}
+
+export function readCachedPortalUser(): FrappeUser | null {
+  if (typeof window === "undefined") return null;
+  return readFromStorage(sessionStorage) ?? readFromStorage(localStorage);
 }
 
 export function writeCachedPortalUser(user: FrappeUser | null) {
   if (typeof window === "undefined") return;
   if (!user) {
     sessionStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_KEY);
     return;
   }
-  sessionStorage.setItem(
-    CACHE_KEY,
-    JSON.stringify({ user, at: Date.now() } satisfies CachedAuth),
-  );
+  const payload = JSON.stringify({ user, at: Date.now() } satisfies CachedAuth);
+  sessionStorage.setItem(CACHE_KEY, payload);
+  localStorage.setItem(CACHE_KEY, payload);
 }

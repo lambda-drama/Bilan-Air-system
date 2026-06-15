@@ -2,6 +2,8 @@
  * Frappe session client: credentials + CSRF (same pattern as DMS).
  */
 
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+
 let csrfFetchInFlight: Promise<string | null> | null = null;
 
 function readCsrfFromMeta(): string | null {
@@ -34,7 +36,7 @@ export async function ensureCSRF(forceRefresh = false): Promise<string | null> {
         "/api/method/frappe.sessions.get_csrf_token",
       ];
       for (const url of endpoints) {
-        const res = await fetch(url, { credentials: "include" });
+        const res = await fetchWithTimeout(url, { credentials: "include" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) continue;
         const token = data?.message || null;

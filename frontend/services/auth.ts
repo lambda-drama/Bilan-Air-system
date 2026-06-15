@@ -1,4 +1,5 @@
 import { apiRequest, clearCSRF, ensureCSRF, methodUrl } from "./apiClient";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 export interface FrappeUser {
   name: string;
@@ -15,7 +16,7 @@ export interface FrappeUser {
 export async function login(username: string, password: string): Promise<FrappeUser> {
   clearCSRF();
 
-  const response = await fetch("/api/method/login", {
+  const response = await fetchWithTimeout("/api/method/login", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ usr: username, pwd: password }),
@@ -43,7 +44,7 @@ export async function logout(): Promise<void> {
 
 export async function getLoggedUser(): Promise<string | null> {
   try {
-    const res = await fetch("/api/method/frappe.auth.get_logged_user", {
+    const res = await fetchWithTimeout("/api/method/frappe.auth.get_logged_user", {
       credentials: "include",
       headers: { Accept: "application/json" },
     });
