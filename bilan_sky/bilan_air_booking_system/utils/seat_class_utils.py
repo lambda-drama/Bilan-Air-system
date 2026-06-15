@@ -106,8 +106,8 @@ def list_bookable_fare_classes() -> list[dict]:
 
 
 def list_pricing_fare_classes() -> list[dict]:
-	"""Ticket fare classes for flight pricing (not aircraft layout / cabin map classes)."""
-	rows = list_active_seat_classes(layout_only=False)
+	"""All active seat classes for flight setup pricing."""
+	rows = list_active_seat_classes()
 	return sorted(rows, key=lambda row: (row.get("class_name") or "").lower())
 
 
