@@ -105,6 +105,12 @@ def list_bookable_fare_classes() -> list[dict]:
 	return list(layout_by_cabin.values())
 
 
+def list_pricing_fare_classes() -> list[dict]:
+	"""Ticket fare classes for flight pricing (not aircraft layout / cabin map classes)."""
+	rows = list_active_seat_classes(layout_only=False)
+	return sorted(rows, key=lambda row: (row.get("class_name") or "").lower())
+
+
 def list_public_cabin_classes() -> list[dict]:
 	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import get_default_baggage_policy
 

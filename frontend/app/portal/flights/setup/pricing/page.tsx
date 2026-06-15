@@ -71,12 +71,14 @@ function FlightSetupPricingContent() {
       setSeatClasses(
         list.map((sc) => ({
           value: sc.name,
-          label: sc.class_name || sc.name,
+          label: sc.cabin_name
+            ? `${sc.class_name || sc.name} · ${sc.cabin_name}`
+            : sc.class_name || sc.name,
         })),
       );
     } catch (e) {
       setSeatClasses([]);
-      toast.error(e instanceof Error ? e.message : "Failed to load seat classes");
+      toast.error(e instanceof Error ? e.message : "Failed to load fare classes");
     } finally {
       setSeatClassesLoading(false);
     }
@@ -143,7 +145,7 @@ function FlightSetupPricingContent() {
 
   const saveRow = async () => {
     if (!form.seat_class || !form.fare) {
-      formAlerts.showValidation(["Seat class", "Fare"]);
+      formAlerts.showValidation(["Fare class", "Fare"]);
       return;
     }
     formAlerts.clearAlerts();
@@ -196,7 +198,7 @@ function FlightSetupPricingContent() {
             ← {flightNumber}
           </Link>
           <h1 className="mt-1 text-2xl font-bold">Flight pricing</h1>
-          <p className="text-muted-foreground">{routeLabel || "Per seat class and passenger type"}</p>
+          <p className="text-muted-foreground">{routeLabel || "Per fare class and passenger type"}</p>
         </div>
         <PortalAddButton onClick={openCreate} disabled={loading || saving}>
           Add price
@@ -222,7 +224,7 @@ function FlightSetupPricingContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ticket type</TableHead>
+                    <TableHead>Fare class</TableHead>
                     <TableHead>Passenger</TableHead>
                     <TableHead>Fare</TableHead>
                     <TableHead>Tax group</TableHead>
@@ -291,16 +293,21 @@ function FlightSetupPricingContent() {
         }
       >
         <FormGrid>
-          <FormField label="Ticket type (seat class)" required fullWidth>
+          <FormField
+            label="Fare class"
+            required
+            fullWidth
+            hint="Ticket fare code (e.g. L, M, Y) — not the cabin layout class used on the aircraft map."
+          >
             <SearchableSelect
               value={form.seat_class}
               onValueChange={(v) => setForm({ ...form, seat_class: v })}
               options={seatClasses}
-              placeholder="Select seat class"
+              placeholder="Select fare class"
               emptyMessage={
                 seatClassesLoading
-                  ? "Loading seat classes..."
-                  : "No seat classes found — add them under Master → Seat classes"
+                  ? "Loading fare classes..."
+                  : "No fare classes found — add ticket fare classes under Master → Fare classes (leave “Use on aircraft layout” unchecked)"
               }
               isLoading={seatClassesLoading}
               clearable={false}
