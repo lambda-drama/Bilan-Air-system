@@ -15,6 +15,7 @@ import {
   previewPlanOccurrences,
   saveFlightSchedulePlan,
 } from "@/services/flightSchedulePlan";
+import { useFlightPlanGeneration } from "@/contexts/flight-plan-generation-context";
 import { listFlightSetups } from "@/services/flightSchedule";
 import { getFlightSetup, type FlightSetupMasterRow } from "@/services/flightSetup";
 import { getAirplane, listSeatClasses } from "@/services/portalMaster";
@@ -177,6 +178,7 @@ export function RecurringPlanDialog({
   defaultFlightNumber,
   onSaved,
 }: RecurringPlanDialogProps) {
+  const { trackGeneration } = useFlightPlanGeneration();
   const [form, setForm] = useState(emptyRecurringPlanForm);
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -502,20 +504,31 @@ export function RecurringPlanDialog({
       const isNew = !form.name;
       const saved = await saveFlightSchedulePlan(buildPayload());
       const generation = saved.generation as
-        | { created_count?: number; skipped_count?: number }
+        | { queued?: boolean; expected_count?: number }
         | undefined;
-      if (isNew && generation) {
-        toast.success(
-          `Recurring plan saved — ${generation.created_count ?? 0} flight schedule(s) created` +
-            (generation.skipped_count ? `, ${generation.skipped_count} skipped` : ""),
-        );
+      if (isNew && generation?.queued) {
+        const planName = String(saved.name ?? "");
+        const planTitle = String(saved.plan_title ?? "");
+        toast.info("Generating in the background", {
+          description: `Recurring plan saved. Creating ${generation.expected_count ?? 0} flight schedule(s) for ${planTitle || planName}.`,
+        });
+        if (planName) {
+          trackGeneration({
+            planName,
+            planTitle,
+            expectedCount: generation.expected_count,
+            onComplete: onSaved,
+          });
+        } else {
+          onSaved?.();
+        }
       } else {
         toast.success(form.name ? "Recurring plan updated" : "Recurring plan saved");
+        onSaved?.();
       }
       onOpenChange(false);
       setForm(emptyRecurringPlanForm);
       setPreviewCount(null);
-      onSaved?.();
     } catch (e) {
       formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to save plan");
     } finally {
@@ -523,12 +536,7 @@ export function RecurringPlanDialog({
     }
   };
 
-  const isNewPlan = !planName && !form.name;
-  const submitStatusLabel = submitting
-    ? isNewPlan
-      ? "Generating flight schedules..."
-      : "Saving plan..."
-    : null;
+  const submitStatusLabel = submitting ? "Saving plan..." : null;
 
   const handleDialogOpenChange = (next: boolean) => {
     if (submitting && !next) return;
@@ -581,12 +589,6 @@ export function RecurringPlanDialog({
           >
             <Loader2 className="h-9 w-9 animate-spin text-gold" />
             <p className="text-sm font-medium">{submitStatusLabel}</p>
-            {isNewPlan ? (
-              <p className="max-w-sm text-xs text-muted-foreground">
-                Creating dated departures from your recurring rules. Large date ranges may take a
-                little longer.
-              </p>
-            ) : null}
           </div>
         ) : null}
         {loading ? (

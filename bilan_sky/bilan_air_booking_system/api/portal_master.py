@@ -18,6 +18,7 @@ from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
 	serialize_booking_agent,
 	sync_booking_agent_user_enabled,
 )
+from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import create_or_get_user
 
 BOOKING_AGENT_ROLE = "Booking Agent"

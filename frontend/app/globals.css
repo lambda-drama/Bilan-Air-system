@@ -296,6 +296,20 @@
     }
   }
 
+  @keyframes bilan-generation-progress-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+
+  .bilan-generation-progress-indeterminate > [data-slot="progress-indicator"] {
+    width: 40%;
+    animation: bilan-generation-progress-indeterminate 1.4s ease-in-out infinite;
+  }
+
   @keyframes bilan-nav-progress {
     from {
       transform: translateX(-100%);
