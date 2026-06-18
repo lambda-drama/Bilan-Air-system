@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack && node scripts/copy-to-frappe.js",
+    "build": "next build --webpack && node scripts/copy-to-frappe.js && node scripts/verify-frontend-build.js",
     "start": "next start",
     "lint": "eslint ."
   },
