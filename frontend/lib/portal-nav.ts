@@ -87,7 +87,7 @@ export const portalNavItems: PortalNavItem[] = [
     icon: BarChart3,
     items: [
       { href: "/portal/reports/analytics", label: "Analytics", icon: BarChart3 },
-      { href: "/portal/reports/manifest", label: "Manifest report", icon: FileText },
+      { href: "/portal/reports/m-fest", label: "M.Fest", icon: FileText },
       { href: "/portal/reports/no-show", label: "No show report", icon: UserX },
     ],
   },
