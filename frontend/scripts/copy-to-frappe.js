@@ -17,6 +17,53 @@ function fixFaviconPaths(html) {
 	);
 }
 
+function collectHtmlRelPaths(srcDir, relBase = "") {
+	const paths = new Set();
+
+	for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+		const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+
+		if (entry.isDirectory()) {
+			if (entry.name === "_next") continue;
+			for (const nested of collectHtmlRelPaths(path.join(srcDir, entry.name), relPath)) {
+				paths.add(nested);
+			}
+			continue;
+		}
+
+		if (!entry.name.endsWith(".html")) continue;
+		if (entry.name === "404.html") continue;
+		paths.add(relPath);
+	}
+
+	return paths;
+}
+
+function pruneStaleHtmlFiles(expectedRelPaths, destDir, relBase = "") {
+	if (!fs.existsSync(destDir)) return;
+
+	for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
+		if (entry.name === "_next") continue;
+
+		const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+		const fullPath = path.join(destDir, entry.name);
+
+		if (entry.isDirectory()) {
+			pruneStaleHtmlFiles(expectedRelPaths, fullPath, relPath);
+			if (fs.readdirSync(fullPath).length === 0) {
+				fs.rmdirSync(fullPath);
+			}
+			continue;
+		}
+
+		if (!entry.name.endsWith(".html")) continue;
+		if (!expectedRelPaths.has(relPath)) {
+			fs.unlinkSync(fullPath);
+			console.log("Removed stale HTML:", relPath);
+		}
+	}
+}
+
 function copyHtmlFiles(srcDir, destDir) {
 	for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
 		const srcPath = path.join(srcDir, entry.name);
@@ -63,6 +110,8 @@ if (fs.existsSync(destNextDir)) {
 cpSync(srcNextDir, destNextDir, { recursive: true });
 console.log("Copied _next/ assets to bilan_sky/public/frontend/_next/");
 
+const expectedHtmlPaths = collectHtmlRelPaths(outDir);
+pruneStaleHtmlFiles(expectedHtmlPaths, publicFrontendDir);
 copyHtmlFiles(outDir, publicFrontendDir);
 console.log("Copied route HTML files to bilan_sky/public/frontend/");
 
