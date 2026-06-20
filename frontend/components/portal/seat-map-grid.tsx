@@ -67,18 +67,83 @@ export function SeatMapLegend() {
   );
 }
 
+function planSeatSort(a: PortalSeatRow, b: PortalSeatRow) {
+  const classCmp = (a.seat_class_name || a.seat_class).localeCompare(
+    b.seat_class_name || b.seat_class,
+  );
+  if (classCmp !== 0) return classCmp;
+  const numA = parseInt(a.seat_number.split("-").pop() || "0", 10);
+  const numB = parseInt(b.seat_number.split("-").pop() || "0", 10);
+  return numA - numB;
+}
+
+function planSeatNumber(seat: PortalSeatRow) {
+  const suffix = seat.seat_number.split("-").pop();
+  return suffix && /^\d+$/.test(suffix) ? suffix : seat.seat_number;
+}
+
+function planSeatClassLabel(seat: PortalSeatRow) {
+  return (seat.seat_class_name || seat.seat_class || "").trim();
+}
+
+function SeatGridCell({
+  seat,
+  selected,
+  onSeatClick,
+}: {
+  seat: PortalSeatRow;
+  selected: boolean;
+  onSeatClick?: (seat: PortalSeatRow) => void;
+}) {
+  const style = seatStatusStyle(seat.status);
+  const classLabel = planSeatClassLabel(seat);
+  return (
+    <button
+      type="button"
+      title={`${classLabel ? `${classLabel} · ` : ""}${seat.seat_number} · ${style.label}${
+        seat.booking_reference ? ` · ${seat.booking_reference}` : ""
+      }`}
+      onClick={() => onSeatClick?.(seat)}
+      className={cn(
+        "flex h-12 w-full min-w-14 flex-col items-center justify-center gap-0.5 rounded border px-1 py-1 leading-tight transition-colors",
+        style.className,
+        selected && "ring-2 ring-gold ring-offset-1",
+        onSeatClick && "cursor-pointer",
+      )}
+    >
+      <span className="text-xs font-semibold">{planSeatNumber(seat)}</span>
+      {classLabel ? (
+        <span className="max-w-full truncate text-[10px] font-normal text-inherit/90">
+          {classLabel}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export function SeatMapGrid({
   seats,
   selectedSeatId,
   onSeatClick,
   className,
+  columns,
+  usesPlanQuotas = false,
 }: {
   seats: PortalSeatRow[];
   selectedSeatId?: string | null;
   onSeatClick?: (seat: PortalSeatRow) => void;
   className?: string;
+  /** Fixed column count (e.g. 10 for recurring-plan quota seats). Omit for airplane row layout. */
+  columns?: number;
+  usesPlanQuotas?: boolean;
 }) {
+  const gridSeats = useMemo(() => {
+    if (!columns) return null;
+    return [...seats].sort(planSeatSort);
+  }, [seats, columns]);
+
   const seatsByRow = useMemo(() => {
+    if (columns) return {};
     const grouped: Record<number, PortalSeatRow[]> = {};
     for (const seat of seats) {
       const row = parseInt(seat.seat_number, 10) || 0;
@@ -86,13 +151,33 @@ export function SeatMapGrid({
       grouped[row].push(seat);
     }
     return grouped;
-  }, [seats]);
+  }, [seats, columns]);
 
   if (seats.length === 0) {
     return (
       <p className="py-12 text-center text-sm text-muted-foreground">
-        No seats in inventory for this flight. Generate seats from the airplane layout.
+        {usesPlanQuotas
+          ? "No seats in inventory for this flight. Set class quotas on the recurring plan and refresh."
+          : "No seats in inventory for this flight. Generate seats from the airplane layout."}
       </p>
+    );
+  }
+
+  if (columns && gridSeats) {
+    return (
+      <div
+        className={cn("grid gap-1.5", className)}
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(3.5rem, 1fr))` }}
+      >
+        {gridSeats.map((seat) => (
+          <SeatGridCell
+            key={seat.name}
+            seat={seat}
+            selected={selectedSeatId === seat.name}
+            onSeatClick={onSeatClick}
+          />
+        ))}
+      </div>
     );
   }
 

@@ -21,6 +21,8 @@ export interface ScheduleSeatInventory {
     status: string;
     origin: string;
     destination: string;
+    uses_plan_quotas?: boolean;
+    schedule_plan?: string;
   };
   expected_seats: number;
   total_seats: number;

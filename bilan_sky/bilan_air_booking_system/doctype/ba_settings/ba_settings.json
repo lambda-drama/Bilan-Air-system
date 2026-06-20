@@ -246,6 +246,7 @@
   },
   {
    "default": "0",
+   "description": "When enabled, generated flights use the airplane seat layout and recurring plan quotas only cap how many seats per class are released. When disabled, only the seat counts entered on each recurring plan are used (not limited by the airplane layout).",
    "fieldname": "use_airplane_seats",
    "fieldtype": "Check",
    "label": "Use Airplane Seats"

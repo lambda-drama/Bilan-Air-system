@@ -189,11 +189,6 @@ def _sync_cabin_crew_table(schedule_name: str, plan) -> None:
 
 
 def _sync_single_schedule_from_plan(plan, schedule_name: str) -> None:
-	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
-		apply_plan_seat_class_release,
-		apply_release_status_to_schedule,
-	)
-
 	schedule = frappe.get_doc("Flight Schedule", schedule_name)
 	arrival_date = _arrival_date_for_departure(plan, schedule.departure_date)
 
@@ -247,11 +242,21 @@ def _sync_single_schedule_from_plan(plan, schedule_name: str) -> None:
 		for row in schedule.segments:
 			row.db_update()
 
-	schedule.generate_seat_inventory(raise_on_error=False)
-	if plan.seat_classes:
-		apply_plan_seat_class_release(schedule, plan)
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+		apply_plan_seat_class_release,
+		apply_release_status_to_schedule,
+		schedule_uses_plan_quotas,
+		sync_schedule_seat_inventory,
+	)
+
+	if schedule_uses_plan_quotas(schedule):
+		sync_schedule_seat_inventory(schedule, raise_on_error=False)
 	else:
-		apply_release_status_to_schedule(schedule, only_unreleased=False)
+		schedule.generate_seat_inventory(raise_on_error=False)
+		if plan.seat_classes:
+			apply_plan_seat_class_release(schedule, plan)
+		else:
+			apply_release_status_to_schedule(schedule, only_unreleased=False)
 
 
 def sync_generated_schedules_from_plan(plan_name: str) -> dict:
@@ -339,11 +344,21 @@ def generate_flight_schedules_from_plan(
 
 		_apply_fare_override(doc, plan)
 		doc.insert(ignore_permissions=True)
-		seats = doc.generate_seat_inventory(raise_on_error=False)
-		if plan.seat_classes:
-			from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_plan_seat_class_release
+		from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+			apply_plan_seat_class_release,
+			apply_release_status_to_schedule,
+			schedule_uses_plan_quotas,
+			sync_schedule_seat_inventory,
+		)
 
-			apply_plan_seat_class_release(doc, plan)
+		if schedule_uses_plan_quotas(doc):
+			seats = sync_schedule_seat_inventory(doc, raise_on_error=False)
+		else:
+			seats = doc.generate_seat_inventory(raise_on_error=False)
+			if plan.seat_classes:
+				apply_plan_seat_class_release(doc, plan)
+			else:
+				apply_release_status_to_schedule(doc, only_unreleased=False)
 
 		if submit and doc.docstatus == 0:
 			doc.submit()
