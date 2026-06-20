@@ -170,6 +170,7 @@ export async function ensureScheduleSeats(scheduleName: string) {
     seats_before: number;
     seats_created: number;
     seats_total: number;
+    uses_plan_quotas?: boolean;
   }>(methodUrl("portal", "ensure_schedule_seats"), {
     method: "POST",
     body: JSON.stringify({ schedule_name: scheduleName }),

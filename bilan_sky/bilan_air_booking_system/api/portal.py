@@ -804,13 +804,18 @@ def ensure_schedule_seats(schedule_name):
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
 	doc.check_permission("write")
 	before = frappe.db.count("Seat Inventory", {"flight_schedule": doc.name})
-	created = doc.generate_seat_inventory()
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import sync_schedule_seat_inventory
+
+	created = sync_schedule_seat_inventory(doc, raise_on_error=True)
 	frappe.db.commit()
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import schedule_uses_plan_quotas
+
 	return {
 		"schedule": doc.name,
 		"seats_before": before,
 		"seats_created": created,
 		"seats_total": frappe.db.count("Seat Inventory", {"flight_schedule": doc.name}),
+		"uses_plan_quotas": schedule_uses_plan_quotas(doc),
 	}
 
 
@@ -1423,6 +1428,16 @@ def get_schedule_seat_inventory(schedule_name):
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
 	doc.check_permission("read")
 
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+		schedule_uses_plan_quotas,
+		sync_schedule_seat_inventory,
+	)
+
+	if schedule_uses_plan_quotas(doc):
+		sync_schedule_seat_inventory(doc, raise_on_error=False)
+		frappe.db.commit()
+		doc.reload()
+
 	route = frappe.get_doc("Flight Route", doc.route)
 	expected_numbers = set(doc.expected_seat_numbers())
 	existing_numbers = set(
@@ -1478,6 +1493,8 @@ def get_schedule_seat_inventory(schedule_name):
 			"total_aircraft_capacity": doc.total_aircraft_capacity or len(expected_numbers),
 			"seats_released_count": doc.seats_released_count or 0,
 			"initial_seats_released": doc.initial_seats_released or 0,
+			"schedule_plan": doc.schedule_plan,
+			"uses_plan_quotas": schedule_uses_plan_quotas(doc),
 			"segments": get_schedule_segments(doc.name),
 		},
 		"expected_seats": len(expected_numbers),

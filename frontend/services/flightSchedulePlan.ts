@@ -36,7 +36,7 @@ export function recurringPlanSchedulesPath(
 }
 
 export async function getFlightSchedulePlanDefaults() {
-  return apiRequest<{ suggested_plan_title: string }>(
+  return apiRequest<{ suggested_plan_title: string; use_airplane_seats?: number | boolean }>(
     planApi("get_flight_schedule_plan_defaults"),
     { method: "POST", body: JSON.stringify({}) },
   );

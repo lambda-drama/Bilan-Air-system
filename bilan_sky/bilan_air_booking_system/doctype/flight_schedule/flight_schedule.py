@@ -164,6 +164,14 @@ class FlightSchedule(Document):
             self._pending_fare_history_entry = None
 
     def _ensure_seat_inventory(self):
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+            schedule_uses_plan_quotas,
+            sync_schedule_seat_inventory,
+        )
+
+        if schedule_uses_plan_quotas(self):
+            return sync_schedule_seat_inventory(self, raise_on_error=False)
+
         expected = self._expected_seat_count()
         existing = frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
         if expected > 0 and existing >= expected:
@@ -171,10 +179,9 @@ class FlightSchedule(Document):
         return self.generate_seat_inventory()
 
     def _expected_seat_count(self):
-        """Physical seat count from airplane layout (all seats, including unreleased)."""
-        from bilan_sky.bilan_air_booking_system.utils.seat_release import aircraft_capacity
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import expected_seat_count_for_schedule
 
-        return aircraft_capacity(self.airplane)
+        return expected_seat_count_for_schedule(self)
 
     def _ensure_flight_number(self):
         if self.flight_number:
@@ -196,6 +203,17 @@ class FlightSchedule(Document):
 
     def generate_seat_inventory(self, raise_on_error=True):
         """Create or backfill Seat Inventory rows from the linked airplane seat configuration."""
+        if self.schedule_plan:
+            from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import uses_airplane_seats
+
+            if not uses_airplane_seats():
+                plan = frappe.get_doc("Flight Schedule Plan", self.schedule_plan)
+                from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+                    ensure_plan_quota_seat_inventory,
+                )
+
+                return ensure_plan_quota_seat_inventory(self, plan)
+
         if not self.airplane:
             if raise_on_error:
                 frappe.throw(_("Select an airplane before seats can be generated."))
@@ -268,12 +286,9 @@ class FlightSchedule(Document):
         return len(existing_numbers)
     
     def expected_seat_numbers(self):
-        from bilan_sky.bilan_air_booking_system.utils.seat_release import iter_layout_seat_slots
+        from bilan_sky.bilan_air_booking_system.utils.seat_release import expected_seat_numbers_for_schedule
 
-        if not self.airplane:
-            return []
-        airplane = frappe.get_doc("Airplane", self.airplane)
-        return [n for n, _ in iter_layout_seat_slots(airplane)]
+        return expected_seat_numbers_for_schedule(self)
 
     def release_more_seats(self, count: int):
         from bilan_sky.bilan_air_booking_system.utils.seat_release import release_additional_seats

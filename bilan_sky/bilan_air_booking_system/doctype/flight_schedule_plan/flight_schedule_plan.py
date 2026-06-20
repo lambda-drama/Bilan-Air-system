@@ -40,7 +40,13 @@ class FlightSchedulePlan(Document):
 		self._validate_plan_seat_classes()
 
 	def _validate_plan_seat_classes(self):
-		if not self.seat_classes or not self.airplane:
+		if not self.seat_classes:
+			return
+		from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import uses_airplane_seats
+
+		if not uses_airplane_seats():
+			return
+		if not self.airplane:
 			return
 		from bilan_sky.bilan_air_booking_system.utils.seat_release import layout_seat_counts_by_class
 

@@ -26,8 +26,13 @@ def _parse_data(data):
 @frappe.whitelist()
 def get_flight_schedule_plan_defaults():
 	"""Defaults for the portal new-plan dialog."""
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import uses_airplane_seats
+
 	require_portal_staff()
-	return {"suggested_plan_title": next_plan_title()}
+	return {
+		"suggested_plan_title": next_plan_title(),
+		"use_airplane_seats": uses_airplane_seats(),
+	}
 
 
 @frappe.whitelist()

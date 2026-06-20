@@ -26,3 +26,8 @@ def get_ba_setting_from_doc(doc, fieldname: str, default=None):
 
 def is_seat_selection_enabled() -> bool:
 	return bool(cint(get_ba_setting("enable_seat_selection", 0)))
+
+
+def uses_airplane_seats() -> bool:
+	"""When true, seat inventory follows airplane layout; plan quotas cap release per class."""
+	return bool(cint(get_ba_setting("use_airplane_seats", 0)))

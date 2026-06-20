@@ -193,13 +193,15 @@ export function RecurringPlanDialog({
   const [seatClassesLoading, setSeatClassesLoading] = useState(false);
   const [layoutCapsByClass, setLayoutCapsByClass] = useState<Record<string, number>>({});
   const [layoutCapsLoading, setLayoutCapsLoading] = useState(false);
+  const [useAirplaneSeats, setUseAirplaneSeats] = useState(false);
   const formAlerts = useFormDialogAlerts();
 
   const displaySeatClassOptions = useMemo(() => {
+    if (!useAirplaneSeats) return seatClassOptions;
     const fromLayout = seatClassOptionsFromLayout(layoutCapsByClass, seatClassOptions);
     if (fromLayout.length) return fromLayout;
     return seatClassOptions;
-  }, [layoutCapsByClass, seatClassOptions]);
+  }, [useAirplaneSeats, layoutCapsByClass, seatClassOptions]);
 
   const loadSeatClasses = async (): Promise<SeatClassOption[]> => {
     setSeatClassesLoading(true);
@@ -225,9 +227,18 @@ export function RecurringPlanDialog({
     airplaneName: string,
     prefillFromLayout = false,
     classOptions: SeatClassOption[] = seatClassOptions,
+    useLayoutSeats: boolean = useAirplaneSeats,
   ) => {
     if (!airplaneName) {
       setLayoutCapsByClass({});
+      return;
+    }
+    if (!useLayoutSeats) {
+      setLayoutCapsByClass({});
+      setForm((f) => ({
+        ...f,
+        seat_classes: mergeSeatClassGrid(classOptions, f.seat_classes),
+      }));
       return;
     }
     setLayoutCapsLoading(true);
@@ -299,6 +310,7 @@ export function RecurringPlanDialog({
   const applyFlightSetupSelection = async (
     flightNumber: string,
     classOptions: SeatClassOption[] = seatClassOptions,
+    useLayoutSeats: boolean = useAirplaneSeats,
   ) => {
     if (!flightNumber) {
       setForm((f) => ({ ...f, flight_number: "" }));
@@ -338,14 +350,17 @@ export function RecurringPlanDialog({
       route: setup!.route,
       airplane: setup!.airplane || f.airplane,
     }));
-    if (setup!.airplane) void applyAirplaneSeatClasses(setup!.airplane, true, classOptions);
+    if (setup!.airplane && useLayoutSeats) {
+      void applyAirplaneSeatClasses(setup!.airplane, true, classOptions, useLayoutSeats);
+    }
   };
 
   const prefillFromFlightSetup = async (
     flightNumber: string,
     classOptions: SeatClassOption[] = seatClassOptions,
+    useLayoutSeats: boolean = useAirplaneSeats,
   ) => {
-    await applyFlightSetupSelection(flightNumber, classOptions);
+    await applyFlightSetupSelection(flightNumber, classOptions, useLayoutSeats);
   };
 
   useEffect(() => {
@@ -408,6 +423,9 @@ export function RecurringPlanDialog({
       try {
         await loadFlightSetups();
         const loadedSeatClasses = await loadSeatClasses();
+        const defaults = await getFlightSchedulePlanDefaults();
+        const layoutSeatsEnabled = !!defaults.use_airplane_seats;
+        setUseAirplaneSeats(layoutSeatsEnabled);
 
         if (planName) {
           const doc = await getFlightSchedulePlan(planName);
@@ -417,21 +435,22 @@ export function RecurringPlanDialog({
             seat_classes: mergeSeatClassGrid(loadedSeatClasses, loaded.seat_classes),
           });
           const fn = String(doc.flight_number || defaultFlightNumber || "");
-          if (fn) await prefillFromFlightSetup(fn, loadedSeatClasses);
-          if (doc.airplane) {
-            await applyAirplaneSeatClasses(String(doc.airplane), false, loadedSeatClasses);
+          if (fn) await prefillFromFlightSetup(fn, loadedSeatClasses, layoutSeatsEnabled);
+          if (doc.airplane && layoutSeatsEnabled) {
+            await applyAirplaneSeatClasses(String(doc.airplane), false, loadedSeatClasses, layoutSeatsEnabled);
           }
           return;
         }
 
-        const defaults = await getFlightSchedulePlanDefaults();
         setForm({
           ...emptyRecurringPlanForm,
           flight_number: defaultFlightNumber || "",
           plan_title: defaults.suggested_plan_title,
           seat_classes: mergeSeatClassGrid(loadedSeatClasses, []),
         });
-        if (defaultFlightNumber) await prefillFromFlightSetup(defaultFlightNumber, loadedSeatClasses);
+        if (defaultFlightNumber) {
+          await prefillFromFlightSetup(defaultFlightNumber, loadedSeatClasses, layoutSeatsEnabled);
+        }
       } catch (e) {
         formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to load form");
         onOpenChange(false);
@@ -726,7 +745,7 @@ export function RecurringPlanDialog({
                   value={form.airplane}
                   onValueChange={(v) => {
                     setForm({ ...form, airplane: v });
-                    void applyAirplaneSeatClasses(v, true);
+                    if (useAirplaneSeats) void applyAirplaneSeatClasses(v, true);
                   }}
                   options={airplanes}
                   placeholder="Select airplane"
@@ -776,25 +795,33 @@ export function RecurringPlanDialog({
 
             <FormSection title="Seat capacity by class" className="mt-6">
               <p className="text-xs text-muted-foreground">
-                Enter seats to release per class when schedules are generated. Leave 0 to release
-                none for that class. Selecting an airplane prefills from its layout.
+                {useAirplaneSeats
+                  ? "Enter seats to release per class when schedules are generated. Leave 0 to release none for that class. Selecting an airplane prefills from its layout."
+                  : "Enter how many seats to sell per class on generated flights. These counts are used as-is (not limited by the airplane layout). Enable Use Airplane Seats in BA Settings to tie release to the physical layout instead."}
               </p>
               <div className="mt-3 rounded-md border">
-                {seatClassesLoading || layoutCapsLoading ? (
+                {useAirplaneSeats && (seatClassesLoading || layoutCapsLoading) ? (
                   <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     {layoutCapsLoading ? "Loading airplane layout..." : "Loading seat classes..."}
                   </div>
+                ) : !useAirplaneSeats && seatClassesLoading ? (
+                  <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading seat classes...
+                  </div>
                 ) : displaySeatClassOptions.length === 0 ? (
                   <p className="p-4 text-sm text-muted-foreground">
-                    {form.airplane
-                      ? "No seat classes found on this airplane. Add rows under Master → Airplanes → seat configuration (seat class, rows, columns)."
-                      : "Select an airplane to load seat classes from its layout."}
+                    {useAirplaneSeats
+                      ? form.airplane
+                        ? "No seat classes found on this airplane. Add rows under Master → Airplanes → seat configuration (seat class, rows, columns)."
+                        : "Select an airplane to load seat classes from its layout."
+                      : "No active fare classes found. Add them under Master → Seat classes."}
                   </p>
                 ) : (
                   <div className="divide-y">
                     {displaySeatClassOptions.map((opt) => {
-                      const cap = layoutCapsByClass[opt.value];
+                      const cap = useAirplaneSeats ? layoutCapsByClass[opt.value] : undefined;
                       const quota = seatQuotaForClass(form.seat_classes, opt.value);
                       return (
                         <div
@@ -806,7 +833,7 @@ export function RecurringPlanDialog({
                             {opt.description ? (
                               <p className="text-xs text-muted-foreground">{opt.description}</p>
                             ) : null}
-                            {cap != null && cap > 0 ? (
+                            {useAirplaneSeats && cap != null && cap > 0 ? (
                               <p className="text-xs text-muted-foreground">
                                 Airplane layout: {cap} seat{cap === 1 ? "" : "s"}
                               </p>

@@ -67,14 +67,147 @@ def _seat_has_active_booking(seat_inventory_name: str) -> bool:
 	)
 
 
+def plan_seat_slots(plan) -> list[tuple[str, str]]:
+	"""Synthetic seat inventory slots from recurring plan class quotas."""
+	slots: list[tuple[str, str]] = []
+	for row in plan.seat_classes or []:
+		seat_class = getattr(row, "seat_class", None)
+		qty = cint(getattr(row, "number_of_seats", 0))
+		if not seat_class or qty <= 0:
+			continue
+		for index in range(1, qty + 1):
+			slots.append((f"{seat_class}-{index}", seat_class))
+	return slots
+
+
+def schedule_uses_plan_quotas(schedule) -> bool:
+	"""Plan-linked schedules with Use Airplane Seats off use recurring plan counts only."""
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import uses_airplane_seats
+
+	if uses_airplane_seats():
+		return False
+	plan_name = getattr(schedule, "schedule_plan", None)
+	if isinstance(schedule, dict):
+		plan_name = schedule.get("schedule_plan")
+	return bool(plan_name)
+
+
+def expected_seat_count_for_schedule(schedule) -> int:
+	if schedule_uses_plan_quotas(schedule):
+		plan_name = getattr(schedule, "schedule_plan", None)
+		if not plan_name:
+			return 0
+		plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+		return len(plan_seat_slots(plan))
+	airplane = getattr(schedule, "airplane", None)
+	return aircraft_capacity(airplane)
+
+
+def expected_seat_numbers_for_schedule(schedule) -> list[str]:
+	if schedule_uses_plan_quotas(schedule):
+		plan_name = getattr(schedule, "schedule_plan", None)
+		if not plan_name:
+			return []
+		plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+		return [seat_number for seat_number, _seat_class in plan_seat_slots(plan)]
+
+	if not getattr(schedule, "airplane", None):
+		return []
+	airplane = frappe.get_doc("Airplane", schedule.airplane)
+	return [seat_number for seat_number, _seat_class in iter_layout_seat_slots(airplane)]
+
+
+def sync_schedule_seat_inventory(schedule, *, raise_on_error: bool = False) -> int:
+	"""Rebuild seat inventory to match plan quotas or airplane layout (per BA Settings)."""
+	if schedule_uses_plan_quotas(schedule):
+		plan = frappe.get_doc("Flight Schedule Plan", schedule.schedule_plan)
+		return ensure_plan_quota_seat_inventory(schedule, plan)
+	return schedule.generate_seat_inventory(raise_on_error=raise_on_error)
+
+
+def ensure_plan_quota_seat_inventory(schedule, plan) -> int:
+	"""Create/update seat inventory to match recurring plan quotas exactly (no airplane layout)."""
+	target_slots = plan_seat_slots(plan)
+	target_numbers = {seat_number for seat_number, _seat_class in target_slots}
+
+	existing_rows = frappe.get_all(
+		"Seat Inventory",
+		filters={"flight_schedule": schedule.name},
+		fields=["name", "seat_number", "seat_class", "status"],
+	)
+	existing_by_number = {row.seat_number: row for row in existing_rows}
+
+	for seat_number, seat_class in target_slots:
+		row = existing_by_number.get(seat_number)
+		if row:
+			updates = {}
+			if row.seat_class != seat_class:
+				updates["seat_class"] = seat_class
+			if row.status == "Unreleased":
+				updates["status"] = "Available"
+			if updates:
+				frappe.db.set_value("Seat Inventory", row.name, updates, update_modified=False)
+			continue
+
+		frappe.get_doc(
+			{
+				"doctype": "Seat Inventory",
+				"flight_schedule": schedule.name,
+				"seat_number": seat_number,
+				"seat_class": seat_class,
+				"status": "Available",
+			}
+		).insert(ignore_permissions=True)
+
+	for seat_number, row in existing_by_number.items():
+		if seat_number in target_numbers:
+			continue
+		if _seat_has_active_booking(row.name):
+			continue
+		frappe.delete_doc("Seat Inventory", row.name, ignore_permissions=True)
+
+	available_count = frappe.db.count(
+		"Seat Inventory",
+		{"flight_schedule": schedule.name, "status": "Available"},
+	)
+	total_capacity = len(target_slots)
+	frappe.db.set_value(
+		"Flight Schedule",
+		schedule.name,
+		{
+			"seats_released_count": available_count,
+			"total_aircraft_capacity": total_capacity,
+		},
+		update_modified=False,
+	)
+	return total_capacity
+
+
 def apply_plan_seat_class_release(schedule, plan) -> int:
-	"""Release bookable seats per recurring plan class quotas (layout order within each class)."""
+	"""Release bookable seats per recurring plan class quotas."""
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import uses_airplane_seats
+
+	if not uses_airplane_seats():
+		return ensure_plan_quota_seat_inventory(schedule, plan)
+
 	quotas: dict[str, int] = {}
 	for row in plan.seat_classes or []:
 		qty = cint(getattr(row, "number_of_seats", 0))
 		seat_class = getattr(row, "seat_class", None)
 		if seat_class and qty > 0:
 			quotas[seat_class] = qty
+
+	airplane = frappe.get_doc("Airplane", schedule.airplane)
+	slots = iter_layout_seat_slots(airplane)
+	inventories = {
+		row.seat_number: row
+		for row in frappe.get_all(
+			"Seat Inventory",
+			filters={"flight_schedule": schedule.name},
+			fields=["name", "seat_number", "seat_class", "status"],
+		)
+	}
+
 	if not quotas:
 		if plan.seat_classes:
 			for seat_number, _seat_class in slots:
@@ -90,16 +223,6 @@ def apply_plan_seat_class_release(schedule, plan) -> int:
 			return 0
 		return apply_release_status_to_schedule(schedule, only_unreleased=False)
 
-	airplane = frappe.get_doc("Airplane", schedule.airplane)
-	slots = iter_layout_seat_slots(airplane)
-	inventories = {
-		row.seat_number: row
-		for row in frappe.get_all(
-			"Seat Inventory",
-			filters={"flight_schedule": schedule.name},
-			fields=["name", "seat_number", "seat_class", "status"],
-		)
-	}
 	released_by_class = {seat_class: 0 for seat_class in quotas}
 	total_released = 0
 

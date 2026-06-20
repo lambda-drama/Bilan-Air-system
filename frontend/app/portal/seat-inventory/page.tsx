@@ -137,9 +137,13 @@ function SeatInventoryContent() {
     if (!selectedSchedule) return;
     setGenerating(true);
     try {
-      await ensureScheduleSeats(selectedSchedule);
+      const res = await ensureScheduleSeats(selectedSchedule);
       await loadInventory(selectedSchedule);
-      toast.success("Seat inventory updated from airplane layout");
+      toast.success(
+        res.uses_plan_quotas
+          ? "Seat inventory synced from recurring plan"
+          : "Seat inventory updated from airplane layout",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not generate seats");
     } finally {
@@ -312,6 +316,13 @@ function SeatInventoryContent() {
             </div>
           </div>
 
+          {inventory.schedule.uses_plan_quotas ? (
+            <div className="rounded-lg border border-sky-500/40 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+              Seat counts come from the linked recurring plan (Use Airplane Seats is off in BA
+              Settings). Physical layout seats are not used.
+            </div>
+          ) : null}
+
           {inventory.missing_seats > 0 && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               <strong>{inventory.missing_seats}</strong> seat
@@ -364,6 +375,8 @@ function SeatInventoryContent() {
                 seats={visibleSeats}
                 selectedSeatId={selectedSeat?.name}
                 onSeatClick={setSelectedSeat}
+                columns={inventory.schedule.uses_plan_quotas ? 10 : undefined}
+                usesPlanQuotas={inventory.schedule.uses_plan_quotas}
               />
               <p className="mt-4 text-xs text-muted-foreground text-center">
                 Click a seat to release, hold, restrict, or view details
