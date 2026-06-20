@@ -523,7 +523,18 @@ export function RecurringPlanDialog({
           onSaved?.();
         }
       } else {
-        toast.success(form.name ? "Recurring plan updated" : "Recurring plan saved");
+        const sync = saved.schedule_sync as { updated_count?: number; skipped?: unknown[] } | undefined;
+        if (sync?.updated_count) {
+          const skipped = sync.skipped?.length ?? 0;
+          toast.success(`Recurring plan updated — ${sync.updated_count} flight schedule(s) synced`, {
+            description:
+              skipped > 0
+                ? `${skipped} schedule(s) could not be updated. Check error log for details.`
+                : undefined,
+          });
+        } else {
+          toast.success(form.name ? "Recurring plan updated" : "Recurring plan saved");
+        }
         onSaved?.();
       }
       onOpenChange(false);

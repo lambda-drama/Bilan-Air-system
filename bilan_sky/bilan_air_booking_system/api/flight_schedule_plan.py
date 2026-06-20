@@ -152,6 +152,9 @@ def save_flight_schedule_plan(data):
 	frappe.db.commit()
 
 	result = get_flight_schedule_plan(doc.name)
+	schedule_sync = getattr(doc.flags, "schedule_sync_result", None)
+	if schedule_sync:
+		result["schedule_sync"] = schedule_sync
 	if is_new and auto_generate:
 		result["generation"] = enqueue_plan_schedule_generation(doc.name, submit=submit)
 	return result
