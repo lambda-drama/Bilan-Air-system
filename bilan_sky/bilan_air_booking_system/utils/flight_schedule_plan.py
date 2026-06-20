@@ -145,6 +145,140 @@ def _apply_fare_override(doc, plan):
 	)
 
 
+PLAN_SCHEDULE_SYNC_FIELDS = (
+	"route",
+	"airplane",
+	"departure_time",
+	"arrival_time",
+	"arrival_day_offset",
+	"status",
+	"captain",
+	"first_officer",
+	"base_fare_adult_override",
+	"base_fare_child_override",
+	"base_fare_infant_override",
+	"initial_seats_released",
+)
+
+
+def plan_changes_require_schedule_sync(plan) -> bool:
+	if plan.is_new():
+		return False
+	if any(plan.has_value_changed(field) for field in PLAN_SCHEDULE_SYNC_FIELDS):
+		return True
+	return plan.has_value_changed("seat_classes") or plan.has_value_changed("cabin_crew")
+
+
+def _sync_cabin_crew_table(schedule_name: str, plan) -> None:
+	frappe.db.delete(
+		"Flight Crew Assignment",
+		{"parent": schedule_name, "parenttype": "Flight Schedule", "parentfield": "cabin_crew"},
+	)
+	for index, row in enumerate(plan.cabin_crew or [], start=1):
+		frappe.get_doc(
+			{
+				"doctype": "Flight Crew Assignment",
+				"parent": schedule_name,
+				"parenttype": "Flight Schedule",
+				"parentfield": "cabin_crew",
+				"idx": index,
+				"crew_member": row.crew_member,
+				"role": row.role,
+			}
+		).insert(ignore_permissions=True)
+
+
+def _sync_single_schedule_from_plan(plan, schedule_name: str) -> None:
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
+		apply_plan_seat_class_release,
+		apply_release_status_to_schedule,
+	)
+
+	schedule = frappe.get_doc("Flight Schedule", schedule_name)
+	arrival_date = _arrival_date_for_departure(plan, schedule.departure_date)
+
+	schedule.route = plan.route
+	schedule.airplane = plan.airplane
+	schedule.departure_time = plan.departure_time
+	schedule.arrival_date = arrival_date
+	schedule.arrival_time = plan.arrival_time
+	schedule.status = plan.status or schedule.status
+	schedule.captain = plan.captain
+	schedule.first_officer = plan.first_officer
+	schedule.initial_seats_released = _plan_initial_seats_released(plan)
+	schedule.set("cabin_crew", [])
+	for row in plan.cabin_crew or []:
+		schedule.append(
+			"cabin_crew",
+			{
+				"crew_member": row.crew_member,
+				"role": row.role,
+			},
+		)
+	_apply_fare_override(schedule, plan)
+
+	if schedule.docstatus == 1:
+		frappe.db.set_value(
+			"Flight Schedule",
+			schedule_name,
+			{
+				"route": schedule.route,
+				"airplane": schedule.airplane,
+				"departure_time": schedule.departure_time,
+				"arrival_date": schedule.arrival_date,
+				"arrival_time": schedule.arrival_time,
+				"status": schedule.status,
+				"captain": schedule.captain,
+				"first_officer": schedule.first_officer,
+				"initial_seats_released": schedule.initial_seats_released,
+			},
+			update_modified=True,
+		)
+		_sync_cabin_crew_table(schedule_name, plan)
+		schedule = frappe.get_doc("Flight Schedule", schedule_name)
+		_apply_fare_override(schedule, plan)
+		schedule.save(ignore_permissions=True)
+	else:
+		schedule.save(ignore_permissions=True)
+
+	schedule = frappe.get_doc("Flight Schedule", schedule_name)
+	if schedule.route and schedule.segments:
+		schedule._refresh_segment_arrival_estimates()
+		for row in schedule.segments:
+			row.db_update()
+
+	schedule.generate_seat_inventory(raise_on_error=False)
+	if plan.seat_classes:
+		apply_plan_seat_class_release(schedule, plan)
+	else:
+		apply_release_status_to_schedule(schedule, only_unreleased=False)
+
+
+def sync_generated_schedules_from_plan(plan_name: str) -> dict:
+	"""Push plan timing, crew, fares, and seat-class quotas to linked flight schedules."""
+	schedule_names = frappe.get_all(
+		"Flight Schedule",
+		filters={"schedule_plan": plan_name},
+		pluck="name",
+		order_by="departure_date asc",
+	)
+	if not schedule_names:
+		return {"updated_count": 0, "updated": [], "skipped": []}
+
+	updated = []
+	skipped = []
+	plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+	for schedule_name in schedule_names:
+		try:
+			_sync_single_schedule_from_plan(plan, schedule_name)
+			updated.append(schedule_name)
+		except Exception as exc:
+			frappe.log_error(title=f"Plan schedule sync failed ({plan_name} → {schedule_name})")
+			skipped.append({"name": schedule_name, "reason": cstr(exc) or _("Sync failed.")})
+
+	return {"updated_count": len(updated), "updated": updated, "skipped": skipped}
+
+
 def generate_flight_schedules_from_plan(
 	plan_name: str, *, submit: bool = True, track_progress: bool = False
 ) -> dict:

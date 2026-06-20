@@ -69,3 +69,12 @@ class FlightSchedulePlan(Document):
 
 	def preview_occurrence_count(self) -> int:
 		return count_plan_occurrences(self)
+
+	def on_update(self):
+		from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
+			plan_changes_require_schedule_sync,
+			sync_generated_schedules_from_plan,
+		)
+
+		if plan_changes_require_schedule_sync(self):
+			self.flags.schedule_sync_result = sync_generated_schedules_from_plan(self.name)

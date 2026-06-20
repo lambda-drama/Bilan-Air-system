@@ -22,6 +22,7 @@
   "send_booking_agent_activation_email",
   "column_break_npnp",
   "enable_seat_selection",
+  "use_airplane_seats",
   "sb_accounting",
   "default_mode_of_payment",
   "default_cash_account",
@@ -242,13 +243,19 @@
    "fieldtype": "Link",
    "label": "Default Expense Account",
    "options": "BA Account"
+  },
+  {
+   "default": "0",
+   "fieldname": "use_airplane_seats",
+   "fieldtype": "Check",
+   "label": "Use Airplane Seats"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-10 23:31:59.591082",
+ "modified": "2026-06-21 02:02:49.371891",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",
