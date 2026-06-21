@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LayoutGrid, Pencil, Plane, Trash2, Zap } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
+import { DocLink } from "@/components/portal/doc-link";
 import { RecurringPlanDialog } from "@/components/portal/recurring-plan-dialog";
+import { RecurringPlanDetailSheet } from "@/components/portal/recurring-plan-detail-sheet";
 import { ListSearch } from "@/components/portal/list-search";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import {
@@ -78,6 +80,7 @@ function FlightSetupPlansContent() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlanName, setEditingPlanName] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingPlanName(null);
@@ -185,8 +188,16 @@ function FlightSetupPlansContent() {
                     </TableRow>
                   ) : (
                     rows.map((row) => (
-                      <TableRow key={row.name}>
-                        <TableCell className="font-medium">{row.plan_title || row.name}</TableCell>
+                      <TableRow
+                        key={row.name}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedPlanId(row.name)}
+                      >
+                        <TableCell className="font-medium">
+                          <DocLink onClick={() => setSelectedPlanId(row.name)}>
+                            {row.plan_title || row.name}
+                          </DocLink>
+                        </TableCell>
                         <TableCell>{formatDate(row.start_date)}</TableCell>
                         <TableCell>{formatDate(row.end_date)}</TableCell>
                         <TableCell>
@@ -209,7 +220,11 @@ function FlightSetupPlansContent() {
                             {formatDateTime(row.modified)}
                           </p>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell
+                          className="text-right"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
                           <RowActionMenu>
                             <RowActionMenuItem icon={Pencil} onClick={() => openEdit(row.name)}>
                               Edit recurring plan
@@ -257,22 +272,27 @@ function FlightSetupPlansContent() {
         onSaved={refresh}
       />
 
+      <RecurringPlanDetailSheet
+        planName={selectedPlanId}
+        listRow={rows.find((p) => p.name === selectedPlanId) ?? null}
+        onOpenChange={(open) => !open && setSelectedPlanId(null)}
+        onEdit={(planName) => {
+          setSelectedPlanId(null);
+          openEdit(planName);
+        }}
+        onGenerate={handleGenerate}
+        onDeleted={refresh}
+      />
+
       <ConfirmActionDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete recurring plan?"
         description={
-          <>
-            <p>
-              Delete <strong>{deleteTarget?.plan_title || deleteTarget?.name}</strong>? This cannot
-              be undone.
-            </p>
-            {(deleteTarget?.generated_count ?? 0) > 0 ? (
-              <p className="text-destructive">
-                This plan has generated schedules and cannot be deleted until those are removed.
-              </p>
-            ) : null}
-          </>
+          <p>
+            Delete <strong>{deleteTarget?.plan_title || deleteTarget?.name}</strong>? This cannot
+            be undone.
+          </p>
         }
         confirmLabel="Delete"
         tone="destructive"

@@ -110,9 +110,18 @@ export async function generatePlanSchedules(planName: string, submit = 1) {
   });
 }
 
-export async function deleteFlightSchedulePlan(planName: string) {
-  return apiRequest<{ deleted: string }>(planApi("delete_flight_schedule_plan"), {
-    method: "POST",
-    body: JSON.stringify({ plan_name: planName }),
-  });
+export async function deleteFlightSchedulePlan(
+  planName: string,
+  opts?: { deleteSchedules?: boolean },
+) {
+  return apiRequest<{ deleted: string; deleted_schedules?: number }>(
+    planApi("delete_flight_schedule_plan"),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        plan_name: planName,
+        delete_schedules: opts?.deleteSchedules ? 1 : 0,
+      }),
+    },
+  );
 }

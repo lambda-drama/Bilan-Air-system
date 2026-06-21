@@ -8,9 +8,11 @@ from bilan_sky.bilan_air_booking_system.api.portal import _paginated
 from bilan_sky.bilan_air_booking_system.utils.fare_pricing import apply_schedule_fare_override
 from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 	count_plan_occurrences,
+	delete_schedules_for_plan,
 	enqueue_plan_schedule_generation,
 	next_plan_title,
 	read_plan_generation_status,
+	sync_plan_seat_reserves_from_plan,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 
@@ -156,8 +158,16 @@ def save_flight_schedule_plan(data):
 
 	frappe.db.commit()
 
+	schedule_seat_sync = None
+	if seat_classes is not None:
+		schedule_seat_sync = sync_plan_seat_reserves_from_plan(doc.name, plan=doc)
+		if schedule_seat_sync.get("updated_count"):
+			frappe.db.commit()
+
 	result = get_flight_schedule_plan(doc.name)
 	schedule_sync = getattr(doc.flags, "schedule_sync_result", None)
+	if schedule_seat_sync:
+		result["schedule_seat_sync"] = schedule_seat_sync
 	if schedule_sync:
 		result["schedule_sync"] = schedule_sync
 	if is_new and auto_generate:
@@ -193,14 +203,17 @@ def get_plan_generation_status(plan_name):
 
 
 @frappe.whitelist()
-def delete_flight_schedule_plan(plan_name):
-	"""Delete a recurring plan when it has not generated any flight schedules."""
+def delete_flight_schedule_plan(plan_name, delete_schedules=0):
+	"""Delete a recurring plan. Optionally delete generated flight schedules first."""
 	require_portal_staff()
 	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
 		frappe.throw(_("Flight Schedule Plan not found"))
 
 	linked = frappe.db.count("Flight Schedule", {"schedule_plan": plan_name})
-	if linked:
+	deleted_schedules = 0
+	if linked and cint(delete_schedules):
+		deleted_schedules = delete_schedules_for_plan(plan_name)
+	elif linked:
 		frappe.throw(
 			_(
 				"Cannot delete this plan: {0} flight schedule(s) were generated from it. "
@@ -210,4 +223,4 @@ def delete_flight_schedule_plan(plan_name):
 
 	frappe.delete_doc("Flight Schedule Plan", plan_name, ignore_permissions=True)
 	frappe.db.commit()
-	return {"deleted": plan_name}
+	return {"deleted": plan_name, "deleted_schedules": deleted_schedules}

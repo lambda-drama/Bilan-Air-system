@@ -16,15 +16,17 @@ import {
 
 export function RowActionMenu({ children }: { children: ReactNode }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="h-4 w-4" />
-          <span className="sr-only">Actions</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
-    </DropdownMenu>
+    <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -57,7 +59,11 @@ export function RowActionMenuItem({
   if (href && !disabled) {
     return (
       <DropdownMenuItem asChild variant={variant}>
-        <Link href={href}>
+        <Link
+          href={href}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {Icon ? <Icon className={iconClass} /> : null}
           {children}
         </Link>
@@ -66,7 +72,14 @@ export function RowActionMenuItem({
   }
 
   return (
-    <DropdownMenuItem onClick={onClick} variant={variant} disabled={disabled}>
+    <DropdownMenuItem
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      variant={variant}
+      disabled={disabled}
+    >
       {Icon ? <Icon className={iconClass} /> : null}
       {children}
     </DropdownMenuItem>

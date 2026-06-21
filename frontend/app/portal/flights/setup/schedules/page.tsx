@@ -4,10 +4,13 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Armchair, LayoutGrid, Plane, Ticket, X } from "lucide-react";
+import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
+import { DocLink } from "@/components/portal/doc-link";
 import { ListSearch } from "@/components/portal/list-search";
 import { RowActionMenu, RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { StatusBadge } from "@/components/portal/status-badge";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { flightScheduleStatusStyle } from "@/lib/portal-status-styles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -29,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { flightSetupPath } from "@/services/flightSetup";
 import { getFlightSchedulePlan } from "@/services/flightSchedulePlan";
-import { listSchedules, type FlightScheduleRow } from "@/services/flightSchedule";
+import { getFlightSchedule, listSchedules, type FlightScheduleRow } from "@/services/flightSchedule";
 
 const ALL_STATUSES_VALUE = "all";
 const UPCOMING_STATUSES_VALUE = "upcoming";
@@ -60,6 +63,11 @@ function FlightSetupSchedulesContent() {
   const [departureDateFilter, setDepartureDateFilter] = useState("");
   const [departureTimeFilter, setDepartureTimeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES_VALUE);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [scheduleDetail, setScheduleDetail] = useState<Awaited<
+    ReturnType<typeof getFlightSchedule>
+  > | null>(null);
 
   useEffect(() => {
     if (!schedulePlan) {
@@ -113,6 +121,20 @@ function FlightSetupSchedulesContent() {
     !!departureDateFilter ||
     !!departureTimeFilter ||
     statusFilter !== ALL_STATUSES_VALUE;
+
+  const selectedRow = rows.find((r) => r.name === selectedScheduleId);
+
+  useEffect(() => {
+    if (!selectedScheduleId) {
+      setScheduleDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    getFlightSchedule(selectedScheduleId)
+      .then(setScheduleDetail)
+      .catch(() => setScheduleDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [selectedScheduleId]);
 
   const clearPlanFilterHref = displayFlightNumber
     ? flightSetupPath(displayFlightNumber, "schedules")
@@ -276,8 +298,16 @@ function FlightSetupSchedulesContent() {
                     </TableRow>
                   ) : (
                     rows.map((row) => (
-                      <TableRow key={row.name}>
-                        <TableCell className="font-mono text-sm">{row.name}</TableCell>
+                      <TableRow
+                        key={row.name}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedScheduleId(row.name)}
+                      >
+                        <TableCell className="font-mono text-sm">
+                          <DocLink onClick={() => setSelectedScheduleId(row.name)}>
+                            {row.name}
+                          </DocLink>
+                        </TableCell>
                         <TableCell>
                           {formatDate(row.departure_date)}{" "}
                           <span className="text-muted-foreground">
@@ -328,6 +358,95 @@ function FlightSetupSchedulesContent() {
           )}
         </CardContent>
       </Card>
+
+      <DetailSheet
+        open={!!selectedScheduleId}
+        onOpenChange={(open) => !open && setSelectedScheduleId(null)}
+        title={selectedRow?.flight_number || selectedScheduleId || ""}
+        subtitle={selectedScheduleId || undefined}
+        badge={
+          selectedRow
+            ? {
+                label: flightScheduleStatusStyle(selectedRow.status).label,
+                variant: "outline" as const,
+                className: flightScheduleStatusStyle(selectedRow.status).className,
+              }
+            : undefined
+        }
+        isLoading={detailLoading}
+        footer={
+          selectedScheduleId ? (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button variant="outline" className="min-w-[140px] flex-1" asChild>
+                <Link href={`/portal/seat-inventory?schedule=${encodeURIComponent(selectedScheduleId)}`}>
+                  <Armchair className="mr-2 h-4 w-4" />
+                  Reserve seats
+                </Link>
+              </Button>
+              <Button variant="outline" className="min-w-[140px] flex-1" asChild>
+                <Link
+                  href={`/portal/booking/new/seats?schedule=${encodeURIComponent(selectedScheduleId)}`}
+                >
+                  <Ticket className="mr-2 h-4 w-4" />
+                  Book flight
+                </Link>
+              </Button>
+              <Button className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1" asChild>
+                <Link
+                  href={`/portal/flights?flight_number=${encodeURIComponent(
+                    selectedRow?.flight_number || displayFlightNumber,
+                  )}`}
+                >
+                  <Plane className="mr-2 h-4 w-4" />
+                  Open in all departures
+                </Link>
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
+        {(scheduleDetail || selectedRow) && (
+          <>
+            <DetailSection title="Schedule">
+              <DetailRow label="ID" value={selectedScheduleId} />
+              <DetailRow label="Flight" value={selectedRow?.flight_number || scheduleDetail?.flight_number} />
+              <DetailRow
+                label="Route"
+                value={selectedRow?.route_label || selectedRow?.route || scheduleDetail?.route}
+              />
+              <DetailRow label="Aircraft" value={scheduleDetail?.airplane || selectedRow?.airplane} />
+              <DetailRow
+                label="Departure"
+                value={`${selectedRow?.departure_date || scheduleDetail?.departure_date} ${(
+                  selectedRow?.departure_time || scheduleDetail?.departure_time
+                )?.slice(0, 5)}`}
+              />
+              <DetailRow
+                label="Arrival"
+                value={`${selectedRow?.arrival_date || scheduleDetail?.arrival_date} ${(
+                  selectedRow?.arrival_time || scheduleDetail?.arrival_time
+                )?.slice(0, 5)}`}
+              />
+              <DetailRow label="Status" value={selectedRow?.status || scheduleDetail?.status} />
+            </DetailSection>
+            <DetailSection title="Booking rules">
+              <DetailRow
+                label="Active for booking"
+                value={
+                  (scheduleDetail?.is_active ?? selectedRow?.is_active) !== 0 &&
+                  (scheduleDetail?.is_active ?? selectedRow?.is_active) !== false
+                    ? "Yes"
+                    : "No"
+                }
+              />
+              <DetailRow
+                label="Only pre-payment"
+                value={scheduleDetail?.only_prepayment || selectedRow?.only_prepayment ? "Yes" : "No"}
+              />
+            </DetailSection>
+          </>
+        )}
+      </DetailSheet>
     </div>
   );
 }

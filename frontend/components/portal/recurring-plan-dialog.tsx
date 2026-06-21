@@ -46,6 +46,7 @@ const WEEKDAYS = [
 export type PlanSeatClassRow = {
   seat_class: string;
   number_of_seats: string;
+  reserved_seats: string;
   name?: string;
 };
 
@@ -57,6 +58,7 @@ function parseDocSeatClasses(doc: Record<string, unknown>): PlanSeatClassRow[] {
     return {
       seat_class: String(r.seat_class || ""),
       number_of_seats: String(r.number_of_seats ?? ""),
+      reserved_seats: String(r.reserved_seats ?? "0"),
       ...(r.name ? { name: String(r.name) } : {}),
     };
   });
@@ -78,12 +80,15 @@ function mergeSeatClassGrid(
     const existing = byClass[opt.value];
     const layoutCap = layoutCapMap[opt.value];
     let number_of_seats = existing?.number_of_seats ?? "0";
+    let reserved_seats = existing?.reserved_seats ?? "0";
     if (prefillFromLayout) {
       number_of_seats = layoutCap != null ? String(layoutCap) : "0";
+      reserved_seats = "0";
     }
     return {
       seat_class: opt.value,
       number_of_seats,
+      reserved_seats,
       ...(existing?.name ? { name: existing.name } : {}),
     };
   });
@@ -91,6 +96,10 @@ function mergeSeatClassGrid(
 
 function seatQuotaForClass(rows: PlanSeatClassRow[], seatClass: string): string {
   return rows.find((r) => r.seat_class === seatClass)?.number_of_seats ?? "0";
+}
+
+function seatReservedForClass(rows: PlanSeatClassRow[], seatClass: string): string {
+  return rows.find((r) => r.seat_class === seatClass)?.reserved_seats ?? "0";
 }
 
 type SeatClassOption = { value: string; label: string; description?: string };
@@ -272,7 +281,28 @@ export function RecurringPlanDialog({
     setForm((f) => {
       const next = mergeSeatClassGrid(displaySeatClassOptions, f.seat_classes);
       const idx = next.findIndex((r) => r.seat_class === seatClass);
-      if (idx >= 0) next[idx] = { ...next[idx], number_of_seats: value };
+      if (idx >= 0) {
+        const total = parseInt(value, 10) || 0;
+        const reserved = parseInt(next[idx].reserved_seats, 10) || 0;
+        next[idx] = {
+          ...next[idx],
+          number_of_seats: value,
+          reserved_seats: String(Math.min(reserved, total)),
+        };
+      }
+      return { ...f, seat_classes: next };
+    });
+  };
+
+  const setSeatClassReserved = (seatClass: string, value: string) => {
+    setForm((f) => {
+      const next = mergeSeatClassGrid(displaySeatClassOptions, f.seat_classes);
+      const idx = next.findIndex((r) => r.seat_class === seatClass);
+      if (idx >= 0) {
+        const total = parseInt(next[idx].number_of_seats, 10) || 0;
+        const reserved = Math.min(parseInt(value, 10) || 0, total);
+        next[idx] = { ...next[idx], reserved_seats: String(reserved) };
+      }
       return { ...f, seat_classes: next };
     });
   };
@@ -490,6 +520,7 @@ export function RecurringPlanDialog({
       ...(row.name ? { name: row.name } : {}),
       seat_class: row.seat_class,
       number_of_seats: parseInt(row.number_of_seats, 10) || 0,
+      reserved_seats: parseInt(row.reserved_seats, 10) || 0,
     })),
   });
 
@@ -796,8 +827,8 @@ export function RecurringPlanDialog({
             <FormSection title="Seat capacity by class" className="mt-6">
               <p className="text-xs text-muted-foreground">
                 {useAirplaneSeats
-                  ? "Enter seats to release per class when schedules are generated. Leave 0 to release none for that class. Selecting an airplane prefills from its layout."
-                  : "Enter how many seats to sell per class on generated flights. These counts are used as-is (not limited by the airplane layout). Enable Use Airplane Seats in BA Settings to tie release to the physical layout instead."}
+                  ? "Seats = total class capacity on generated flights. Reserve = held back from sale initially (Unreleased); release them later from seat inventory."
+                  : "Seats = total inventory for this class on generated flights. Reserve = how many stay Unreleased until you release them from seat inventory."}
               </p>
               <div className="mt-3 rounded-md border">
                 {useAirplaneSeats && (seatClassesLoading || layoutCapsLoading) ? (
@@ -819,46 +850,86 @@ export function RecurringPlanDialog({
                       : "No active fare classes found. Add them under Master → Seat classes."}
                   </p>
                 ) : (
-                  <div className="divide-y">
-                    {displaySeatClassOptions.map((opt) => {
-                      const cap = useAirplaneSeats ? layoutCapsByClass[opt.value] : undefined;
-                      const quota = seatQuotaForClass(form.seat_classes, opt.value);
-                      return (
-                        <div
-                          key={opt.value}
-                          className="grid items-center gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_120px]"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{opt.label}</p>
-                            {opt.description ? (
-                              <p className="text-xs text-muted-foreground">{opt.description}</p>
-                            ) : null}
-                            {useAirplaneSeats && cap != null && cap > 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                Airplane layout: {cap} seat{cap === 1 ? "" : "s"}
-                              </p>
-                            ) : null}
+                  <>
+                    <div className="hidden border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_100px_100px] sm:gap-3">
+                      <span>Class</span>
+                      <span className="text-center">Seats</span>
+                      <span className="text-center">Reserve</span>
+                    </div>
+                    <div className="divide-y">
+                      {displaySeatClassOptions.map((opt) => {
+                        const cap = useAirplaneSeats ? layoutCapsByClass[opt.value] : undefined;
+                        const seats = seatQuotaForClass(form.seat_classes, opt.value);
+                        const reserved = seatReservedForClass(form.seat_classes, opt.value);
+                        const seatsNum = parseInt(seats, 10) || 0;
+                        const available = Math.max(seatsNum - (parseInt(reserved, 10) || 0), 0);
+                        return (
+                          <div
+                            key={opt.value}
+                            className="grid items-center gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_100px_100px]"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{opt.label}</p>
+                              {opt.description ? (
+                                <p className="text-xs text-muted-foreground">{opt.description}</p>
+                              ) : null}
+                              {useAirplaneSeats && cap != null && cap > 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Airplane layout: {cap} seat{cap === 1 ? "" : "s"}
+                                </p>
+                              ) : null}
+                              {seatsNum > 0 ? (
+                                <p className="text-xs text-emerald-700">
+                                  {available} for sale · {parseInt(reserved, 10) || 0} reserved
+                                </p>
+                              ) : null}
+                            </div>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={cap || undefined}
+                              value={seats}
+                              onChange={(e) => setSeatClassQuota(opt.value, e.target.value)}
+                              aria-label={`Total seats for ${opt.label}`}
+                              className="h-9"
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              max={seatsNum || undefined}
+                              value={reserved}
+                              onChange={(e) => setSeatClassReserved(opt.value, e.target.value)}
+                              aria-label={`Reserved seats for ${opt.label}`}
+                              className="h-9"
+                            />
                           </div>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={cap || undefined}
-                            value={quota}
-                            onChange={(e) => setSeatClassQuota(opt.value, e.target.value)}
-                            aria-label={`Seats to release for ${opt.label}`}
-                            className="h-9"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
               {displaySeatClassOptions.length > 0 ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Total seats to release:{" "}
+                  Total seats:{" "}
                   {mergeSeatClassGrid(displaySeatClassOptions, form.seat_classes).reduce(
                     (sum, row) => sum + (parseInt(row.number_of_seats, 10) || 0),
+                    0,
+                  )}
+                  {" · "}
+                  Reserved:{" "}
+                  {mergeSeatClassGrid(displaySeatClassOptions, form.seat_classes).reduce(
+                    (sum, row) => sum + (parseInt(row.reserved_seats, 10) || 0),
+                    0,
+                  )}
+                  {" · "}
+                  For sale:{" "}
+                  {mergeSeatClassGrid(displaySeatClassOptions, form.seat_classes).reduce(
+                    (sum, row) => {
+                      const total = parseInt(row.number_of_seats, 10) || 0;
+                      const reserved = parseInt(row.reserved_seats, 10) || 0;
+                      return sum + Math.max(total - reserved, 0);
+                    },
                     0,
                   )}
                 </p>

@@ -101,7 +101,11 @@ def _arrival_date_for_departure(plan, departure_date):
 
 def _plan_initial_seats_released(plan) -> int:
 	if plan.seat_classes:
-		total = sum(cint(getattr(row, "number_of_seats", 0)) for row in plan.seat_classes)
+		total = 0
+		for row in plan.seat_classes:
+			qty = cint(getattr(row, "number_of_seats", 0))
+			reserved = cint(getattr(row, "reserved_seats", 0) or 0)
+			total += max(qty - reserved, 0)
 		if total > 0:
 			return total
 	return cint(getattr(plan, "initial_seats_released", 0) or 0)
@@ -166,7 +170,29 @@ def plan_changes_require_schedule_sync(plan) -> bool:
 		return False
 	if any(plan.has_value_changed(field) for field in PLAN_SCHEDULE_SYNC_FIELDS):
 		return True
-	return plan.has_value_changed("seat_classes") or plan.has_value_changed("cabin_crew")
+	if plan.has_value_changed("seat_classes") or plan.has_value_changed("cabin_crew"):
+		return True
+	return _plan_seat_class_quotas_changed(plan)
+
+
+def _plan_seat_class_quotas_changed(plan) -> bool:
+	"""Detect seat total/reserve edits even when Frappe misses the child-table change."""
+	before = plan.get_doc_before_save()
+	if not before:
+		return False
+
+	def _quota_rows(rows):
+		return sorted(
+			(
+				cstr(r.seat_class),
+				cint(r.number_of_seats),
+				cint(getattr(r, "reserved_seats", 0) or 0),
+			)
+			for r in (rows or [])
+			if r.seat_class
+		)
+
+	return _quota_rows(before.seat_classes) != _quota_rows(plan.seat_classes)
 
 
 def _sync_cabin_crew_table(schedule_name: str, plan) -> None:
@@ -232,8 +258,10 @@ def _sync_single_schedule_from_plan(plan, schedule_name: str) -> None:
 		_sync_cabin_crew_table(schedule_name, plan)
 		schedule = frappe.get_doc("Flight Schedule", schedule_name)
 		_apply_fare_override(schedule, plan)
+		schedule.flags.skip_seat_inventory_sync = True
 		schedule.save(ignore_permissions=True)
 	else:
+		schedule.flags.skip_seat_inventory_sync = True
 		schedule.save(ignore_permissions=True)
 
 	schedule = frappe.get_doc("Flight Schedule", schedule_name)
@@ -242,24 +270,42 @@ def _sync_single_schedule_from_plan(plan, schedule_name: str) -> None:
 		for row in schedule.segments:
 			row.db_update()
 
-	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
-		apply_plan_seat_class_release,
-		apply_release_status_to_schedule,
-		schedule_uses_plan_quotas,
-		sync_schedule_seat_inventory,
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_plan_seats_to_schedule
+
+	apply_plan_seats_to_schedule(schedule, plan)
+
+
+def sync_plan_seat_reserves_from_plan(plan_name: str, plan=None) -> dict:
+	"""Push plan class seat totals and reserve counts to all linked schedules."""
+	if plan is None:
+		plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+
+	schedule_names = frappe.get_all(
+		"Flight Schedule",
+		filters={"schedule_plan": plan_name},
+		pluck="name",
+		order_by="departure_date asc",
 	)
+	if not schedule_names:
+		return {"updated_count": 0, "updated": [], "skipped": []}
 
-	if schedule_uses_plan_quotas(schedule):
-		sync_schedule_seat_inventory(schedule, raise_on_error=False)
-	else:
-		schedule.generate_seat_inventory(raise_on_error=False)
-		if plan.seat_classes:
-			apply_plan_seat_class_release(schedule, plan)
-		else:
-			apply_release_status_to_schedule(schedule, only_unreleased=False)
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_plan_seats_to_schedule
+
+	updated = []
+	skipped = []
+	for schedule_name in schedule_names:
+		try:
+			schedule = frappe.get_doc("Flight Schedule", schedule_name)
+			apply_plan_seats_to_schedule(schedule, plan)
+			updated.append(schedule_name)
+		except Exception as exc:
+			frappe.log_error(title=f"Plan seat reserve sync failed ({plan_name} → {schedule_name})")
+			skipped.append({"name": schedule_name, "reason": cstr(exc) or _("Sync failed.")})
+
+	return {"updated_count": len(updated), "updated": updated, "skipped": skipped}
 
 
-def sync_generated_schedules_from_plan(plan_name: str) -> dict:
+def sync_generated_schedules_from_plan(plan_name: str, plan=None) -> dict:
 	"""Push plan timing, crew, fares, and seat-class quotas to linked flight schedules."""
 	schedule_names = frappe.get_all(
 		"Flight Schedule",
@@ -272,7 +318,8 @@ def sync_generated_schedules_from_plan(plan_name: str) -> dict:
 
 	updated = []
 	skipped = []
-	plan = frappe.get_doc("Flight Schedule Plan", plan_name)
+	if plan is None:
+		plan = frappe.get_doc("Flight Schedule Plan", plan_name)
 	for schedule_name in schedule_names:
 		try:
 			_sync_single_schedule_from_plan(plan, schedule_name)
@@ -344,21 +391,9 @@ def generate_flight_schedules_from_plan(
 
 		_apply_fare_override(doc, plan)
 		doc.insert(ignore_permissions=True)
-		from bilan_sky.bilan_air_booking_system.utils.seat_release import (
-			apply_plan_seat_class_release,
-			apply_release_status_to_schedule,
-			schedule_uses_plan_quotas,
-			sync_schedule_seat_inventory,
-		)
+		from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_plan_seats_to_schedule
 
-		if schedule_uses_plan_quotas(doc):
-			seats = sync_schedule_seat_inventory(doc, raise_on_error=False)
-		else:
-			seats = doc.generate_seat_inventory(raise_on_error=False)
-			if plan.seat_classes:
-				apply_plan_seat_class_release(doc, plan)
-			else:
-				apply_release_status_to_schedule(doc, only_unreleased=False)
+		seats = apply_plan_seats_to_schedule(doc, plan)
 
 		if submit and doc.docstatus == 0:
 			doc.submit()
@@ -471,3 +506,54 @@ def enqueue_plan_schedule_generation(plan_name: str, *, submit: bool = True) -> 
 		job_id=f"flight-plan-gen-{plan_name}",
 	)
 	return {"queued": True, "plan": plan_name, "expected_count": occurrences}
+
+
+def _schedule_active_booking_count(schedule_name: str) -> int:
+	return frappe.db.count(
+		"Air Booking",
+		{
+			"flight_schedule": schedule_name,
+			"reservation_status": ["!=", "Void"],
+			"docstatus": ["<", 2],
+		},
+	)
+
+
+def _force_delete_schedule(schedule_name: str) -> None:
+	if not frappe.db.exists("Flight Schedule", schedule_name):
+		return
+	doc = frappe.get_doc("Flight Schedule", schedule_name)
+	if doc.docstatus == 1:
+		doc.cancel()
+	frappe.delete_doc("Flight Schedule", schedule_name, force=True)
+
+
+def delete_schedules_for_plan(plan_name: str) -> int:
+	"""Delete all flight schedules generated from a recurring plan (no active bookings)."""
+	schedule_names = frappe.get_all(
+		"Flight Schedule",
+		filters={"schedule_plan": plan_name},
+		pluck="name",
+	)
+	if not schedule_names:
+		return 0
+
+	blocked = []
+	for schedule_name in schedule_names:
+		active = _schedule_active_booking_count(schedule_name)
+		if active:
+			blocked.append((schedule_name, active))
+
+	if blocked:
+		total_bookings = sum(count for _, count in blocked)
+		frappe.throw(
+			_(
+				"Cannot delete this plan: {0} generated schedule(s) still have "
+				"{1} active booking(s). Cancel those bookings first."
+			).format(len(blocked), total_bookings)
+		)
+
+	for schedule_name in schedule_names:
+		_force_delete_schedule(schedule_name)
+
+	return len(schedule_names)

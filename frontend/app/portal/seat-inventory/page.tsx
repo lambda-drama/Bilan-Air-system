@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Armchair, Loader2, RefreshCw, Wrench } from "lucide-react";
+import { Armchair, ChevronDown, Loader2, RefreshCw, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
@@ -11,9 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ensureScheduleSeats, listSchedules } from "@/services/flightSchedule";
 import {
   getScheduleSeatInventory,
+  portalApplyClassReserves,
   portalHoldSeat,
   portalReleaseSeat,
   portalReleaseSeatForSale,
@@ -22,6 +28,14 @@ import {
   type ScheduleSeatInventory,
 } from "@/services/seatInventoryPortal";
 import { cn } from "@/lib/utils";
+
+type ClassReserveRow = {
+  label: string;
+  seatClass: string;
+  total: number;
+  unreleased: number;
+  maxReserved: number;
+};
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
@@ -47,6 +61,9 @@ function SeatInventoryContent() {
   const [selectedSeat, setSelectedSeat] = useState<PortalSeatRow | null>(null);
   const [holdPnr, setHoldPnr] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [bulkReserveOpen, setBulkReserveOpen] = useState(false);
+  const [reserveDraft, setReserveDraft] = useState<Record<string, string>>({});
+  const [bulkApplying, setBulkApplying] = useState(false);
   const loadRequestRef = useRef(0);
 
   const loadSchedules = useCallback(async (search: string) => {
@@ -132,6 +149,45 @@ function SeatInventoryContent() {
     if (activeClass === "All") return inventory.seats;
     return inventory.seats_by_class[activeClass] || [];
   }, [inventory, activeClass]);
+
+  const classReserveRows = useMemo((): ClassReserveRow[] => {
+    if (!inventory) return [];
+    const lockedStatuses = new Set(["Booked", "Occupied", "Hold", "Reserved"]);
+    return Object.entries(inventory.seats_by_class)
+      .map(([label, seats]) => {
+        const total = seats.length;
+        const unreleased = seats.filter((s) => s.status === "Unreleased").length;
+        const lockedCount = seats.filter(
+          (s) => lockedStatuses.has(s.status) || !!s.booking_reference,
+        ).length;
+        return {
+          label,
+          seatClass: seats[0]?.seat_class || label,
+          total,
+          unreleased,
+          maxReserved: Math.max(total - lockedCount, 0),
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [inventory]);
+
+  useEffect(() => {
+    if (!classReserveRows.length) {
+      setReserveDraft({});
+      return;
+    }
+    const next: Record<string, string> = {};
+    for (const row of classReserveRows) {
+      next[row.seatClass] = String(row.unreleased);
+    }
+    setReserveDraft(next);
+  }, [classReserveRows]);
+
+  const reserveDraftDirty = classReserveRows.some((row) => {
+    const draft = parseInt(reserveDraft[row.seatClass] ?? String(row.unreleased), 10);
+    const normalized = Number.isFinite(draft) ? Math.min(Math.max(draft, 0), row.maxReserved) : row.unreleased;
+    return normalized !== row.unreleased;
+  });
 
   const generateMissingSeats = async () => {
     if (!selectedSchedule) return;
@@ -228,6 +284,34 @@ function SeatInventoryContent() {
       toast.error(e instanceof Error ? e.message : "Could not restrict seat");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleApplyReserves = async () => {
+    if (!selectedSchedule || !classReserveRows.length) return;
+    const targets = classReserveRows.map((row) => {
+      const parsed = parseInt(reserveDraft[row.seatClass] ?? String(row.unreleased), 10);
+      const reserved = Number.isFinite(parsed)
+        ? Math.min(Math.max(parsed, 0), row.maxReserved)
+        : row.unreleased;
+      return { seat_class: row.seatClass, reserved };
+    });
+    const hasChanges = targets.some(
+      (target, index) => target.reserved !== classReserveRows[index].unreleased,
+    );
+    if (!hasChanges) {
+      toast.message("No changes to apply");
+      return;
+    }
+    setBulkApplying(true);
+    try {
+      await portalApplyClassReserves(selectedSchedule, targets);
+      await loadInventory(selectedSchedule);
+      toast.success("Reserve counts saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save reserve counts");
+    } finally {
+      setBulkApplying(false);
     }
   };
 
@@ -345,6 +429,102 @@ function SeatInventoryContent() {
             <StatCard label="Occupied" value={inventory.stats.Occupied || 0} tone="text-red-700" />
             <StatCard label="In inventory" value={inventory.total_seats} />
           </div>
+
+          {classReserveRows.length > 0 ? (
+            <Collapsible open={bulkReserveOpen} onOpenChange={setBulkReserveOpen}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/40"
+                  >
+                    <div>
+                      <p className="text-base font-semibold">Bulk reserve</p>
+                      <p className="text-sm text-muted-foreground">
+                        Set reserved seats per class (held from sale until released)
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 shrink-0 text-muted-foreground transition-transform",
+                        bulkReserveOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="border-t pt-4">
+                    <div className="hidden border-b bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_88px_88px] sm:gap-3">
+                      <span>Class</span>
+                      <span className="text-center">Seats</span>
+                      <span className="text-center">Reserved</span>
+                    </div>
+                    <div className="divide-y">
+                      {classReserveRows.map((row) => {
+                        const draftValue = parseInt(
+                          reserveDraft[row.seatClass] ?? String(row.unreleased),
+                          10,
+                        );
+                        const reservedValue = Number.isFinite(draftValue)
+                          ? Math.min(Math.max(draftValue, 0), row.maxReserved)
+                          : row.unreleased;
+                        const forSale = Math.max(row.total - reservedValue, 0);
+                        return (
+                        <div
+                          key={row.seatClass}
+                          className="grid items-center gap-3 px-1 py-3 sm:grid-cols-[minmax(0,1fr)_88px_88px]"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{row.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {forSale} for sale · max reserve {row.maxReserved}
+                            </p>
+                          </div>
+                          <Input
+                            readOnly
+                            value={row.total}
+                            className="h-9 bg-muted/40 text-center"
+                            aria-label={`Total seats for ${row.label}`}
+                          />
+                          <Input
+                            type="number"
+                            min={0}
+                            max={row.maxReserved}
+                            value={reserveDraft[row.seatClass] ?? String(row.unreleased)}
+                            onChange={(e) =>
+                              setReserveDraft((prev) => ({
+                                ...prev,
+                                [row.seatClass]: e.target.value,
+                              }))
+                            }
+                            className="h-9 text-center"
+                            aria-label={`Reserved seats for ${row.label}`}
+                          />
+                        </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        className="bg-gold text-navy hover:bg-gold-dark"
+                        disabled={bulkApplying || !reserveDraftDirty}
+                        onClick={() => void handleApplyReserves()}
+                      >
+                        {bulkApplying ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving…
+                          </>
+                        ) : (
+                          "Apply reserve counts"
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          ) : null}
 
           <Card>
             <CardHeader className="pb-2">
