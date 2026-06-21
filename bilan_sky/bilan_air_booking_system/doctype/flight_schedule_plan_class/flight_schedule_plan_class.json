@@ -6,7 +6,8 @@
  "engine": "InnoDB",
  "field_order": [
   "seat_class",
-  "number_of_seats"
+  "number_of_seats",
+  "reserved_seats"
  ],
  "fields": [
   {
@@ -24,6 +25,14 @@
    "in_list_view": 1,
    "label": "Number of Seats",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Seats held back from sale initially (Unreleased). Class capacity stays at Number of Seats; release these later from seat inventory.",
+   "fieldname": "reserved_seats",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Reserved"
   }
  ],
  "istable": 1,

@@ -1428,15 +1428,7 @@ def get_schedule_seat_inventory(schedule_name):
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
 	doc.check_permission("read")
 
-	from bilan_sky.bilan_air_booking_system.utils.seat_release import (
-		schedule_uses_plan_quotas,
-		sync_schedule_seat_inventory,
-	)
-
-	if schedule_uses_plan_quotas(doc):
-		sync_schedule_seat_inventory(doc, raise_on_error=False)
-		frappe.db.commit()
-		doc.reload()
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import schedule_uses_plan_quotas
 
 	route = frappe.get_doc("Flight Route", doc.route)
 	expected_numbers = set(doc.expected_seat_numbers())
@@ -1633,6 +1625,53 @@ def portal_restrict_seat(seat_name):
 
 	restrict_single_seat_from_sale(seat_name)
 	return _seat_inventory_row(frappe.get_doc("Seat Inventory", seat_name))
+
+
+@frappe.whitelist()
+def portal_bulk_reserve_seats(schedule_name, seat_class, count):
+	"""Reserve (hold from sale) multiple Available seats in one class."""
+	require_portal_staff()
+	schedule_name = _resolve_flight_schedule_name(schedule_name)
+	if not schedule_name:
+		frappe.throw(_("Flight schedule not found"))
+	frappe.get_doc("Flight Schedule", schedule_name).check_permission("write")
+
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import bulk_restrict_seats_by_class
+
+	return bulk_restrict_seats_by_class(schedule_name, seat_class, count)
+
+
+@frappe.whitelist()
+def portal_bulk_release_seats(schedule_name, seat_class, count):
+	"""Release multiple Unreleased seats in one class for sale."""
+	require_portal_staff()
+	schedule_name = _resolve_flight_schedule_name(schedule_name)
+	if not schedule_name:
+		frappe.throw(_("Flight schedule not found"))
+	frappe.get_doc("Flight Schedule", schedule_name).check_permission("write")
+
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import bulk_release_seats_by_class
+
+	return bulk_release_seats_by_class(schedule_name, seat_class, count)
+
+
+@frappe.whitelist()
+def portal_apply_class_reserves(schedule_name, targets):
+	"""Apply per-class reserved (Unreleased) seat counts for a schedule."""
+	require_portal_staff()
+	schedule_name = _resolve_flight_schedule_name(schedule_name)
+	if not schedule_name:
+		frappe.throw(_("Flight schedule not found"))
+	frappe.get_doc("Flight Schedule", schedule_name).check_permission("write")
+
+	if isinstance(targets, str):
+		import json
+
+		targets = json.loads(targets)
+
+	from bilan_sky.bilan_air_booking_system.utils.seat_release import apply_class_reserve_targets
+
+	return apply_class_reserve_targets(schedule_name, targets or [])
 
 
 @frappe.whitelist()

@@ -169,8 +169,13 @@ class FlightSchedule(Document):
             sync_schedule_seat_inventory,
         )
 
+        if getattr(self.flags, "skip_seat_inventory_sync", False):
+            return 0
+
         if schedule_uses_plan_quotas(self):
-            return sync_schedule_seat_inventory(self, raise_on_error=False)
+            return sync_schedule_seat_inventory(
+                self, raise_on_error=False, apply_release_rules=False
+            )
 
         expected = self._expected_seat_count()
         existing = frappe.db.count("Seat Inventory", {"flight_schedule": self.name})
@@ -212,7 +217,9 @@ class FlightSchedule(Document):
                     ensure_plan_quota_seat_inventory,
                 )
 
-                return ensure_plan_quota_seat_inventory(self, plan)
+                return ensure_plan_quota_seat_inventory(
+                    self, plan, apply_release_rules=True
+                )
 
         if not self.airplane:
             if raise_on_error:
@@ -274,7 +281,8 @@ class FlightSchedule(Document):
             },
             update_modified=False,
         )
-        apply_release_status_to_schedule(self)
+        if not getattr(self.flags, "skip_global_release_rules", False):
+            apply_release_status_to_schedule(self)
 
         if seats_created == 0 and not existing_numbers and raise_on_error:
             frappe.throw(

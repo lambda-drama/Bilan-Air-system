@@ -56,7 +56,7 @@ export function DetailSheet({
       <button
         type="button"
         aria-label="Close details"
-        className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        className="fixed inset-0 z-40 bg-black/40"
         onClick={() => onOpenChange(false)}
       />
       <div

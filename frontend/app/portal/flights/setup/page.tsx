@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DollarSign, LayoutGrid, Pencil, Plane, Scale } from "lucide-react";
 import { BilanFormDialog, FormField, FormGrid, FormSection } from "@/components/portal/form-dialog";
+import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
+import { DocLink } from "@/components/portal/doc-link";
 import { ListSearch } from "@/components/portal/list-search";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { RowActionMenu, RowActionMenuItem } from "@/components/portal/row-action-menu";
@@ -90,6 +92,9 @@ export default function FlightSetupPage() {
   >([]);
   const [airplanes, setAirplanes] = useState<Array<{ value: string; label: string }>>([]);
   const [routeEndpoints, setRouteEndpoints] = useState({ origin: "", destination: "" });
+  const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<Awaited<ReturnType<typeof getFlightSetup>> | null>(null);
   const formAlerts = useFormDialogAlerts();
 
   const selectedRoute = routes.find((r) => r.value === editForm.route);
@@ -131,17 +136,17 @@ export default function FlightSetupPage() {
     setEditLoading(true);
     setEditOpen(true);
     try {
-      const detail = await getFlightSetup(flightNumber);
+      const loaded = await getFlightSetup(flightNumber);
       setEditForm({
         flight_number: flightNumber,
-        route: detail.route || "",
-        airplane: detail.airplane || "",
-        terms_and_conditions: richTextToPlain(detail.terms_and_conditions),
-        is_active: detail.is_active !== 0 && detail.is_active !== false,
+        route: loaded.route || "",
+        airplane: loaded.airplane || "",
+        terms_and_conditions: richTextToPlain(loaded.terms_and_conditions),
+        is_active: loaded.is_active !== 0 && loaded.is_active !== false,
       });
       setRouteEndpoints({
-        origin: detail.origin_label || "",
-        destination: detail.destination_label || "",
+        origin: loaded.origin_label || "",
+        destination: loaded.destination_label || "",
       });
     } catch (e) {
       formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to load flight");
@@ -150,6 +155,20 @@ export default function FlightSetupPage() {
       setEditLoading(false);
     }
   };
+
+  const selectedRow = rows.find((r) => r.flight_number === selectedFlightNumber);
+
+  useEffect(() => {
+    if (!selectedFlightNumber) {
+      setDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    getFlightSetup(selectedFlightNumber)
+      .then(setDetail)
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [selectedFlightNumber]);
 
   const saveForm = async () => {
     const flightNumber = (isCreate ? editForm.flight_number : editTarget)?.trim();
@@ -244,8 +263,16 @@ export default function FlightSetupPage() {
                     </TableRow>
                   ) : (
                     rows.map((row) => (
-                      <TableRow key={row.flight_number}>
-                        <TableCell className="font-semibold">{row.flight_number}</TableCell>
+                      <TableRow
+                        key={row.flight_number}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedFlightNumber(row.flight_number)}
+                      >
+                        <TableCell className="font-semibold">
+                          <DocLink onClick={() => setSelectedFlightNumber(row.flight_number)}>
+                            {row.flight_number}
+                          </DocLink>
+                        </TableCell>
                         <TableCell>{row.origin_label || "—"}</TableCell>
                         <TableCell>{row.destination_label || "—"}</TableCell>
                         <TableCell className="max-w-[180px] truncate">
@@ -421,6 +448,101 @@ export default function FlightSetupPage() {
           </FormSection>
         </div>
       </BilanFormDialog>
+
+      <DetailSheet
+        open={!!selectedFlightNumber}
+        onOpenChange={(open) => !open && setSelectedFlightNumber(null)}
+        title={selectedFlightNumber || ""}
+        subtitle="Flight setup"
+        isLoading={detailLoading}
+        footer={
+          selectedFlightNumber ? (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button
+                className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1"
+                onClick={() => {
+                  const fn = selectedFlightNumber;
+                  setSelectedFlightNumber(null);
+                  void openEdit(fn);
+                }}
+              >
+                Edit flight setup
+              </Button>
+              <Button variant="outline" className="min-w-[140px] flex-1" asChild>
+                <Link href={flightSetupPath(selectedFlightNumber, "pricing")}>Flight pricing</Link>
+              </Button>
+              <Button variant="outline" className="min-w-[140px] flex-1" asChild>
+                <Link href={flightSetupPath(selectedFlightNumber, "schedules")}>View departures</Link>
+              </Button>
+              <Button variant="outline" className="min-w-[140px] flex-1" asChild>
+                <Link href={flightSetupPath(selectedFlightNumber, "plans")}>Recurring plans</Link>
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
+        {(detail || selectedRow) && (
+          <>
+            <DetailSection title="Flight setup">
+              <DetailRow label="Flight number" value={selectedFlightNumber} />
+              <DetailRow
+                label="Route"
+                value={
+                  detail?.route_label ||
+                  selectedRow?.route_label ||
+                  detail?.route ||
+                  selectedRow?.route ||
+                  "—"
+                }
+              />
+              <DetailRow
+                label="From"
+                value={detail?.origin_label || selectedRow?.origin_label || "—"}
+              />
+              <DetailRow
+                label="To"
+                value={detail?.destination_label || selectedRow?.destination_label || "—"}
+              />
+              <DetailRow
+                label="Aircraft"
+                value={detail?.airplane || selectedRow?.airplane_label || selectedRow?.airplane || "—"}
+              />
+              <DetailRow
+                label="Active for booking"
+                value={
+                  (detail?.is_active ?? selectedRow?.is_active) !== 0 &&
+                  (detail?.is_active ?? selectedRow?.is_active) !== false
+                    ? "Yes"
+                    : "No"
+                }
+              />
+            </DetailSection>
+            <DetailSection title="Counts">
+              <DetailRow label="Recurring plans" value={selectedRow?.plan_count ?? 0} />
+              <DetailRow label="Schedules" value={selectedRow?.schedule_count ?? 0} />
+              <DetailRow
+                label="Next departure"
+                value={
+                  selectedRow?.next_departure
+                    ? `${formatDate(selectedRow.next_departure)}${
+                        selectedRow.next_departure_time
+                          ? ` ${selectedRow.next_departure_time.slice(0, 5)}`
+                          : ""
+                      }`
+                    : "—"
+                }
+              />
+              <DetailRow label="Updated by" value={selectedRow?.updated_by || "—"} />
+              <DetailRow label="Updated on" value={formatDateTime(selectedRow?.updated_on)} />
+            </DetailSection>
+            {detail?.terms_and_conditions ? (
+              <DetailSection title="Terms & conditions">
+                <p className="whitespace-pre-wrap text-sm">{richTextToPlain(detail.terms_and_conditions)}</p>
+              </DetailSection>
+            ) : null}
+          </>
+        )}
+      </DetailSheet>
     </div>
   );
 }

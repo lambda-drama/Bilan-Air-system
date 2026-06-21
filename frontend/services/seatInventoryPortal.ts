@@ -73,3 +73,16 @@ export async function portalRestrictSeat(seatName: string) {
     body: JSON.stringify({ seat_name: seatName }),
   });
 }
+
+export async function portalApplyClassReserves(
+  scheduleName: string,
+  targets: Array<{ seat_class: string; reserved: number }>,
+) {
+  return apiRequest<{ classes: Array<{ seat_class: string; unreleased: number; total: number }> }>(
+    methodUrl("portal", "portal_apply_class_reserves"),
+    {
+      method: "POST",
+      body: JSON.stringify({ schedule_name: scheduleName, targets }),
+    },
+  );
+}
