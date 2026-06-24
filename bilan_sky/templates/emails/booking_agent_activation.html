@@ -1,3 +1,14 @@
+<p style="text-align: center; margin: 0 0 24px;">
+	<a href="{{ login_url }}" style="text-decoration: none;">
+		<img
+			src="{{ logo_url }}"
+			alt="{{ site_name | e }}"
+			width="160"
+			style="max-width: 160px; height: auto; display: block; margin: 0 auto;"
+		/>
+	</a>
+</p>
+
 <p>
 	{{ _("Hello") }} {{ first_name | e }}{% if last_name %} {{ last_name | e }}{% endif %},
 </p>
@@ -22,11 +33,6 @@
 <p>
 	{{ _("After setting your password, sign in at") }}
 	<a href="{{ login_url }}">{{ login_url }}</a>.
-</p>
-
-<p style="margin-top: 20px; color: #555;">
-	<b>{{ _("Didn't receive this email?") }}</b>
-	{{ _("Check your spam or junk folder. If it still isn't there, ask your administrator to resend the activation link from the portal.") }}
 </p>
 
 {% if created_by and created_by != "Administrator" %}
