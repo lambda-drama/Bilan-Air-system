@@ -34,6 +34,7 @@ export interface PublicSeatClassOption {
   class_name: string;
   cabin_class?: string;
   cabin_name?: string;
+  display_label?: string;
   use_on_aircraft_layout?: number | boolean;
   price_multiplier?: number;
   color_code?: string | null;

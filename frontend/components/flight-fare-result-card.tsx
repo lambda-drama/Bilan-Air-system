@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { labelForIata } from "@/lib/format-airport";
+import { formatFareClassLabel } from "@/lib/fare-class-display";
 import type { PublicSeatClassOption } from "@/services/search";
 import { cn } from "@/lib/utils";
 
@@ -356,13 +357,8 @@ export function FlightFareResultCard({
                   )}
                 >
                   <div className={cn("px-3 py-2 text-center text-sm font-bold", theme.headerClass)}>
-                    {seatClass.class_name}
-                    {seatClass.cabin_name &&
-                    seatClass.cabin_name !== seatClass.class_name ? (
-                      <span className="mt-0.5 block text-[10px] font-medium opacity-80">
-                        {seatClass.cabin_name}
-                      </span>
-                    ) : null}
+                    {seatClass.display_label ||
+                      formatFareClassLabel(seatClass.class_name, seatClass.cabin_name)}
                   </div>
 
                   <div className="flex flex-1 flex-col px-3 py-3">

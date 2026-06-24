@@ -59,7 +59,27 @@ def _attach_cabin_names(rows: list[dict]) -> list[dict]:
 			cabin_names[row.name] = row.cabin_name
 	for row in rows:
 		row["cabin_name"] = cabin_names.get(row.get("cabin_class") or "")
+		row["display_label"] = fare_class_display_label(
+			row.get("class_name"), row.get("cabin_name")
+		)
 	return rows
+
+
+def fare_class_display_label(
+	class_name: str | None, cabin_name: str | None = None
+) -> str:
+	"""Human fare class label for price lists — avoids repeating the cabin name."""
+	class_name = (class_name or "").strip()
+	cabin_name = (cabin_name or "").strip()
+	if not class_name:
+		return ""
+	if not cabin_name:
+		return class_name
+	if class_name.casefold() == cabin_name.casefold():
+		return class_name
+	if cabin_name.casefold() in class_name.casefold():
+		return class_name
+	return f"{class_name} {cabin_name}"
 
 
 def list_active_seat_classes(*, layout_only: bool | None = None) -> list[dict]:
@@ -92,17 +112,13 @@ def list_active_seat_classes(*, layout_only: bool | None = None) -> list[dict]:
 
 
 def list_bookable_fare_classes() -> list[dict]:
-	"""Fare classes shown in search/booking. Falls back to layout classes per cabin."""
+	"""Fare classes shown in search/booking. Falls back to all layout classes when no fare-only rows exist."""
 	active = list_active_seat_classes()
 	fare_classes = [row for row in active if not cint(row.get("use_on_aircraft_layout"))]
 	if fare_classes:
 		return fare_classes
 
-	layout_by_cabin: dict[str, dict] = {}
-	for row in active:
-		if cint(row.get("use_on_aircraft_layout")):
-			layout_by_cabin[row.get("cabin_class") or ""] = row
-	return list(layout_by_cabin.values())
+	return [row for row in active if cint(row.get("use_on_aircraft_layout"))]
 
 
 def list_pricing_fare_classes() -> list[dict]:

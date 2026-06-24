@@ -28,6 +28,7 @@ import {
   saveFlightSetupPrices,
   type FlightSetupPriceRow,
 } from "@/services/flightSetup";
+import { formatFareClassLabel } from "@/lib/fare-class-display";
 import { toast } from "sonner";
 
 const PASSENGER_TYPES = ["Adult", "Child", "Infant"];
@@ -71,9 +72,9 @@ function FlightSetupPricingContent() {
       setSeatClasses(
         list.map((sc) => ({
           value: sc.name,
-          label: sc.cabin_name
-            ? `${sc.class_name || sc.name} · ${sc.cabin_name}`
-            : sc.class_name || sc.name,
+          label:
+            sc.label ||
+            formatFareClassLabel(sc.class_name || sc.name, sc.cabin_name),
         })),
       );
     } catch (e) {

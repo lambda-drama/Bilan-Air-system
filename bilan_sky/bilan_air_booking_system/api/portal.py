@@ -441,6 +441,7 @@ def list_seat_class_options(for_pricing=0):
 				"class_name": row["class_name"],
 				"cabin_class": row.get("cabin_class"),
 				"cabin_name": row.get("cabin_name"),
+				"label": row.get("display_label") or row["class_name"],
 				"is_active": 1,
 			}
 			for row in list_pricing_fare_classes()
