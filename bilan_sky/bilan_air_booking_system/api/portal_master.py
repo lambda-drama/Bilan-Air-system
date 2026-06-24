@@ -467,9 +467,7 @@ def list_booking_companies(limit=200, offset=0, search=None):
 	)
 	for row in result["data"]:
 		row["is_agency"] = cint(row.get("is_agency"))
-		row["label"] = (
-			f"{row['company_agency']} (Agency)" if row["is_agency"] else row["company_agency"]
-		)
+		row["label"] = row["company_agency"]
 	return result
 
 

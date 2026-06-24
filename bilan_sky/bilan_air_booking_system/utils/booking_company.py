@@ -16,13 +16,15 @@ def serialize_booking_company(doc) -> dict:
 
 
 def company_agency_label(name: str | None) -> str | None:
+	"""Display name for a linked booking company (plain name only)."""
+	return company_agency_name(name)
+
+
+def company_agency_name(name: str | None) -> str | None:
+	"""Plain company or agency name."""
 	if not name:
 		return None
-	label = frappe.db.get_value("Booking Company", name, "company_agency")
-	if not label:
-		return name
-	is_agency = cint(frappe.db.get_value("Booking Company", name, "is_agency"))
-	return f"{label} (Agency)" if is_agency else label
+	return frappe.db.get_value("Booking Company", name, "company_agency") or name
 
 
 def enrich_agent_company_fields(row: dict) -> dict:
@@ -39,9 +41,7 @@ def enrich_agent_company_fields(row: dict) -> dict:
 	if meta:
 		row["company_agency"] = meta.company_agency
 		row["is_agency"] = cint(meta.is_agency)
-		row["company_display"] = (
-			f"{meta.company_agency} (Agency)" if meta.is_agency else meta.company_agency
-		)
+		row["company_display"] = meta.company_agency
 	return row
 
 
