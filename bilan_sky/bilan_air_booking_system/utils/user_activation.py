@@ -67,6 +67,7 @@ def _booking_agent_activation_args(user_doc) -> dict:
 		"user": user_doc.name,
 		"username": username,
 		"login_url": get_url("/portal/login"),
+		"logo_url": get_url("/assets/bilan_sky/image/logo.jpeg"),
 		"site_name": site_name,
 		"created_by": created_by,
 	}

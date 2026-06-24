@@ -254,9 +254,11 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "bilan_sky.event.get_events"
-# }
+override_whitelisted_methods = {
+	"frappe.core.doctype.user.user.update_password": (
+		"bilan_sky.bilan_air_booking_system.api.website_auth.update_password"
+	),
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

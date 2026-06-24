@@ -327,3 +327,30 @@ def list_my_bookings(limit=50, offset=0):
 	)
 
 	return {"data": _enrich_booking_rows(bookings), "total": total}
+
+
+PORTAL_HOME_PATH = "/portal"
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def update_password(
+	new_password: str,
+	logout_all_sessions: int = 0,
+	key: str | None = None,
+	old_password: str | None = None,
+):
+	"""After password setup, send portal staff to the agent portal instead of Desk."""
+	from frappe.core.doctype.user.user import update_password as frappe_update_password
+
+	redirect = frappe_update_password(
+		new_password,
+		logout_all_sessions=logout_all_sessions,
+		key=key,
+		old_password=old_password,
+	)
+
+	user = frappe.session.user
+	if user and user not in ("Guest", "Administrator") and user_has_portal_access(user):
+		return PORTAL_HOME_PATH
+
+	return redirect

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus } from "lucide-react";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
@@ -257,6 +257,8 @@ export default function PortalBookingAgentsPage() {
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [companyForm, setCompanyForm] = useState(emptyCompanyForm);
   const [companySaving, setCompanySaving] = useState(false);
+  const [agentSaving, setAgentSaving] = useState(false);
+  const [resendingActivation, setResendingActivation] = useState(false);
   const [activationByEmail, setActivationByEmail] = useState(true);
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -377,6 +379,7 @@ export default function PortalBookingAgentsPage() {
   };
 
   const goToStep = (target: number) => {
+    if (agentSaving) return;
     if (target === step) return;
     if (target < step) {
       formAlerts.clearAlerts();
@@ -432,6 +435,7 @@ export default function PortalBookingAgentsPage() {
       return;
     }
     formAlerts.clearAlerts();
+    setAgentSaving(true);
     try {
       if (editingAgentId) {
         await saveBookingAgent({
@@ -465,6 +469,8 @@ export default function PortalBookingAgentsPage() {
             ? "Failed to update agent"
             : "Failed to create agent",
       );
+    } finally {
+      setAgentSaving(false);
     }
   };
 
@@ -703,7 +709,9 @@ export default function PortalBookingAgentsPage() {
                 <Button
                   variant="outline"
                   className="w-full"
+                  disabled={resendingActivation}
                   onClick={async () => {
+                    setResendingActivation(true);
                     try {
                       await resendBookingAgentActivation({
                         booking_agent: String(selected.booking_agent),
@@ -713,10 +721,19 @@ export default function PortalBookingAgentsPage() {
                       );
                     } catch (e) {
                       toast.error(e instanceof Error ? e.message : "Failed to send email");
+                    } finally {
+                      setResendingActivation(false);
                     }
                   }}
                 >
-                  Resend activation link
+                  {resendingActivation ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending email...
+                    </>
+                  ) : (
+                    "Resend activation link"
+                  )}
                 </Button>
               ) : null}
             </div>
@@ -727,6 +744,7 @@ export default function PortalBookingAgentsPage() {
       <BilanFormDialog
         open={open}
         onOpenChange={(v) => {
+          if (!v && agentSaving) return;
           setOpen(v);
           if (!v) {
             setStep(1);
@@ -734,6 +752,7 @@ export default function PortalBookingAgentsPage() {
             setCompanyDialogOpen(false);
             setCompanyForm(emptyCompanyForm);
             setCompanyError(null);
+            setAgentSaving(false);
           }
         }}
         className="sm:max-w-4xl"
@@ -754,17 +773,39 @@ export default function PortalBookingAgentsPage() {
           <>
             <Button
               variant="outline"
+              disabled={agentSaving}
               onClick={() => (step === 1 ? setOpen(false) : goToStep(step - 1))}
             >
               {step === 1 ? "Cancel" : step === 2 ? "User information" : "User rights"}
             </Button>
             {step < maxStep ? (
-              <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={goNext}>
+              <Button
+                className="bg-gold text-navy hover:bg-gold-dark"
+                disabled={agentSaving}
+                onClick={goNext}
+              >
                 Next
               </Button>
             ) : (
-              <Button className="bg-gold text-navy hover:bg-gold-dark" onClick={handleSave}>
-                {isEditing ? "Save changes" : "Create agent"}
+              <Button
+                className="bg-gold text-navy hover:bg-gold-dark"
+                disabled={agentSaving}
+                onClick={() => void handleSave()}
+              >
+                {agentSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isEditing
+                      ? "Saving changes..."
+                      : activationByEmail
+                        ? "Creating agent & sending email..."
+                        : "Creating agent..."}
+                  </>
+                ) : isEditing ? (
+                  "Save changes"
+                ) : (
+                  "Create agent"
+                )}
               </Button>
             )}
           </>
