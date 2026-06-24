@@ -868,6 +868,13 @@ def create_booking_agent(
 
 	sync_booking_agent_user_enabled(profile)
 
+	if use_activation_email:
+		from bilan_sky.bilan_air_booking_system.utils.user_activation import (
+			send_user_activation_email,
+		)
+
+		send_user_activation_email(user_name)
+
 	frappe.db.commit()
 	row = {
 		"name": user.name,

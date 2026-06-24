@@ -1,0 +1,42 @@
+<p>
+	{{ _("Hello") }} {{ first_name | e }}{% if last_name %} {{ last_name | e }}{% endif %},
+</p>
+
+<p>
+	{{ _("You have been invited as a booking agent on {0}.").format(site_name | e) }}
+</p>
+
+<p>{{ _("Your portal login email is") }}: <b>{{ user | e }}</b></p>
+{% if username and username != user %}
+<p>{{ _("Your username is") }}: <b>{{ username | e }}</b></p>
+{% endif %}
+
+<p>
+	{{ _("Click the button below to set your password and activate your account.") }}
+</p>
+
+<p style="margin: 15px 0px;">
+	<a href="{{ link }}" rel="nofollow" class="btn btn-primary">{{ _("Set password & activate") }}</a>
+</p>
+
+<p>
+	{{ _("After setting your password, sign in at") }}
+	<a href="{{ login_url }}">{{ login_url }}</a>.
+</p>
+
+<p style="margin-top: 20px; color: #555;">
+	<b>{{ _("Didn't receive this email?") }}</b>
+	{{ _("Check your spam or junk folder. If it still isn't there, ask your administrator to resend the activation link from the portal.") }}
+</p>
+
+{% if created_by and created_by != "Administrator" %}
+<p style="margin-top: 15px">
+	{{ _("Thanks") }},<br>
+	{{ created_by | e }}
+</p>
+{% endif %}
+
+<p style="margin-top: 15px">
+	{{ _("You can also copy and paste this link into your browser") }}:<br>
+	<a href="{{ link }}">{{ link }}</a>
+</p>

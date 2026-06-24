@@ -446,7 +446,11 @@ export default function PortalBookingAgentsPage() {
           email: form.email.trim(),
           password: activationByEmail ? undefined : form.password,
         });
-        toast.success("Booking agent created");
+        toast.success(
+          activationByEmail
+            ? "Booking agent created. Activation email sent — ask them to check spam if they don't see it."
+            : "Booking agent created",
+        );
       }
       setOpen(false);
       setStep(1);
@@ -690,7 +694,7 @@ export default function PortalBookingAgentsPage() {
               {selected.activation_pending ? (
                 <DetailRow
                   label="Note"
-                  value="User must set their password via the activation email before they can log in."
+                  value="An activation email was sent. They must set their password using the link in that email before they can log in. If they can't find it, ask them to check spam or junk mail, or resend the link below."
                 />
               ) : null}
             </DetailSection>
@@ -704,7 +708,9 @@ export default function PortalBookingAgentsPage() {
                       await resendBookingAgentActivation({
                         booking_agent: String(selected.booking_agent),
                       });
-                      toast.success("Activation email sent");
+                      toast.success(
+                        "Activation email sent. Ask them to check spam or junk mail if they don't see it.",
+                      );
                     } catch (e) {
                       toast.error(e instanceof Error ? e.message : "Failed to send email");
                     }
@@ -841,6 +847,13 @@ export default function PortalBookingAgentsPage() {
                 onChange={(e) => setForm({ ...form, phone_2: e.target.value })}
               />
             </FormField>
+            {!isEditing && activationByEmail ? (
+              <p className="col-span-full rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                An activation email will be sent when you create this agent. They must use the
+                link in that email to set their password. If they don&apos;t receive it, ask them
+                to check spam or junk mail.
+              </p>
+            ) : null}
             {!isEditing && !activationByEmail ? (
               <>
                 <FormField label="Portal password" required>

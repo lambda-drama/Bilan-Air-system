@@ -48,6 +48,7 @@ export interface SeatClassOption {
   class_name: string;
   cabin_class?: string;
   cabin_name?: string;
+  label?: string;
   is_active?: number | boolean;
 }
 

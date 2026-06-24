@@ -228,6 +228,7 @@ def _public_seat_class_rows():
 				"class_name": row["class_name"],
 				"cabin_class": row.get("cabin_class"),
 				"cabin_name": row.get("cabin_name"),
+				"display_label": row.get("display_label"),
 				"use_on_aircraft_layout": cint(row.get("use_on_aircraft_layout")),
 				"price_multiplier": row.get("price_multiplier"),
 				"color_code": row.get("color_code"),

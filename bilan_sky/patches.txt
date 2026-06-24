@@ -26,3 +26,4 @@ bilan_sky.patches.v1_0.backfill_seat_class_excess_fee
 bilan_sky.patches.v1_0.migrate_cabin_class_and_seat_class
 bilan_sky.patches.v1_0.backfill_flight_schedule_is_active
 bilan_sky.patches.v1_0.backfill_flight_setup
+bilan_sky.patches.v1_0.enable_active_booking_agent_users
