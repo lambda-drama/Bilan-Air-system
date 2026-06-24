@@ -34,6 +34,7 @@ import { clearPortalPointerLocks } from "@/lib/portal-pointer-lock";
 import { isPassengerTicketPrintable } from "@/lib/passenger-ticket";
 import { PassengerTicketPrintButton } from "@/components/portal/passenger-ticket-print-button";
 import { StatusBadge } from "@/components/portal/status-badge";
+import { AgentNameCell } from "@/components/portal/agent-name-cell";
 import {
   paymentStatusStyle,
   reservationStatusStyle,
@@ -333,6 +334,9 @@ function PortalBookingsPageContent() {
                 <TableHead>PNR</TableHead>
                 <TableHead>Flight</TableHead>
                 <TableHead>Payer</TableHead>
+                <TableHead>Agent</TableHead>
+                <TableHead>Agency</TableHead>
+                <TableHead>Booked</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead>Total</TableHead>
@@ -342,7 +346,7 @@ function PortalBookingsPageContent() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                     {search.trim() ||
                     statusFilter !== ALL_STATUSES_VALUE ||
                     paymentFilter !== ALL_PAYMENTS_VALUE
@@ -363,6 +367,17 @@ function PortalBookingsPageContent() {
                     <TableCell className="text-muted-foreground">{b.pnr || "—"}</TableCell>
                     <TableCell>{b.flight_schedule}</TableCell>
                     <TableCell>{b.payer_name}</TableCell>
+                    <TableCell>
+                      <AgentNameCell
+                        name={b.agent_name}
+                        firstName={b.agent_first_name}
+                        className="text-muted-foreground"
+                      />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{b.agency_company || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {b.booking_date_display || "—"}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge
                         status={reservationStatus(b)}

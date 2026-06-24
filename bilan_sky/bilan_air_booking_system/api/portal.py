@@ -24,6 +24,17 @@ def _format_reservation_datetime(value) -> str:
 	return format_datetime(dt, "yyyy-MM-dd hh:mm a").lower()
 
 
+def _agent_display_names(
+	agent_name=None, username=None, first_name=None
+) -> tuple[str, str]:
+	"""Return full agent label and compact first name for portal tables."""
+	full = (agent_name or username or "").strip()
+	first = (first_name or "").strip()
+	if not first and full:
+		first = full.split()[0]
+	return full, first
+
+
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
 	require_portal_staff()
 	filters = filters or {}
@@ -38,6 +49,43 @@ def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modifie
 		limit_start=int(offset),
 	)
 	return {"data": data, "total": total}
+
+
+def _enrich_booking_list_rows(rows: list[dict]) -> list[dict]:
+	"""Add agent name, agency label, and formatted booking date for portal lists."""
+	if not rows:
+		return rows
+
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_label
+
+	agent_ids = {row.get("booking_agent") for row in rows if row.get("booking_agent")}
+	agents: dict[str, dict] = {}
+	if agent_ids:
+		for agent in frappe.get_all(
+			"Booking Agent",
+			filters={"name": ["in", list(agent_ids)]},
+			fields=["name", "agent_name", "username", "booking_company", "first_name"],
+		):
+			agents[agent.name] = agent
+
+	for row in rows:
+		row["booking_status"] = row.get("reservation_status") or ""
+		row["booking_date_display"] = _format_reservation_datetime(row.get("booking_date"))
+		agent = agents.get(row.get("booking_agent"))
+		if agent:
+			full_name, first_name = _agent_display_names(
+				agent.get("agent_name"),
+				agent.get("username"),
+				agent.get("first_name"),
+			)
+			row["agent_name"] = full_name
+			row["agent_first_name"] = first_name
+			row["agency_company"] = company_agency_label(agent.get("booking_company")) or ""
+		else:
+			row["agent_name"] = ""
+			row["agent_first_name"] = ""
+			row["agency_company"] = ""
+	return rows
 
 
 @frappe.whitelist()
@@ -933,7 +981,7 @@ def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, sear
 				"payer_phone": ["like", f"%{q}%"],
 			}
 
-	return _paginated(
+	result = _paginated(
 		"Air Booking",
 		[
 			"name",
@@ -946,6 +994,7 @@ def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, sear
 			"payment_status",
 			"total_fare",
 			"booking_date",
+			"booking_agent",
 		],
 		filters=filters,
 		or_filters=or_filters,
@@ -953,6 +1002,8 @@ def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, sear
 		limit=limit,
 		offset=offset,
 	)
+	result["data"] = _enrich_booking_list_rows(result["data"])
+	return result
 
 
 @frappe.whitelist()
@@ -1916,6 +1967,7 @@ def _report_flight_schedules(flight_number, departure_date, departure_time=None,
 def get_manifest_report(flight_number, departure_date, departure_time=None, destination=None):
 	"""Passenger manifest for a flight schedule (portal manifest report)."""
 	from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_name
 
 	require_portal_staff()
 	ctx = _report_flight_schedules(flight_number, departure_date, departure_time, destination)
@@ -1949,6 +2001,8 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 			p.seat_number,
 			ba.agent_name,
 			ba.username,
+			ba.first_name,
+			ba.booking_company,
 			pass.phone_number AS profile_phone
 		FROM `tabAir Booking Passenger` p
 		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
@@ -1979,7 +2033,10 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 		if destination_airport and dest_airport != destination_airport:
 			continue
 
-		agent = row.agent_name or row.username or ""
+		agent, agent_first_name = _agent_display_names(
+			row.agent_name, row.username, row.first_name
+		)
+		agency_company = company_agency_name(row.booking_company) or ""
 		passenger_class = (
 			seat_class_by_seat.get(row.seat_number)
 			or row.cabin_class
@@ -1991,6 +2048,8 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 				"passenger_name": row.passenger_name,
 				"class": passenger_class,
 				"agent": agent,
+				"agent_first_name": agent_first_name,
+				"agency_company": agency_company,
 				"passport_number": row.id_number or "",
 				"origin": airport_display_label(origin_airport),
 				"destination": airport_display_label(dest_airport),

@@ -8,6 +8,8 @@ import { usePersistedPortalReport } from "@/hooks/use-persisted-portal-report";
 import { useReportFlightNumbers } from "@/hooks/use-report-flight-numbers";
 import { PORTAL_REPORT_STORAGE_KEYS } from "@/lib/portal-report-storage";
 import { StatusBadge } from "@/components/portal/status-badge";
+import { AgentNameCell } from "@/components/portal/agent-name-cell";
+import { getAgentFirstName } from "@/lib/agent-display";
 import { fetchAirportsForPortal } from "@/services/airport";
 import { buildAirportSelectOptions } from "@/lib/airport-select";
 import {
@@ -47,6 +49,7 @@ const MANIFEST_PDF_COLUMNS: PortalReportPdfColumn[] = [
   { key: "passenger_name", label: "Passenger name" },
   { key: "class", label: "Class" },
   { key: "agent", label: "Agent" },
+  { key: "agency_company", label: "Agency" },
   { key: "passport_number", label: "Passport number" },
   { key: "origin", label: "Origin" },
   { key: "destination", label: "Destination" },
@@ -70,6 +73,7 @@ function filterRow(row: ManifestReportRow, query: string) {
     row.passenger_name,
     row.class,
     row.agent,
+    row.agency_company,
     row.passport_number,
     row.origin,
     row.destination,
@@ -221,7 +225,8 @@ export default function PortalMFestReportPage() {
           pnr_number: row.pnr_number || "",
           passenger_name: row.passenger_name || "",
           class: row.class || "",
-          agent: row.agent || "",
+          agent: getAgentFirstName(row.agent, row.agent_first_name) || row.agent || "",
+          agency_company: row.agency_company || "",
           passport_number: row.passport_number || "",
           origin: row.origin || "",
           destination: row.destination || "",
@@ -391,6 +396,7 @@ export default function PortalMFestReportPage() {
               <TableHead>Passenger name</TableHead>
               <TableHead>Class</TableHead>
               <TableHead>Agent</TableHead>
+              <TableHead>Agency</TableHead>
               <TableHead>Passport number</TableHead>
               <TableHead>Origin</TableHead>
               <TableHead>Destination</TableHead>
@@ -402,14 +408,14 @@ export default function PortalMFestReportPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
                   <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
                   Loading manifest...
                 </TableCell>
               </TableRow>
             ) : pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
                   {searched
                     ? "No passengers match your search."
                     : "Enter flight details and search to view the manifest."}
@@ -421,7 +427,10 @@ export default function PortalMFestReportPage() {
                   <TableCell className="font-medium">{row.pnr_number}</TableCell>
                   <TableCell>{row.passenger_name}</TableCell>
                   <TableCell>{row.class || "—"}</TableCell>
-                  <TableCell>{row.agent || "—"}</TableCell>
+                  <TableCell>
+                    <AgentNameCell name={row.agent} firstName={row.agent_first_name} />
+                  </TableCell>
+                  <TableCell>{row.agency_company || "—"}</TableCell>
                   <TableCell>{row.passport_number || "—"}</TableCell>
                   <TableCell>{row.origin || "—"}</TableCell>
                   <TableCell>{row.destination || "—"}</TableCell>

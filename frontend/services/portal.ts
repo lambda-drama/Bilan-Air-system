@@ -13,6 +13,11 @@ export interface AirBookingRow {
   payment_status: string;
   total_fare: number;
   booking_date?: string;
+  booking_date_display?: string;
+  booking_agent?: string;
+  agent_name?: string;
+  agent_first_name?: string;
+  agency_company?: string;
   sales_invoice?: string;
   payment_entry?: string;
 }
@@ -238,6 +243,8 @@ export interface ManifestReportRow {
   passenger_name: string;
   class: string;
   agent: string;
+  agent_first_name?: string;
+  agency_company: string;
   passport_number: string;
   origin: string;
   destination: string;
