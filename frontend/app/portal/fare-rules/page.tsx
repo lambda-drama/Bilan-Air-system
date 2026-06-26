@@ -245,6 +245,7 @@ export default function PortalFareRulesPage() {
         description="Set price increases by route and booking lead time. When several rules match, the one with the smallest day threshold is used."
         addLabel="New fare rule"
         onAdd={openCreate}
+        doctype="Fare Rule"
       />
 
       <ListSearch
@@ -316,7 +317,7 @@ export default function PortalFareRulesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(rule)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Fare Rule" onClick={() => openEdit(rule)}>
                               Edit
                             </RowActionMenuItem>
                             <RowActionMenuItem icon={Power} onClick={() => toggleActive(rule)}>

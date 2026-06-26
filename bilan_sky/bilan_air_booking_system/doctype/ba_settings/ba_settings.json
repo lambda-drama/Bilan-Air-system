@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "creation": "2026-05-27 12:45:24.167302",
  "doctype": "DocType",
@@ -29,6 +30,12 @@
   "default_mpesa_account",
   "column_break_hqlf",
   "default_expense_account",
+  "reports_permission_section",
+  "agent_view_analytics",
+  "agent_view_dashboard",
+  "column_break_rooh",
+  "agent_view_manifest",
+  "agent_view_no_show",
   "more_info_tab",
   "fare_item",
   "baggage_fee",
@@ -250,13 +257,46 @@
    "fieldname": "use_airplane_seats",
    "fieldtype": "Check",
    "label": "Use Airplane Seats"
+  },
+  {
+   "fieldname": "reports_permission_section",
+   "fieldtype": "Section Break",
+   "label": "Reports Permission"
+  },
+  {
+   "default": "0",
+   "fieldname": "agent_view_analytics",
+   "fieldtype": "Check",
+   "label": "Agent View Analytics"
+  },
+  {
+   "default": "0",
+   "fieldname": "agent_view_dashboard",
+   "fieldtype": "Check",
+   "label": "Agent View Dashboard"
+  },
+  {
+   "default": "0",
+   "fieldname": "agent_view_manifest",
+   "fieldtype": "Check",
+   "label": "Agent View Manifest"
+  },
+  {
+   "default": "0",
+   "fieldname": "agent_view_no_show",
+   "fieldtype": "Check",
+   "label": "Agent View No Show"
+  },
+  {
+   "fieldname": "column_break_rooh",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-21 02:02:49.371891",
+ "modified": "2026-06-27 02:00:42.078606",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "BA Settings",

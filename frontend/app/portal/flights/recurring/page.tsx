@@ -133,7 +133,7 @@ function RecurringFlightPlansContent() {
             Save recurring rules here, then use Generate on each plan to create dated flight schedules.
           </p>
         </div>
-        <PortalAddButton onClick={openCreate}>New recurring plan</PortalAddButton>
+        <PortalAddButton onClick={openCreate} doctype="Flight Schedule Plan">New recurring plan</PortalAddButton>
       </div>
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search plans..." />
@@ -186,7 +186,7 @@ function RecurringFlightPlansContent() {
                       onMouseDown={(e) => e.stopPropagation()}
                     >
                       <RowActionMenu>
-                        <RowActionMenuItem icon={Pencil} onClick={() => openEdit(p.name)}>
+                        <RowActionMenuItem icon={Pencil} doctype="Flight Schedule Plan" onClick={() => openEdit(p.name)}>
                           Edit recurring plan
                         </RowActionMenuItem>
                         <RowActionMenuItem
@@ -199,6 +199,8 @@ function RecurringFlightPlansContent() {
                         <RowActionMenuItem
                           icon={Zap}
                           accent
+                          doctype="Flight Schedule"
+                          anyOf={["create", "write"]}
                           onClick={() => void handleGenerate(p.name)}
                         >
                           Generate schedules
@@ -207,6 +209,8 @@ function RecurringFlightPlansContent() {
                         <RowActionMenuItem
                           icon={Trash2}
                           variant="destructive"
+                          doctype="Flight Schedule Plan"
+                          permission="delete"
                           disabled={(p.generated_count ?? 0) > 0}
                           onClick={() => setDeleteTarget(p)}
                         >

@@ -220,6 +220,7 @@ export default function PortalMFestReportPage() {
         title: "M.FEST REPORT",
         subtitle: buildReportSubtitle(appliedFilters),
         filename: `manifest-${appliedFilters.flight_number}-${appliedFilters.departure_date}.pdf`,
+        reportKey: "manifest",
         columns: MANIFEST_PDF_COLUMNS,
         rows: filteredRows.map((row) => ({
           pnr_number: row.pnr_number || "",

@@ -1,5 +1,6 @@
 import { apiRequest, clearCSRF, ensureCSRF, methodUrl } from "./apiClient";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import type { PortalPermissionsMap, AgentReportPermissions } from "@/lib/portal-permissions";
 
 export interface FrappeUser {
   name: string;
@@ -11,6 +12,10 @@ export interface FrappeUser {
   phone?: string;
   mobile_no?: string;
   roles: string[];
+  has_portal_access?: boolean;
+  has_full_access?: boolean;
+  permissions?: PortalPermissionsMap;
+  agent_reports?: AgentReportPermissions;
 }
 
 export async function login(username: string, password: string): Promise<FrappeUser> {
@@ -73,6 +78,10 @@ export async function getCurrentUserProfile(username?: string): Promise<FrappeUs
     phone?: string;
     mobile_no?: string;
     roles: string[];
+    has_portal_access?: boolean;
+    has_full_access?: boolean;
+    permissions?: PortalPermissionsMap;
+    agent_reports?: AgentReportPermissions;
   }>(methodUrl("website_auth", "get_session_user_profile"), {
     method: "POST",
     body: JSON.stringify({}),
@@ -88,5 +97,9 @@ export async function getCurrentUserProfile(username?: string): Promise<FrappeUs
     phone: profile.phone || "",
     mobile_no: profile.mobile_no || "",
     roles: profile.roles || [],
+    has_portal_access: profile.has_portal_access,
+    has_full_access: profile.has_full_access,
+    permissions: profile.permissions,
+    agent_reports: profile.agent_reports,
   };
 }

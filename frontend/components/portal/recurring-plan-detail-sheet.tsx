@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pencil, Plane, Trash2, Zap } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
+import { PermissionGate } from "@/components/portal/permission-gate";
 import { Button } from "@/components/ui/button";
 import {
   deleteFlightSchedulePlan,
@@ -119,13 +120,15 @@ export function RecurringPlanDetailSheet({
         footer={
           planName ? (
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button
-                className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1"
-                onClick={() => onEdit(planName)}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit plan
-              </Button>
+              <PermissionGate doctype="Flight Schedule Plan" permission="write">
+                <Button
+                  className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1"
+                  onClick={() => onEdit(planName)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit plan
+                </Button>
+              </PermissionGate>
               <Button variant="outline" className="min-w-[140px] flex-1" asChild>
                 <Link href={schedulesPath} onClick={() => onOpenChange(false)}>
                   <Plane className="mr-2 h-4 w-4" />
@@ -133,23 +136,27 @@ export function RecurringPlanDetailSheet({
                 </Link>
               </Button>
               {onGenerate ? (
+                <PermissionGate doctype="Flight Schedule" anyOf={["create", "write"]}>
+                  <Button
+                    variant="outline"
+                    className="min-w-[140px] flex-1"
+                    onClick={() => void onGenerate(planName)}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    Generate schedules
+                  </Button>
+                </PermissionGate>
+              ) : null}
+              <PermissionGate doctype="Flight Schedule Plan" permission="delete">
                 <Button
                   variant="outline"
-                  className="min-w-[140px] flex-1"
-                  onClick={() => void onGenerate(planName)}
+                  className="min-w-[140px] flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                  onClick={() => setDeleteOpen(true)}
                 >
-                  <Zap className="mr-2 h-4 w-4" />
-                  Generate schedules
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete plan
                 </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                className="min-w-[140px] flex-1 border-red-300 text-red-700 hover:bg-red-50"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete plan
-              </Button>
+              </PermissionGate>
             </div>
           ) : undefined
         }

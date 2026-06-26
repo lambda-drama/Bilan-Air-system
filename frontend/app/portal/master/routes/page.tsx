@@ -365,6 +365,7 @@ export default function PortalRoutesPage() {
         description="Flight paths, fares, and multi-stop segments — managed in the portal"
         addLabel="New route"
         onAdd={openCreate}
+        doctype="Flight Route"
       />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search route, origin, destination..." />
@@ -430,7 +431,7 @@ export default function PortalRoutesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Flight Route" onClick={() => openEdit(r)}>
                               Edit
                             </RowActionMenuItem>
                           </DropdownMenuContent>

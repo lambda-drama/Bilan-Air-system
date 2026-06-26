@@ -137,6 +137,7 @@ export default function PortalSeatClassesPage() {
         description="Booking fare codes (L, M, Y…) linked to a cabin — multipliers and baggage overrides"
         addLabel="New fare class"
         onAdd={openCreate}
+        doctype="Seat Class"
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -198,7 +199,7 @@ export default function PortalSeatClassesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <RowActionMenuItem icon={Pencil} onClick={() => openEdit(row)}>
+                          <RowActionMenuItem icon={Pencil} doctype="Seat Class" onClick={() => openEdit(row)}>
                             Edit
                           </RowActionMenuItem>
                         </DropdownMenuContent>

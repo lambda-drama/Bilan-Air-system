@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "creation": "2026-05-27 01:15:24.860418",
  "doctype": "DocType",
@@ -282,7 +283,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-14 22:11:23.004103",
+ "modified": "2026-06-27 01:27:14.365850",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Schedule",
@@ -303,16 +304,14 @@
    "write": 1
   },
   {
-   "cancel": 1,
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Booking Agent",
+   "select": 1,
    "share": 1,
-   "submit": 1,
    "write": 1
   }
  ],

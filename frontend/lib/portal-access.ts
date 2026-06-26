@@ -10,9 +10,23 @@ export const PORTAL_STAFF_ROLES = [
   'Administrator',
 ] as const;
 
+/** Roles that bypass portal doctype permission checks (same as Frappe Desk). */
+export const FULL_PORTAL_ACCESS_ROLES = ['System Manager', 'Administrator'] as const;
+
 export function hasPortalAccess(roles: string[] | undefined | null): boolean {
   if (!roles?.length) return false;
   return roles.some((role) =>
     (PORTAL_STAFF_ROLES as readonly string[]).includes(role),
+  );
+}
+
+export function hasFullPortalPermissions(
+  roles: string[] | undefined | null,
+  userName?: string | null,
+): boolean {
+  if (userName === 'Administrator') return true;
+  if (!roles?.length) return false;
+  return roles.some((role) =>
+    (FULL_PORTAL_ACCESS_ROLES as readonly string[]).includes(role),
   );
 }

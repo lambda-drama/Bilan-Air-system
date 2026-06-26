@@ -917,6 +917,7 @@ function PortalFlightsPageContent() {
           </Button>
           <PortalAddButton
             className="hidden h-10 sm:inline-flex"
+            doctype="Flight Schedule"
             onClick={() => {
               formAlerts.clearAlerts();
               setAddOpen(true);

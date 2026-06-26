@@ -127,6 +127,7 @@ export default function PortalTicketTermsPage() {
         description="Master data — terms and conditions shown on tickets (print formats)"
         addLabel="New ticket terms"
         onAdd={openCreate}
+        doctype="Ticket Terms"
       />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search title..." />
@@ -179,7 +180,7 @@ export default function PortalTicketTermsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Ticket Terms" onClick={() => openEdit(r)}>
                               Edit
                             </RowActionMenuItem>
                             <RowActionMenuSeparator />

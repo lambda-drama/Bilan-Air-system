@@ -23,6 +23,8 @@ import {
 import { PortalSidebar } from "@/components/portal/portal-sidebar"
 import { PortalGenerationBanner } from "@/components/portal/portal-generation-banner"
 import { ThemeDropdownSubmenu } from "@/components/theme-dropdown-items"
+import { PermissionsProvider } from "@/contexts/permissions-context"
+import { PortalRouteGuard } from "@/components/portal/portal-route-guard"
 import { FlightPlanGenerationProvider } from "@/contexts/flight-plan-generation-context"
 import { Button } from "@/components/ui/button"
 import {
@@ -137,6 +139,7 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <PermissionsProvider>
     <FlightPlanGenerationProvider>
     <div className="flex h-svh overflow-hidden bg-muted/30">
       {/* Mobile sidebar overlay */}
@@ -301,10 +304,11 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
             sidebarOpen ? " max-lg:overflow-hidden" : ""
           }`}
         >
-          {children}
+          <PortalRouteGuard>{children}</PortalRouteGuard>
         </main>
       </div>
     </div>
     </FlightPlanGenerationProvider>
+    </PermissionsProvider>
   )
 }

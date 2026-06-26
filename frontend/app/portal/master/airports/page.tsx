@@ -125,6 +125,7 @@ export default function PortalAirportsPage() {
         description="Master data — airports used on routes and crew bases"
         addLabel="New airport"
         onAdd={openCreate}
+        doctype="Airport"
       />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search name, IATA, city..." />
@@ -173,7 +174,7 @@ export default function PortalAirportsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Airport" onClick={() => openEdit(r)}>
                               Edit
                             </RowActionMenuItem>
                           </DropdownMenuContent>

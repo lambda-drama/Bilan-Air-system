@@ -227,6 +227,7 @@ export default function PortalNoShowReportPage() {
         title: "NO SHOW REPORT",
         subtitle: buildReportSubtitle(appliedFilters, "Departed or arrived flights only"),
         filename: `no-show-${appliedFilters.flight_number}-${appliedFilters.departure_date}.pdf`,
+        reportKey: "no_show",
         columns: NO_SHOW_PDF_COLUMNS,
         rows: filteredRows.map((row) => ({
           flight_no: row.flight_no || "",

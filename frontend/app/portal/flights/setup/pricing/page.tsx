@@ -201,7 +201,7 @@ function FlightSetupPricingContent() {
           <h1 className="mt-1 text-2xl font-bold">Flight pricing</h1>
           <p className="text-muted-foreground">{routeLabel || "Per fare class and passenger type"}</p>
         </div>
-        <PortalAddButton onClick={openCreate} disabled={loading || saving}>
+        <PortalAddButton onClick={openCreate} doctype="Flight Setup" permission="write" disabled={loading || saving}>
           Add price
         </PortalAddButton>
       </div>
@@ -247,7 +247,7 @@ function FlightSetupPricingContent() {
                       </TableCell>
                       <TableCell className="text-right">
                         <RowActionMenu>
-                          <RowActionMenuItem icon={Pencil} onClick={() => openEdit(idx)}>
+                          <RowActionMenuItem icon={Pencil} doctype="Flight Setup" onClick={() => openEdit(idx)}>
                             Edit price
                           </RowActionMenuItem>
                           <RowActionMenuSeparator />

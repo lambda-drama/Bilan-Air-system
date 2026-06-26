@@ -10,6 +10,7 @@ import { ListSearch } from "@/components/portal/list-search";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { getMissingRequired } from "@/lib/validate-form";
+import { canActOnRow } from "@/lib/portal-permissions";
 import { cn } from "@/lib/utils";
 import {
   createBookingAgent,
@@ -484,6 +485,10 @@ export default function PortalBookingAgentsPage() {
   };
 
   const openEdit = (row: Record<string, unknown>) => {
+    if (!canActOnRow(row as { can_write?: number }, "write")) {
+      toast.error("You do not have permission to edit this booking agent.");
+      return;
+    }
     const agentId = String(row.booking_agent || "");
     if (!agentId) {
       toast.error("No booking agent profile linked to this user.");
@@ -516,6 +521,10 @@ export default function PortalBookingAgentsPage() {
   };
 
   const toggleInactive = async (row: Record<string, unknown>) => {
+    if (!canActOnRow(row as { can_write?: number }, "write")) {
+      toast.error("You do not have permission to update this booking agent.");
+      return;
+    }
     const agentId = String(row.booking_agent || "");
     if (!agentId) {
       toast.error("No booking agent profile linked to this user.");
@@ -544,7 +553,7 @@ export default function PortalBookingAgentsPage() {
             control booking and confirmation.
           </p>
         </div>
-        <PortalAddButton onClick={openCreate}>New booking agent</PortalAddButton>
+        <PortalAddButton onClick={openCreate} doctype="Booking Agent">New booking agent</PortalAddButton>
       </div>
 
       <ListSearch
@@ -583,6 +592,7 @@ export default function PortalBookingAgentsPage() {
                 rows.map((u) => {
                   const inactive = isAgentInactive(u);
                   const strike = inactiveRowClass(inactive);
+                  const canWrite = canActOnRow(u as { can_write?: number }, "write");
                   return (
                     <TableRow
                       key={String(u.name)}
@@ -611,28 +621,24 @@ export default function PortalBookingAgentsPage() {
                       <TableCell className={strike}>{String(u.deposit_required || "—")}</TableCell>
                       <TableCell className={strike}>{String(u.credit_limit ?? 0)}</TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Row actions">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {u.booking_agent ? (
-                              <>
-                                <DropdownMenuItem onClick={() => openEdit(u)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant={inactive ? "default" : "destructive"}
-                                  onClick={() => toggleInactive(u)}
-                                >
-                                  {inactive ? "Reactivate" : "Inactivate"}
-                                </DropdownMenuItem>
-                              </>
-                            ) : (
-                              <DropdownMenuItem disabled>No agent profile</DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {canWrite && u.booking_agent ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label="Row actions">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEdit(u)}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant={inactive ? "default" : "destructive"}
+                                onClick={() => toggleInactive(u)}
+                              >
+                                {inactive ? "Reactivate" : "Inactivate"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
@@ -705,7 +711,9 @@ export default function PortalBookingAgentsPage() {
               ) : null}
             </DetailSection>
             <div className="flex flex-col gap-2 pt-2">
-              {selected.activation_pending && selected.booking_agent ? (
+              {selected.activation_pending &&
+              selected.booking_agent &&
+              canActOnRow(selected as { can_write?: number }, "write") ? (
                 <Button
                   variant="outline"
                   className="w-full"

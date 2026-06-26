@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/contexts/permissions-context";
+import type { PortalPermissionType } from "@/lib/portal-permissions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,6 +41,11 @@ type RowActionMenuItemProps = {
   disabled?: boolean;
   /** Gold accent icon (portal secondary actions). */
   accent?: boolean;
+  /** Hide this action when the user lacks the given doctype permission. */
+  doctype?: string;
+  permission?: PortalPermissionType;
+  /** Show when the user has any one of these permissions (overrides `permission`). */
+  anyOf?: PortalPermissionType[];
 };
 
 function actionIconClass(accent: boolean, variant: "default" | "destructive") {
@@ -53,7 +60,18 @@ export function RowActionMenuItem({
   variant = "default",
   disabled,
   accent = false,
+  doctype,
+  permission = "write",
+  anyOf,
 }: RowActionMenuItemProps) {
+  const { can } = usePermissions();
+  if (doctype) {
+    const allowed = anyOf?.length
+      ? anyOf.some((ptype) => can(doctype, ptype))
+      : can(doctype, permission);
+    if (!allowed) return null;
+  }
+
   const iconClass = actionIconClass(accent, variant);
 
   if (href && !disabled) {

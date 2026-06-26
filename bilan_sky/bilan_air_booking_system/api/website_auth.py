@@ -5,7 +5,14 @@ from frappe import _
 from frappe.utils import cint, getdate
 from frappe.utils.password import update_password
 
-from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_portal_access
+from bilan_sky.bilan_air_booking_system.utils.portal_access import (
+	require_portal_staff,
+	user_has_full_portal_permissions,
+	user_has_portal_access,
+)
+from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	build_portal_permissions_payload,
+)
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import (
 	WEBSITE_CUSTOMER_ROLE,
 	create_or_get_user,
@@ -142,6 +149,13 @@ def _enrich_booking_rows(bookings: list[dict]) -> list[dict]:
 
 
 @frappe.whitelist()
+def get_portal_permissions():
+	"""Frappe-style doctype permissions for the agent portal UI."""
+	require_portal_staff()
+	return build_portal_permissions_payload()
+
+
+@frappe.whitelist()
 def get_session_user_profile():
 	"""Current user profile and roles for the website / agent portal (no Has Role API access needed)."""
 	user_name = _require_logged_in_user()
@@ -164,7 +178,7 @@ def get_session_user_profile():
 		frappe.throw(_("User not found."), frappe.PermissionError)
 
 	roles = list(frappe.get_roles(user_name))
-	return {
+	payload = {
 		"name": user.name,
 		"full_name": user.full_name or user.name,
 		"email": user.email or "",
@@ -176,6 +190,9 @@ def get_session_user_profile():
 		"roles": roles,
 		"has_portal_access": user_has_portal_access(user_name),
 	}
+	if user_has_portal_access(user_name):
+		payload.update(build_portal_permissions_payload(user_name))
+	return payload
 
 
 @frappe.whitelist(allow_guest=True)
