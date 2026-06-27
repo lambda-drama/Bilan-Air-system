@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Mail, MessageSquare } from "lucide-react";
+import { Loader2, Mail, MessageSquare, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import {
   getDirectMessage,
@@ -12,9 +12,16 @@ import {
   type DirectMessageStatus,
 } from "@/services/directMessages";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
+import { ListRowActions } from "@/components/portal/list-row-actions";
 import { ListSearch } from "@/components/portal/list-search";
+import { RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -96,11 +103,18 @@ export default function DirectMessagesPage() {
       .finally(() => setDetailLoading(false));
   }, [selectedId]);
 
-  const runAction = async (action: () => Promise<DirectMessageRow>, success: string) => {
+  const runAction = async (
+    messageId: string,
+    action: () => Promise<DirectMessageRow>,
+    success: string,
+  ) => {
     setSubmitting(true);
     try {
       const updated = await action();
-      setDetail(updated);
+      if (selectedId === messageId) {
+        setDetail(updated);
+        setReplyText(updated.agent_reply || "");
+      }
       toast.success(success);
       refresh();
     } catch (e) {
@@ -110,17 +124,28 @@ export default function DirectMessagesPage() {
     }
   };
 
-  const handleMarkInProgress = () => {
-    if (!selectedId) return;
+  const handleMarkInProgress = (messageId: string) => {
     runAction(
-      () => setDirectMessageStatus(selectedId, "In Progress"),
+      messageId,
+      () => setDirectMessageStatus(messageId, "In Progress"),
       "Marked in progress",
     );
   };
 
-  const handleClose = () => {
-    if (!selectedId) return;
-    runAction(() => setDirectMessageStatus(selectedId, "Closed"), "Message closed");
+  const handleClose = (messageId: string) => {
+    runAction(
+      messageId,
+      () => setDirectMessageStatus(messageId, "Closed"),
+      "Message closed",
+    );
+  };
+
+  const handleReopen = (messageId: string) => {
+    runAction(
+      messageId,
+      () => setDirectMessageStatus(messageId, "In Progress"),
+      "Reopened",
+    );
   };
 
   const handleReply = () => {
@@ -129,9 +154,14 @@ export default function DirectMessagesPage() {
       return;
     }
     runAction(
+      selectedId,
       () => replyToDirectMessage(selectedId, replyText.trim(), true),
       "Reply sent to customer",
     );
+  };
+
+  const openMessage = (messageId: string) => {
+    setSelectedId(messageId);
   };
 
   const selectedRow = rows.find((r) => r.name === selectedId);
@@ -187,12 +217,13 @@ export default function DirectMessagesPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Received</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                     No direct messages found
                   </TableCell>
                 </TableRow>
@@ -218,6 +249,62 @@ export default function DirectMessagesPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatWhen(row.creation)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ListRowActions doctype="Website Contact Message" docName={row.name}>
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" disabled={submitting}>
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <RowActionMenuItem onClick={() => openMessage(row.name)}>
+                              View message
+                            </RowActionMenuItem>
+                            {row.status !== "Closed" && (
+                              <RowActionMenuItem
+                                icon={Mail}
+                                accent
+                                onClick={() => openMessage(row.name)}
+                              >
+                                Reply
+                              </RowActionMenuItem>
+                            )}
+                            {row.status === "New" && (
+                              <RowActionMenuItem
+                                doctype="Website Contact Message"
+                                permission="write"
+                                disabled={submitting}
+                                onClick={() => handleMarkInProgress(row.name)}
+                              >
+                                Mark in progress
+                              </RowActionMenuItem>
+                            )}
+                            {row.status !== "Closed" && (
+                              <RowActionMenuItem
+                                doctype="Website Contact Message"
+                                permission="write"
+                                disabled={submitting}
+                                onClick={() => handleClose(row.name)}
+                              >
+                                Close
+                              </RowActionMenuItem>
+                            )}
+                            {row.status === "Closed" && (
+                              <RowActionMenuItem
+                                doctype="Website Contact Message"
+                                permission="write"
+                                disabled={submitting}
+                                onClick={() => handleReopen(row.name)}
+                              >
+                                Reopen
+                              </RowActionMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </ListRowActions>
                     </TableCell>
                   </TableRow>
                 ))
@@ -257,7 +344,7 @@ export default function DirectMessagesPage() {
                     type="button"
                     variant="outline"
                     disabled={submitting}
-                    onClick={handleMarkInProgress}
+                    onClick={() => selectedId && handleMarkInProgress(selectedId)}
                   >
                     Mark in progress
                   </Button>
@@ -284,7 +371,7 @@ export default function DirectMessagesPage() {
                     type="button"
                     variant="secondary"
                     disabled={submitting}
-                    onClick={handleClose}
+                    onClick={() => selectedId && handleClose(selectedId)}
                   >
                     Close
                   </Button>
@@ -294,13 +381,7 @@ export default function DirectMessagesPage() {
                     type="button"
                     variant="outline"
                     disabled={submitting}
-                    onClick={() =>
-                      selectedId &&
-                      runAction(
-                        () => setDirectMessageStatus(selectedId, "In Progress"),
-                        "Reopened",
-                      )
-                    }
+                    onClick={() => selectedId && handleReopen(selectedId)}
                   >
                     Reopen
                   </Button>

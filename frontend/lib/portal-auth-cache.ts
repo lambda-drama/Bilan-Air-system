@@ -1,6 +1,6 @@
 import type { FrappeUser } from "@/services/auth";
 
-const CACHE_KEY = "bilan_portal_auth_v1";
+const CACHE_KEY = "bilan_portal_auth_v5";
 const TTL_MS = 30 * 60 * 1000;
 
 type CachedAuth = {

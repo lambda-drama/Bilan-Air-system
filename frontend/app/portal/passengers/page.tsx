@@ -127,6 +127,7 @@ export default function PortalPassengersPage() {
         </Button>
         <PortalAddButton
           className="hidden sm:inline-flex"
+          doctype="Passenger"
           onClick={() => {
             formAlerts.clearAlerts();
             setOpen(true);

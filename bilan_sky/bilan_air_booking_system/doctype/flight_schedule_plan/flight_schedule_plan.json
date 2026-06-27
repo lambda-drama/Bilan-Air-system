@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:plan_title",
  "creation": "2026-06-04 19:00:00",
@@ -343,7 +344,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-14 22:13:15.746853",
+ "modified": "2026-06-27 01:12:14.028705",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Flight Schedule Plan",
@@ -363,11 +364,10 @@
    "write": 1
   },
   {
-   "create": 1,
    "read": 1,
    "report": 1,
    "role": "Booking Agent",
-   "write": 1
+   "select": 1
   }
  ],
  "row_format": "Dynamic",

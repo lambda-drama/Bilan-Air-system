@@ -1,4 +1,5 @@
 import { apiRequest, methodUrl } from "./apiClient";
+import { DEFAULT_PORTAL_LIST_PAGE_SIZE } from "@/lib/portal-list-pagination";
 import type { PaginatedResponse } from "@/types/bilan";
 
 export interface SeatMapEntry {
@@ -104,7 +105,7 @@ export async function listSchedules(opts?: {
     {
       method: "POST",
       body: JSON.stringify({
-        limit: opts?.limit ?? 50,
+        limit: opts?.limit ?? DEFAULT_PORTAL_LIST_PAGE_SIZE,
         offset: opts?.offset ?? 0,
         status: opts?.status ?? null,
         upcoming: opts?.upcoming ? 1 : 0,

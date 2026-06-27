@@ -21,12 +21,14 @@ import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { ListPagination } from "@/components/portal/list-pagination";
+import { PaginatedListContainer, PaginatedListPage } from "@/components/portal/paginated-list-container";
 import { ListSearch } from "@/components/portal/list-search";
 import { DisabledActionTooltip } from "@/components/portal/disabled-action-tooltip";
 import { PortalBookingSheetFooter } from "@/components/portal/portal-booking-actions";
 import { useCurrency } from "@/contexts/currency-context";
 import { useBookingAgentCreditEligibility } from "@/hooks/use-booking-agent-credit";
-import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { usePaginatedListQuery } from "@/hooks/use-paginated-list-query";
 import { BookingStartLink } from "@/components/portal/booking-start-link";
 import { BookingBaggagePanel } from "@/components/portal/booking-baggage-panel";
 import { bookingReference } from "@/lib/booking-reference";
@@ -97,21 +99,32 @@ function PortalBookingsPageContent() {
   }, [searchParams]);
 
   const fetchBookings = useCallback(
-    async (search: string) => {
-      const res = await listBookings({
+    async (search: string, limit: number, offset: number) => {
+      return listBookings({
         search: search.trim() || undefined,
         status: statusFilter === ALL_STATUSES_VALUE ? undefined : statusFilter,
         payment_status: paymentFilter === ALL_PAYMENTS_VALUE ? undefined : paymentFilter,
-        limit: 100,
+        limit,
+        offset,
       });
-      return res.data;
     },
     [statusFilter, paymentFilter],
   );
-  const { search, setSearch, rows, loading, error, refresh } = useLiveListQuery<AirBookingRow>(
-    fetchBookings,
-    { reloadKey: `${statusFilter}:${paymentFilter}` },
-  );
+  const {
+    search,
+    setSearch,
+    rows,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    loading,
+    error,
+    refresh,
+  } = usePaginatedListQuery<AirBookingRow>(fetchBookings, {
+    reloadKey: `${statusFilter}:${paymentFilter}`,
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<CancelBookingTarget | null>(null);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
@@ -237,7 +250,7 @@ function PortalBookingsPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <PaginatedListPage>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex items-center justify-between gap-3 sm:block">
           <div className="min-w-0">
@@ -326,7 +339,17 @@ function PortalBookingsPageContent() {
       {loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : (
-        <div className="rounded-lg border bg-card">
+        <PaginatedListContainer
+          pagination={
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          }
+        >
           <Table>
             <TableHeader>
               <TableRow>
@@ -455,7 +478,7 @@ function PortalBookingsPageContent() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </PaginatedListContainer>
       )}
 
       <DetailSheet
@@ -646,7 +669,7 @@ function PortalBookingsPageContent() {
           onSuccess={handleCancelSuccess}
         />
       ) : null}
-    </div>
+    </PaginatedListPage>
   );
 }
 

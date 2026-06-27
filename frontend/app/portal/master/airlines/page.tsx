@@ -118,6 +118,7 @@ export default function PortalAirlinesPage() {
         description="Master data — carriers for routes and aircraft"
         addLabel="New airline"
         onAdd={openCreate}
+        doctype="Airline"
       />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search name, IATA, ICAO..." />
@@ -166,7 +167,7 @@ export default function PortalAirlinesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Airline" onClick={() => openEdit(r)}>
                               Edit
                             </RowActionMenuItem>
                           </DropdownMenuContent>

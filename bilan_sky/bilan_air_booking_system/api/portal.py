@@ -9,6 +9,15 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	format_route_label,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	portal_query_ignore_permissions,
+	require_doctype_permission,
+	save_portal_doc,
+)
+from bilan_sky.bilan_air_booking_system.utils.portal_report_access import (
+	require_agent_report_access,
+	require_agent_report_access_any,
+)
 from bilan_sky.bilan_air_booking_system.utils.flight_setup import flight_setup_available
 from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, FLIGHT_TAKEN, VOID
@@ -36,8 +45,9 @@ def _agent_display_names(
 
 
 def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modified desc", limit=50, offset=0):
-	require_portal_staff()
+	require_doctype_permission(doctype, "read")
 	filters = filters or {}
+	ignore = portal_query_ignore_permissions()
 	total = frappe.db.count(doctype, filters=filters)
 	data = frappe.get_all(
 		doctype,
@@ -47,6 +57,7 @@ def _paginated(doctype, fields, filters=None, or_filters=None, order_by="modifie
 		order_by=order_by,
 		limit_page_length=int(limit),
 		limit_start=int(offset),
+		ignore_permissions=ignore,
 	)
 	return {"data": data, "total": total}
 
@@ -172,7 +183,7 @@ def list_flight_schedules(
 @frappe.whitelist()
 def list_flight_setups(limit=50, offset=0, search=None):
 	"""Flight Setup doctype records with linked schedule and plan counts."""
-	require_portal_staff()
+	require_doctype_permission("Flight Setup", "read")
 
 	if not flight_setup_available():
 		return {"data": [], "total": 0}
@@ -198,7 +209,7 @@ def list_flight_setups(limit=50, offset=0, search=None):
 		order_by="flight_number asc",
 		limit=limit,
 		start=offset,
-		ignore_permissions=True,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 	total = frappe.db.count("Flight Setup", filters=filters or None)
 
@@ -306,7 +317,7 @@ def _enrich_flight_setup_rows(rows):
 @frappe.whitelist()
 def list_flight_setup_masters(limit=200, offset=0, search=None):
 	"""Flight Setup doctype records for linking recurring plans and other forms."""
-	require_portal_staff()
+	require_doctype_permission("Flight Setup", "read")
 
 	if not flight_setup_available():
 		return {"data": [], "total": 0}
@@ -331,7 +342,7 @@ def list_flight_setup_masters(limit=200, offset=0, search=None):
 		order_by="flight_number asc",
 		limit=limit,
 		start=offset,
-		ignore_permissions=True,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 	total = frappe.db.count("Flight Setup", filters=filters or None)
 
@@ -431,7 +442,7 @@ def _flight_setup_payload(doc):
 @frappe.whitelist()
 def list_seat_class_options(for_pricing=0):
 	"""Seat Class records for portal dropdowns."""
-	require_portal_staff()
+	require_doctype_permission("Seat Class", "read")
 	if cint(for_pricing):
 		from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import list_pricing_fare_classes
 
@@ -451,7 +462,7 @@ def list_seat_class_options(for_pricing=0):
 		"Seat Class",
 		fields=["name", "class_name", "cabin_class", "is_active"],
 		order_by="class_name asc",
-		ignore_permissions=True,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 
 
@@ -472,11 +483,12 @@ def save_flight_setup(data):
 	if not data.get("airplane"):
 		frappe.throw(_("Aircraft is required"))
 
-	if frappe.db.exists("Flight Setup", flight_number):
-		doc = frappe.get_doc("Flight Setup", flight_number)
-	else:
+	is_new = not frappe.db.exists("Flight Setup", flight_number)
+	if is_new:
 		doc = frappe.new_doc("Flight Setup")
 		doc.flight_number = flight_number
+	else:
+		doc = frappe.get_doc("Flight Setup", flight_number)
 
 	doc.route = data.get("route")
 	doc.airplane = data.get("airplane")
@@ -493,7 +505,7 @@ def save_flight_setup(data):
 	if "flight_penalties" in data:
 		apply_flight_setup_penalties(doc, data.get("flight_penalties"))
 
-	doc.save(ignore_permissions=True)
+	save_portal_doc(doc, is_new=is_new)
 	return _flight_setup_payload(doc)
 
 
@@ -515,7 +527,7 @@ def save_flight_setup_prices(flight_number, flight_prices=None):
 	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import apply_flight_setup_prices
 
 	apply_flight_setup_prices(doc, flight_prices or [])
-	doc.save(ignore_permissions=True)
+	save_portal_doc(doc, is_new=False)
 	return _flight_setup_payload(doc)
 
 
@@ -537,7 +549,7 @@ def save_flight_setup_penalties(flight_number, flight_penalties=None):
 	from bilan_sky.bilan_air_booking_system.utils.flight_setup_pricing import apply_flight_setup_penalties
 
 	apply_flight_setup_penalties(doc, flight_penalties or [])
-	doc.save(ignore_permissions=True)
+	save_portal_doc(doc, is_new=False)
 	return _flight_setup_payload(doc)
 
 
@@ -552,7 +564,7 @@ def get_flight_schedule(schedule_name):
 	)
 
 	doc = frappe.get_doc("Flight Schedule", schedule_name)
-	route = frappe.get_doc("Flight Route", doc.route, ignore_permissions=True)
+	route = frappe.get_doc("Flight Route", doc.route)
 	route_fares = route_fares_for_api(route)["base_fares"]
 	effective_fares = resolve_base_fares(doc, route)
 	result = {
@@ -1178,13 +1190,13 @@ def save_flight_route(data):
 				doc.set(key, value)
 		if segments is not None:
 			apply_route_segments_to_doc(doc, segments)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		create_payload = {k: v for k, v in payload.items() if k not in skip_keys}
 		doc = frappe.get_doc({"doctype": "Flight Route", **create_payload})
 		if segments is not None:
 			apply_route_segments_to_doc(doc, segments)
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 
 	frappe.db.commit()
 	return serialize_flight_route(doc)
@@ -1415,7 +1427,7 @@ def update_portal_user_profile(data):
 		if field in data:
 			user.set(field, data[field])
 
-	user.save(ignore_permissions=True)
+	user.save()
 	frappe.db.commit()
 	return get_portal_user_profile()
 
@@ -1432,7 +1444,7 @@ def set_portal_user_image(user_image):
 
 	user = frappe.get_doc("User", frappe.session.user)
 	user.user_image = user_image
-	user.save(ignore_permissions=True)
+	user.save()
 	frappe.db.commit()
 	return get_portal_user_profile()
 
@@ -1729,6 +1741,7 @@ def portal_apply_class_reserves(schedule_name, targets):
 @frappe.whitelist()
 def get_dashboard_stats():
 	require_portal_staff()
+	require_agent_report_access("dashboard")
 	return {
 		"total_bookings": frappe.db.count("Air Booking"),
 		"pending_payments": frappe.db.count("Air Booking", {"payment_status": "Pending"}),
@@ -1845,6 +1858,7 @@ def _normalize_portal_time(time_val):
 def list_report_flight_numbers(search=None, limit=200):
 	"""Distinct flight numbers from schedules (manifest / no-show report filters)."""
 	require_portal_staff()
+	require_agent_report_access_any("manifest", "no_show")
 	limit = min(cint(limit) or 200, 500)
 	search = (search or "").strip()
 	params = {"limit": limit}
@@ -1871,6 +1885,7 @@ def list_report_flight_numbers(search=None, limit=200):
 def get_manifest_departure_times(flight_number, departure_date):
 	"""Departure times for a flight number on a given date (manifest filter dropdown)."""
 	require_portal_staff()
+	require_agent_report_access_any("manifest", "no_show")
 	flight_number = (flight_number or "").strip()
 	departure_date = (departure_date or "").strip()
 	if not flight_number or not departure_date:
@@ -1971,6 +1986,7 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_name
 
 	require_portal_staff()
+	require_agent_report_access("manifest")
 	ctx = _report_flight_schedules(flight_number, departure_date, departure_time, destination)
 	schedules = ctx["schedules"]
 	flight_number = ctx["flight_number"]
@@ -2076,6 +2092,7 @@ def get_no_show_report(flight_number, departure_date, departure_time=None, desti
 	from bilan_sky.bilan_air_booking_system.utils.airports import get_airport_iata
 
 	require_portal_staff()
+	require_agent_report_access("no_show")
 	ctx = _report_flight_schedules(flight_number, departure_date, departure_time, destination)
 	schedules = ctx["schedules"]
 	flight_number = ctx["flight_number"]
@@ -2172,11 +2189,15 @@ def get_no_show_report(flight_number, departure_date, departure_time=None, desti
 
 
 @frappe.whitelist()
-def export_portal_report_pdf(title, subtitle=None, columns=None, rows=None, filename=None):
+def export_portal_report_pdf(
+	title, subtitle=None, columns=None, rows=None, filename=None, report_key=None
+):
 	"""Export portal tabular report rows to a downloadable PDF."""
 	from bilan_sky.bilan_air_booking_system.utils.report_pdf import export_tabular_report_pdf
 
 	require_portal_staff()
+	if report_key:
+		require_agent_report_access(report_key)
 	parsed_columns = frappe.parse_json(columns) if isinstance(columns, str) else (columns or [])
 	parsed_rows = frappe.parse_json(rows) if isinstance(rows, str) else (rows or [])
 	return export_tabular_report_pdf(
@@ -2194,6 +2215,7 @@ def get_portal_reports(year=None):
 	from frappe.utils import flt, getdate
 
 	require_portal_staff()
+	require_agent_report_access("analytics")
 	params = _booking_year_filters(year)
 	year = params["year"]
 	booking_where = """
@@ -2310,9 +2332,9 @@ def get_portal_reports(year=None):
 
 
 @frappe.whitelist()
-def list_payment_bookings(limit=50, offset=0):
+def list_payment_bookings(limit=50, offset=0, search=None):
 	"""Bookings with payment / invoice context for the payments page."""
-	result = list_air_bookings(limit=limit, offset=offset)
+	result = list_air_bookings(limit=limit, offset=offset, search=search)
 	for row in result["data"]:
 		row["payment_entry"] = frappe.db.get_value("Air Booking", row["name"], "payment_entry")
 		links = frappe.get_all(

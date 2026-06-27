@@ -123,6 +123,7 @@ export default function PortalCabinClassesPage() {
         description="Physical cabins (Economy, Business, First) — defaults for search, seat maps, and baggage"
         addLabel="New cabin class"
         onAdd={openCreate}
+        doctype="Cabin Class"
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -183,7 +184,7 @@ export default function PortalCabinClassesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <RowActionMenuItem icon={Pencil} onClick={() => openEdit(row)}>
+                          <RowActionMenuItem icon={Pencil} doctype="Cabin Class" onClick={() => openEdit(row)}>
                             Edit
                           </RowActionMenuItem>
                         </DropdownMenuContent>

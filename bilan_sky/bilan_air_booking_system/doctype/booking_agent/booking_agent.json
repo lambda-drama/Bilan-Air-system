@@ -1,8 +1,9 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:agent_name",
- "creation": "2026-06-04 14:00:00.000000",
+ "creation": "2026-06-04 14:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -255,7 +256,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-04 14:00:00.000000",
+ "modified": "2026-06-27 01:57:08.223425",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Booking Agent",
@@ -272,13 +273,6 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Booking Agent",
    "write": 1
   }
  ],

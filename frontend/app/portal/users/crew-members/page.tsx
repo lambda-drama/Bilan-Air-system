@@ -199,7 +199,7 @@ export default function PortalCrewMembersPage() {
             Pilots and cabin crew — records only, not system login users
           </p>
         </div>
-        <PortalAddButton onClick={openCreate}>New crew member</PortalAddButton>
+        <PortalAddButton onClick={openCreate} doctype="Crew Member">New crew member</PortalAddButton>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -286,7 +286,7 @@ export default function PortalCrewMembersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(r)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Crew Member" onClick={() => openEdit(r)}>
                               Edit
                             </RowActionMenuItem>
                             <RowActionMenuItem

@@ -15,6 +15,12 @@ from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
 	sync_plan_seat_reserves_from_plan,
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	delete_portal_doc,
+	require_doctype_permission,
+	require_doctype_permission_any,
+	save_portal_doc,
+)
 
 
 def _parse_data(data):
@@ -151,11 +157,7 @@ def save_flight_schedule_plan(data):
 			terms_and_conditions=getattr(doc, "terms_and_conditions", None),
 		)
 
-	if name:
-		doc.save(ignore_permissions=True)
-	else:
-		doc.insert(ignore_permissions=True)
-
+	save_portal_doc(doc, is_new=is_new)
 	frappe.db.commit()
 
 	schedule_seat_sync = None
@@ -188,7 +190,7 @@ def preview_plan_occurrences(plan_name=None, data=None):
 
 @frappe.whitelist()
 def generate_plan_schedules(plan_name, submit=1):
-	require_portal_staff()
+	require_doctype_permission_any("Flight Schedule", "create", "write")
 	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
 		frappe.throw(_("Flight Schedule Plan not found"))
 	return enqueue_plan_schedule_generation(plan_name, submit=cint(submit))
@@ -205,7 +207,7 @@ def get_plan_generation_status(plan_name):
 @frappe.whitelist()
 def delete_flight_schedule_plan(plan_name, delete_schedules=0):
 	"""Delete a recurring plan. Optionally delete generated flight schedules first."""
-	require_portal_staff()
+	require_doctype_permission("Flight Schedule Plan", "delete")
 	if not plan_name or not frappe.db.exists("Flight Schedule Plan", plan_name):
 		frappe.throw(_("Flight Schedule Plan not found"))
 
@@ -221,6 +223,6 @@ def delete_flight_schedule_plan(plan_name, delete_schedules=0):
 			).format(linked)
 		)
 
-	frappe.delete_doc("Flight Schedule Plan", plan_name, ignore_permissions=True)
+	delete_portal_doc("Flight Schedule Plan", plan_name)
 	frappe.db.commit()
 	return {"deleted": plan_name, "deleted_schedules": deleted_schedules}

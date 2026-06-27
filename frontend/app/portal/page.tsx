@@ -20,8 +20,13 @@ import { getDashboardStats } from "@/services/portal"
 import { listBookings } from "@/services/portal"
 import type { AirBookingRow } from "@/services/portal"
 import { useCurrency } from "@/contexts/currency-context"
+import { usePermissions } from "@/contexts/permissions-context"
+
 export default function PortalDashboard() {
   const { formatMoney } = useCurrency()
+  const { canViewReport } = usePermissions()
+  const showDashboardStats = canViewReport("dashboard")
+  const showAnalyticsLink = canViewReport("analytics")
   const [currentTime, setCurrentTime] = useState(new Date())
   const [stats, setStats] = useState({
     total_bookings: 0,
@@ -37,9 +42,10 @@ export default function PortalDashboard() {
   }, [])
 
   useEffect(() => {
+    if (!showDashboardStats) return
     getDashboardStats().then(setStats)
     listBookings({ limit: 5 }).then((res) => setRecentBookings(res.data))
-  }, [])
+  }, [showDashboardStats])
 
   const statCards = [
     {
@@ -78,61 +84,65 @@ export default function PortalDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Link key={stat.title} href={stat.href} className="group block">
-            <Card className="h-full transition-shadow group-hover:shadow-md group-hover:border-gold/40">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className="h-5 w-5 text-gold" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="mt-2 flex items-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                  View listing
-                  <ArrowRight className="ml-1 h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {showDashboardStats ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((stat) => (
+            <Link key={stat.title} href={stat.href} className="group block">
+              <Card className="h-full transition-shadow group-hover:shadow-md group-hover:border-gold/40">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
+                    {stat.title}
+                  </CardTitle>
+                  <stat.icon className="h-5 w-5 text-gold" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <p className="mt-2 flex items-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                    View listing
+                    <ArrowRight className="ml-1 h-3 w-3" />
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
       <DashboardFlightSearch />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Bookings</CardTitle>
-          <Link href="/portal/bookings">
-            <Button variant="ghost" size="sm">
-              View All <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentBookings.map((booking) => (
-              <div
-                key={booking.name}
-                className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
-              >
-                <div className="space-y-1">
-                  <p className="font-medium">{booking.payer_name}</p>
-                  <p className="text-sm text-muted-foreground">{booking.name}</p>
+      {showDashboardStats ? (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Recent Bookings</CardTitle>
+            <Link href="/portal/bookings">
+              <Button variant="ghost" size="sm">
+                View All <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentBookings.map((booking) => (
+                <div
+                  key={booking.name}
+                  className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium">{booking.payer_name}</p>
+                    <p className="text-sm text-muted-foreground">{booking.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{formatMoney(booking.total_fare)}</p>
+                    <span className="text-xs text-muted-foreground">
+                      {booking.booking_status} / {booking.payment_status}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-medium">{formatMoney(booking.total_fare)}</p>
-                  <span className="text-xs text-muted-foreground">
-                    {booking.booking_status} / {booking.payment_status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Quick Actions */}
       <Card>
@@ -154,12 +164,14 @@ export default function PortalDashboard() {
                 Passengers
               </Button>
             </Link>
-            <Link href="/portal/reports/analytics">
-              <Button variant="outline" className="w-full">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                View Reports
-              </Button>
-            </Link>
+            {showAnalyticsLink ? (
+              <Link href="/portal/reports/analytics">
+                <Button variant="outline" className="w-full">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  View Reports
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </CardContent>
       </Card>

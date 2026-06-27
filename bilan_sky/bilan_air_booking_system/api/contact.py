@@ -4,7 +4,14 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, validate_email_address
 
-from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.portal_access import (
+	require_portal_staff,
+	user_has_full_portal_permissions,
+)
+from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	portal_query_ignore_permissions,
+	require_doctype_permission,
+)
 
 
 def _require_portal_user():
@@ -69,6 +76,7 @@ def submit_contact_message(sender_name, email, message_body, phone=None, source=
 def list_contact_messages(limit=50, offset=0, status=None, search=None):
 	"""Portal list of website contact messages."""
 	_require_portal_user()
+	require_doctype_permission("Website Contact Message", "read")
 	limit = int(limit or 50)
 	offset = int(offset or 0)
 	filters = {}
@@ -110,6 +118,7 @@ def list_contact_messages(limit=50, offset=0, status=None, search=None):
 		order_by="creation desc",
 		limit_page_length=limit,
 		limit_start=offset,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 
 	return {"data": data, "total": total}
@@ -118,8 +127,10 @@ def list_contact_messages(limit=50, offset=0, status=None, search=None):
 @frappe.whitelist()
 def get_contact_message(name):
 	_require_portal_user()
-	doc = frappe.get_doc("Website Contact Message", name)
-	doc.check_permission("read")
+	ignore = user_has_full_portal_permissions()
+	doc = frappe.get_doc("Website Contact Message", name, ignore_permissions=ignore)
+	if not ignore:
+		doc.check_permission("read")
 	return doc.as_dict()
 
 
@@ -131,8 +142,10 @@ def set_contact_message_status(name, status):
 	if status not in allowed:
 		frappe.throw(_("Invalid status."))
 
-	doc = frappe.get_doc("Website Contact Message", name)
-	doc.check_permission("write")
+	ignore = user_has_full_portal_permissions()
+	doc = frappe.get_doc("Website Contact Message", name, ignore_permissions=ignore)
+	if not ignore:
+		doc.check_permission("write")
 	doc.status = status
 
 	if status == "Closed":
@@ -142,7 +155,7 @@ def set_contact_message_status(name, status):
 		doc.closed_by = None
 		doc.closed_on = None
 
-	doc.save()
+	doc.save(ignore_permissions=ignore)
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -154,15 +167,17 @@ def reply_to_contact_message(name, reply_body, send_email=1):
 	if not reply_body:
 		frappe.throw(_("Reply message is required."))
 
-	doc = frappe.get_doc("Website Contact Message", name)
-	doc.check_permission("write")
+	ignore = user_has_full_portal_permissions()
+	doc = frappe.get_doc("Website Contact Message", name, ignore_permissions=ignore)
+	if not ignore:
+		doc.check_permission("write")
 
 	doc.agent_reply = reply_body
 	doc.replied_by = frappe.session.user
 	doc.replied_on = now_datetime()
 	doc.status = "Replied"
 
-	doc.save()
+	doc.save(ignore_permissions=ignore)
 
 	if frappe.utils.cint(send_email):
 		frappe.sendmail(

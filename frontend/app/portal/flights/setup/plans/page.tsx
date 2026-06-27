@@ -141,7 +141,7 @@ function FlightSetupPlansContent() {
             capacity.
           </p>
         </div>
-        <PortalAddButton onClick={openCreate}>New recurring plan</PortalAddButton>
+        <PortalAddButton onClick={openCreate} doctype="Flight Schedule Plan">New recurring plan</PortalAddButton>
       </div>
 
       <Card>
@@ -226,7 +226,7 @@ function FlightSetupPlansContent() {
                           onMouseDown={(e) => e.stopPropagation()}
                         >
                           <RowActionMenu>
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(row.name)}>
+                            <RowActionMenuItem icon={Pencil} doctype="Flight Schedule Plan" onClick={() => openEdit(row.name)}>
                               Edit recurring plan
                             </RowActionMenuItem>
                             <RowActionMenuItem
@@ -239,6 +239,8 @@ function FlightSetupPlansContent() {
                             <RowActionMenuItem
                               icon={Zap}
                               accent
+                              doctype="Flight Schedule"
+                              anyOf={["create", "write"]}
                               onClick={() => void handleGenerate(row.name)}
                             >
                               Generate schedules
@@ -247,6 +249,8 @@ function FlightSetupPlansContent() {
                             <RowActionMenuItem
                               icon={Trash2}
                               variant="destructive"
+                              doctype="Flight Schedule Plan"
+                              permission="delete"
                               disabled={(row.generated_count ?? 0) > 0}
                               onClick={() => setDeleteTarget(row)}
                             >

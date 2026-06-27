@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, LogOut } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/contexts/permissions-context";
+import { filterNavByPermissions } from "@/lib/portal-permissions";
 import {
   isNavGroupActive,
   isNavItemActive,
   portalNavItems,
   type PortalNavGroup,
+  type PortalNavItem,
 } from "@/lib/portal-nav";
 import { signalPortalNavStart } from "@/lib/portal-navigation";
 
@@ -19,19 +22,50 @@ function onPortalNavClick(onNavigate?: () => void) {
   onNavigate?.();
 }
 
+function useVisibleNavItems() {
+  const { permissions, agentReports, hasFullAccess, permissionsReady } = usePermissions();
+  return useMemo(() => {
+    return portalNavItems
+      .map((item): PortalNavItem | null => {
+        if (item.type === "link") {
+          return filterNavByPermissions(
+            [item],
+            permissions,
+            hasFullAccess,
+            permissionsReady,
+            agentReports,
+          ).length
+            ? item
+            : null;
+        }
+        const visibleItems = filterNavByPermissions(
+          item.items,
+          permissions,
+          hasFullAccess,
+          permissionsReady,
+          agentReports,
+        );
+        if (!visibleItems.length) return null;
+        return { ...item, items: visibleItems };
+      })
+      .filter((item): item is PortalNavItem => item !== null);
+  }, [permissions, agentReports, hasFullAccess, permissionsReady]);
+}
+
 export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const visibleNavItems = useVisibleNavItems();
 
   useEffect(() => {
     const next: Record<string, boolean> = {};
-    for (const item of portalNavItems) {
+    for (const item of visibleNavItems) {
       if (item.type === "group" && isNavGroupActive(pathname, item)) {
         next[item.label] = true;
       }
     }
     setOpenGroups((prev) => ({ ...prev, ...next }));
-  }, [pathname]);
+  }, [pathname, visibleNavItems]);
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -104,7 +138,7 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch]">
-        {portalNavItems.map((item) =>
+        {visibleNavItems.map((item) =>
           item.type === "link" ? (
             <Link
               key={item.href}

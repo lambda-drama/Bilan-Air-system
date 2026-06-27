@@ -10,6 +10,8 @@ from frappe.utils import flt
 class BookingAgent(Document):
 	def before_insert(self):
 		self._apply_agent_profile_name()
+		if self.user:
+			self.owner = self.user
 
 	def validate(self):
 		self._apply_agent_profile_name()

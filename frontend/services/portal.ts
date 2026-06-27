@@ -1,5 +1,6 @@
 import { apiRequest, methodUrl } from "./apiClient";
 import type { PaginatedResponse } from "@/types/bilan";
+import { DEFAULT_PORTAL_LIST_PAGE_SIZE } from "@/lib/portal-list-pagination";
 
 export interface AirBookingRow {
   name: string;
@@ -58,7 +59,7 @@ export async function listBookings(opts?: {
   return apiRequest<PaginatedResponse<AirBookingRow>>(methodUrl("portal", "list_air_bookings"), {
     method: "POST",
     body: JSON.stringify({
-      limit: opts?.limit ?? 50,
+      limit: opts?.limit ?? DEFAULT_PORTAL_LIST_PAGE_SIZE,
       offset: opts?.offset ?? 0,
       status: opts?.status ?? null,
       payment_status: opts?.payment_status ?? null,
@@ -156,7 +157,7 @@ export async function listBookingInvoices(opts?: {
     {
       method: "POST",
       body: JSON.stringify({
-        limit: opts?.limit ?? 100,
+        limit: opts?.limit ?? DEFAULT_PORTAL_LIST_PAGE_SIZE,
         offset: opts?.offset ?? 0,
         search: opts?.search ?? null,
       }),
@@ -171,14 +172,19 @@ export async function getBookingInvoiceDetail(invoiceName: string) {
   });
 }
 
-export async function listPaymentBookings(opts?: { limit?: number; offset?: number }) {
+export async function listPaymentBookings(opts?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}) {
   return apiRequest<PaginatedResponse<AirBookingRow>>(
     methodUrl("portal", "list_payment_bookings"),
     {
       method: "POST",
       body: JSON.stringify({
-        limit: opts?.limit ?? 50,
+        limit: opts?.limit ?? DEFAULT_PORTAL_LIST_PAGE_SIZE,
         offset: opts?.offset ?? 0,
+        search: opts?.search ?? null,
       }),
     },
   );

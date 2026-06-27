@@ -5,6 +5,11 @@ import frappe
 from frappe import _
 from frappe.utils import cstr
 
+from bilan_sky.bilan_air_booking_system.utils.portal_access import (
+	PORTAL_STAFF_ROLES,
+	ensure_portal_system_user,
+)
+
 WEBSITE_CUSTOMER_ROLE = "Customer"
 
 
@@ -77,6 +82,8 @@ def create_or_get_user(
 	if resolved_role:
 		user.append_roles(resolved_role)
 	user.insert(ignore_permissions=True)
+	if resolved_role in PORTAL_STAFF_ROLES:
+		ensure_portal_system_user(user.name)
 
 	if new_password:
 		_set_user_password(user.name, new_password)
@@ -91,6 +98,8 @@ def _apply_user_role(user, role: str) -> None:
 	user.append_roles(role)
 	if not user.is_new():
 		user.save(ignore_permissions=True)
+	if role in PORTAL_STAFF_ROLES:
+		ensure_portal_system_user(user.name)
 
 
 def _set_user_password(user: str, password: str) -> None:

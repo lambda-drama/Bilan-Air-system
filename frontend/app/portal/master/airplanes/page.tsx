@@ -206,6 +206,7 @@ export default function PortalAirplanesPage() {
         description="Master data — fleet registration and seat layout"
         addLabel="New airplane"
         onAdd={openCreate}
+        doctype="Airplane"
       />
 
       <ListSearch value={search} onChange={setSearch} placeholder="Search registration, model..." />
@@ -254,7 +255,7 @@ export default function PortalAirplanesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <RowActionMenuItem icon={Pencil} onClick={() => openEdit(String(r.name))}>
+                            <RowActionMenuItem icon={Pencil} doctype="Airplane" onClick={() => openEdit(String(r.name))}>
                               Edit
                             </RowActionMenuItem>
                           </DropdownMenuContent>

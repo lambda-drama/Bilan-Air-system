@@ -24,12 +24,15 @@ export function buildReportSubtitle(filters: PortalReportFilters, extra?: string
   return parts.join(" · ");
 }
 
+import type { AgentReportKey } from "@/lib/portal-permissions";
+
 export async function exportPortalReportPdf(opts: {
   title: string;
   subtitle?: string;
   filename: string;
   columns: PortalReportPdfColumn[];
   rows: Record<string, string>[];
+  reportKey?: AgentReportKey;
 }) {
   const result = await apiRequest<{ filename: string; content: string }>(
     methodUrl("portal", "export_portal_report_pdf"),
@@ -41,6 +44,7 @@ export async function exportPortalReportPdf(opts: {
         filename: opts.filename,
         columns: opts.columns,
         rows: opts.rows,
+        report_key: opts.reportKey ?? null,
       }),
     },
   );

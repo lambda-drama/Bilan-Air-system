@@ -18,7 +18,19 @@ from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
 	serialize_booking_agent,
 	sync_booking_agent_user_enabled,
 )
-from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
+from bilan_sky.bilan_air_booking_system.utils.portal_access import (
+	require_portal_staff,
+	user_has_full_portal_permissions,
+)
+from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	delete_portal_doc,
+	get_doc_action_flags,
+	portal_list_filters,
+	portal_query_ignore_permissions,
+	require_doc_permission,
+	require_doctype_permission,
+	save_portal_doc,
+)
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import create_or_get_user
 
 BOOKING_AGENT_ROLE = "Booking Agent"
@@ -34,6 +46,8 @@ def _parse_data(data):
 
 def _require_user_create_permission():
 	require_portal_staff()
+	if user_has_full_portal_permissions():
+		return
 	if not frappe.has_permission("User", "create"):
 		frappe.throw(_("You do not have permission to create users."), frappe.PermissionError)
 
@@ -77,10 +91,10 @@ def save_airport(data):
 	if name:
 		doc = frappe.get_doc("Airport", name)
 		doc.update(payload)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Airport", **payload})
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -122,10 +136,10 @@ def save_airline(data):
 	if name:
 		doc = frappe.get_doc("Airline", name)
 		doc.update(payload)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Airline", **payload})
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -163,7 +177,7 @@ def list_airplanes(limit=50, offset=0, search=None, status=None):
 
 @frappe.whitelist()
 def get_airplane(name):
-	require_portal_staff()
+	require_doctype_permission("Airplane", "read")
 	doc = frappe.get_doc("Airplane", name)
 	row = doc.as_dict()
 	row["seat_config"] = [r.as_dict() for r in doc.seat_config or []]
@@ -183,12 +197,12 @@ def save_airplane(data):
 		doc.update(payload)
 		if seat_config is not None:
 			doc.set("seat_config", seat_config)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Airplane", **payload})
 		if seat_config is not None:
 			doc.set("seat_config", seat_config)
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 
 	frappe.db.commit()
 	return get_airplane(doc.name)
@@ -256,7 +270,7 @@ def list_currencies():
 
 @frappe.whitelist()
 def list_cabin_classes(active_only=1):
-	require_portal_staff()
+	require_doctype_permission("Cabin Class", "read")
 	filters = {"is_active": 1} if cint(active_only) else {}
 	return frappe.get_all(
 		"Cabin Class",
@@ -275,7 +289,7 @@ def list_cabin_classes(active_only=1):
 			"description",
 		],
 		order_by="display_order asc, cabin_name asc",
-		ignore_permissions=True,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 
 
@@ -286,19 +300,19 @@ def save_cabin_class(data):
 	name = data.get("name")
 	payload = {k: v for k, v in data.items() if k != "name"}
 	if name:
-		doc = frappe.get_doc("Cabin Class", name, ignore_permissions=True)
+		doc = frappe.get_doc("Cabin Class", name)
 		doc.update(payload)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Cabin Class", **payload})
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 	frappe.db.commit()
 	return doc.as_dict()
 
 
 @frappe.whitelist()
 def list_seat_classes(active_only=1, layout_only=None):
-	require_portal_staff()
+	require_doctype_permission("Seat Class", "read")
 	filters = {"is_active": 1} if cint(active_only) else {}
 	if layout_only not in (None, ""):
 		filters["use_on_aircraft_layout"] = cint(layout_only)
@@ -321,7 +335,7 @@ def list_seat_classes(active_only=1, layout_only=None):
 			"description",
 		],
 		order_by="class_name asc",
-		ignore_permissions=True,
+		ignore_permissions=portal_query_ignore_permissions(),
 	)
 
 
@@ -332,12 +346,12 @@ def save_seat_class(data):
 	name = data.get("name")
 	payload = {k: v for k, v in data.items() if k != "name"}
 	if name:
-		doc = frappe.get_doc("Seat Class", name, ignore_permissions=True)
+		doc = frappe.get_doc("Seat Class", name)
 		doc.update(payload)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Seat Class", **payload})
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -383,7 +397,7 @@ def list_crew_members_portal(limit=50, offset=0, search=None, crew_role=None, st
 
 @frappe.whitelist()
 def get_crew_member(name):
-	require_portal_staff()
+	require_doctype_permission("Crew Member", "read")
 	doc = frappe.get_doc("Crew Member", name)
 	row = doc.as_dict()
 	row["certified_aircraft"] = [r.as_dict() for r in doc.certified_aircraft or []]
@@ -407,12 +421,12 @@ def save_crew_member(data):
 			doc.update(payload)
 			if certified_aircraft is not None:
 				doc.set("certified_aircraft", certified_aircraft)
-			doc.save(ignore_permissions=True)
+			save_portal_doc(doc, is_new=False)
 		else:
 			doc = frappe.get_doc({"doctype": "Crew Member", **payload})
 			if certified_aircraft is not None:
 				doc.set("certified_aircraft", certified_aircraft)
-			doc.insert(ignore_permissions=True)
+			save_portal_doc(doc, is_new=True)
 		frappe.db.commit()
 		return get_crew_member(doc.name)
 	finally:
@@ -436,7 +450,7 @@ def set_crew_member_status(name, status):
 	doc.status = status
 	frappe.flags.skip_crew_user_creation = True
 	try:
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	finally:
 		frappe.flags.skip_crew_user_creation = False
 
@@ -473,7 +487,7 @@ def list_booking_companies(limit=200, offset=0, search=None):
 
 @frappe.whitelist()
 def create_booking_company(company_agency, is_agency=0):
-	require_portal_staff()
+	require_doctype_permission("Booking Company", "create")
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import (
 		create_booking_company as _create,
 		serialize_booking_company,
@@ -514,85 +528,96 @@ def _validate_booking_agent_contact_fields(
 		frappe.throw(_("City is required."))
 
 
-def _enrich_booking_agent_users(users: list[dict]) -> list[dict]:
+BOOKING_AGENT_PROFILE_FIELDS = [
+	"name",
+	"user",
+	"booking_company",
+	"agent_name",
+	"username",
+	"first_name",
+	"last_name",
+	"email",
+	"phone",
+	"phone_2",
+	"city",
+	"address_line1",
+	"address_line2",
+	"status",
+	"user_type",
+	"can_book_ticket",
+	"can_confirm_ticket",
+	"deposit_required",
+	"confirmation_mode",
+	"credit_limit",
+	"credit_used",
+	"allow_credit",
+]
+
+
+def _booking_agent_list_rows(profiles: list[dict], *, ignore_permissions: bool = False) -> list[dict]:
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import enrich_agent_company_fields
 	from bilan_sky.bilan_air_booking_system.utils.user_activation import user_has_set_password
 
-	if not users:
+	if not profiles:
 		return []
-	profiles = {
-		row.user: row
-		for row in frappe.get_all(
-			"Booking Agent",
-			filters={"user": ["in", [u["name"] for u in users]]},
-			fields=[
-				"name",
-				"user",
-				"booking_company",
-				"agent_name",
-				"username",
-				"first_name",
-				"last_name",
-				"email",
-				"phone",
-				"phone_2",
-				"city",
-				"address_line1",
-				"address_line2",
-				"status",
-				"user_type",
-				"can_book_ticket",
-				"can_confirm_ticket",
-				"deposit_required",
-				"confirmation_mode",
-				"credit_limit",
-				"credit_used",
-				"allow_credit",
-			],
-		)
-	}
+
+	users = {}
+	user_names = [p["user"] for p in profiles if p.get("user")]
+	if user_names:
+		for user in frappe.get_all(
+			"User",
+			filters={"name": ["in", user_names]},
+			fields=["name", "email", "full_name", "enabled", "mobile_no", "last_login"],
+		):
+			users[user["name"]] = user
+
 	rows = []
-	for user in users:
-		row = dict(user)
-		profile = profiles.get(user["name"])
-		if profile:
-			row["booking_agent"] = profile.name
-			row["booking_company"] = profile.booking_company
-			row["agent_name"] = profile.agent_name
-			row["username"] = profile.username
-			row["first_name"] = profile.first_name
-			row["last_name"] = profile.last_name
-			row["email"] = profile.email or user.get("email")
-			row["phone"] = profile.phone
-			row["phone_2"] = profile.phone_2
-			row["city"] = profile.city
-			row["address_line1"] = profile.address_line1
-			row["address_line2"] = profile.address_line2
-			row["full_name"] = " ".join(
-				p for p in (profile.first_name, profile.last_name) if p
-			).strip() or user.get("full_name")
-			row["agent_status"] = profile.status
-			row["status"] = profile.status
-			row["user_type"] = profile.user_type
-			row["can_book_ticket"] = profile.can_book_ticket
-			row["can_confirm_ticket"] = profile.can_confirm_ticket
-			row["deposit_required"] = profile.deposit_required
-			row["confirmation_mode"] = profile.confirmation_mode
-			row["credit_limit"] = profile.credit_limit
-			row["credit_used"] = profile.credit_used
-			row["credit_available"] = max(
-				0, float(profile.credit_limit or 0) - float(profile.credit_used or 0)
-			)
-			row["allow_credit"] = profile.allow_credit
-			enrich_agent_company_fields(row)
+	for profile in profiles:
+		user = users.get(profile.get("user"))
+		row = {
+			"name": profile.get("user") or profile["name"],
+			"email": profile.get("email") or (user or {}).get("email"),
+			"full_name": " ".join(
+				p for p in (profile.get("first_name"), profile.get("last_name")) if p
+			).strip()
+			or (user or {}).get("full_name"),
+			"enabled": (user or {}).get("enabled"),
+			"mobile_no": profile.get("phone") or (user or {}).get("mobile_no"),
+			"last_login": (user or {}).get("last_login"),
+			"booking_agent": profile["name"],
+			"booking_company": profile.get("booking_company"),
+			"agent_name": profile.get("agent_name"),
+			"username": profile.get("username"),
+			"first_name": profile.get("first_name"),
+			"last_name": profile.get("last_name"),
+			"phone": profile.get("phone"),
+			"phone_2": profile.get("phone_2"),
+			"city": profile.get("city"),
+			"address_line1": profile.get("address_line1"),
+			"address_line2": profile.get("address_line2"),
+			"agent_status": profile.get("status"),
+			"status": profile.get("status"),
+			"user_type": profile.get("user_type"),
+			"can_book_ticket": profile.get("can_book_ticket"),
+			"can_confirm_ticket": profile.get("can_confirm_ticket"),
+			"deposit_required": profile.get("deposit_required"),
+			"confirmation_mode": profile.get("confirmation_mode"),
+			"credit_limit": profile.get("credit_limit"),
+			"credit_used": profile.get("credit_used"),
+			"credit_available": max(
+				0,
+				float(profile.get("credit_limit") or 0) - float(profile.get("credit_used") or 0),
+			),
+			"allow_credit": profile.get("allow_credit"),
+		}
+		enrich_agent_company_fields(row)
+		if user:
 			row["activation_pending"] = not user_has_set_password(user["name"])
+		if ignore_permissions:
+			row.update({"can_read": 1, "can_write": 1, "can_delete": 1})
 		else:
-			row["booking_agent"] = None
-			row["confirmation_mode"] = "Booking Only"
-			row["credit_limit"] = 0
-			row["credit_used"] = 0
-			row["credit_available"] = 0
-			row["allow_credit"] = 0
+			doc = frappe.get_doc("Booking Agent", profile["name"])
+			row.update(get_doc_action_flags(doc))
 		rows.append(row)
 	return rows
 
@@ -624,52 +649,33 @@ def get_booking_agent_defaults():
 
 @frappe.whitelist()
 def list_booking_agents(limit=50, offset=0, search=None):
-	require_portal_staff()
-	agent_users = frappe.get_all(
-		"Has Role",
-		filters={"role": BOOKING_AGENT_ROLE, "parenttype": "User"},
-		pluck="parent",
-	)
-	if not agent_users:
-		return {"data": [], "total": 0}
-
-	users = frappe.get_all(
-		"User",
-		filters={"name": ["in", agent_users]},
-		fields=["name", "email", "full_name", "enabled", "mobile_no", "last_login"],
-		order_by="full_name asc",
-	)
-
+	require_doctype_permission("Booking Agent", "read")
+	or_filters = None
 	if search:
-		q = search.strip().lower()
-		agent_meta = {
-			row["user"]: row
-			for row in frappe.get_all(
-				"Booking Agent",
-				filters={"user": ["in", [u["name"] for u in users]]},
-				fields=[
-					"user",
-					"booking_company",
-					"agent_name",
-					"username",
-					"city",
-					"address_line1",
-				],
-			)
+		q = f"%{search.strip()}%"
+		or_filters = {
+			"agent_name": ["like", q],
+			"booking_company": ["like", q],
+			"username": ["like", q],
+			"email": ["like", q],
+			"city": ["like", q],
+			"address_line1": ["like", q],
+			"first_name": ["like", q],
+			"last_name": ["like", q],
+			"user": ["like", q],
 		}
-		users = [
-			u
-			for u in users
-			if q in (u.get("email") or "").lower()
-			or q in (u.get("full_name") or "").lower()
-			or q in (u.get("name") or "").lower()
-			or q in (agent_meta.get(u["name"], {}).get("agent_name") or "").lower()
-			or q in (agent_meta.get(u["name"], {}).get("username") or "").lower()
-			or q in (agent_meta.get(u["name"], {}).get("city") or "").lower()
-			or q in (agent_meta.get(u["name"], {}).get("address_line1") or "").lower()
-		]
 
-	enriched = _enrich_booking_agent_users(users)
+	ignore = portal_query_ignore_permissions()
+	filters = portal_list_filters("Booking Agent") if not ignore else {}
+	profiles = frappe.get_all(
+		"Booking Agent",
+		filters=filters,
+		or_filters=or_filters,
+		fields=BOOKING_AGENT_PROFILE_FIELDS,
+		order_by="first_name asc, last_name asc",
+		ignore_permissions=ignore,
+	)
+	enriched = _booking_agent_list_rows(profiles, ignore_permissions=ignore)
 	total = len(enriched)
 	start = int(offset or 0)
 	end = start + int(limit or 50)
@@ -681,7 +687,11 @@ def get_booking_agent(name):
 	require_portal_staff()
 	if not name or not frappe.db.exists("Booking Agent", name):
 		frappe.throw(_("Booking agent not found"))
-	return serialize_booking_agent(frappe.get_doc("Booking Agent", name))
+	doc = frappe.get_doc("Booking Agent", name)
+	require_doc_permission(doc, "read")
+	result = serialize_booking_agent(doc)
+	result.update(get_doc_action_flags(doc))
+	return result
 
 
 @frappe.whitelist()
@@ -742,9 +752,9 @@ def save_booking_agent(data):
 			user.last_name = doc.last_name
 		if "phone" in data:
 			user.mobile_no = doc.phone
-		user.save(ignore_permissions=True)
+		save_portal_doc(user, is_new=False)
 
-	doc.save(ignore_permissions=True)
+	save_portal_doc(doc, is_new=False)
 	sync_booking_agent_user_enabled(doc)
 	frappe.db.commit()
 	return get_booking_agent(doc.name)
@@ -776,6 +786,7 @@ def create_booking_agent(
 ):
 	"""Create portal login user; contact, address, and rights live on Booking Agent."""
 	_require_user_create_permission()
+	require_doctype_permission("Booking Agent", "create")
 	email = (email or "").strip().lower()
 	first_name = (first_name or "").strip()
 	last_name = (last_name or "").strip()
@@ -825,7 +836,7 @@ def create_booking_agent(
 	user.last_name = last_name
 	user.full_name = full_name
 	user.mobile_no = phone
-	user.save(ignore_permissions=True)
+	save_portal_doc(user, is_new=False)
 
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import company_agency_label
 
@@ -907,7 +918,9 @@ def resend_booking_agent_activation(booking_agent=None, user=None):
 	if booking_agent:
 		if not frappe.db.exists("Booking Agent", booking_agent):
 			frappe.throw(_("Booking agent not found"))
-		user_name = frappe.db.get_value("Booking Agent", booking_agent, "user")
+		agent_doc = frappe.get_doc("Booking Agent", booking_agent)
+		require_doc_permission(agent_doc, "write")
+		user_name = agent_doc.user
 	if not user_name or not frappe.db.exists("User", user_name):
 		frappe.throw(_("Portal user not found for this booking agent."))
 	if user_has_set_password(user_name):
@@ -949,10 +962,10 @@ def save_ticket_terms(data):
 	if name:
 		doc = frappe.get_doc("Ticket Terms", name)
 		doc.update(payload)
-		doc.save(ignore_permissions=True)
+		save_portal_doc(doc, is_new=False)
 	else:
 		doc = frappe.get_doc({"doctype": "Ticket Terms", **payload})
-		doc.insert(ignore_permissions=True)
+		save_portal_doc(doc, is_new=True)
 	frappe.db.commit()
 	row = doc.as_dict()
 	row["terms_conditions"] = rich_text_to_plain(row.get("terms_conditions"))
@@ -964,7 +977,6 @@ def delete_ticket_terms(name):
 	require_portal_staff()
 	if not name or not frappe.db.exists("Ticket Terms", name):
 		frappe.throw(_("Ticket terms not found"))
-	doc = frappe.get_doc("Ticket Terms", name)
-	doc.delete(ignore_permissions=True)
+	delete_portal_doc("Ticket Terms", name)
 	frappe.db.commit()
 	return {"success": True, "name": name}

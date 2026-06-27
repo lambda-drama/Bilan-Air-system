@@ -49,9 +49,11 @@ import { getMissingRequired } from "@/lib/validate-form";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { ListPagination } from "@/components/portal/list-pagination";
+import { PaginatedListContainer, PaginatedListPage } from "@/components/portal/paginated-list-container";
 import { ListSearch } from "@/components/portal/list-search";
 import { RowActionMenuItem } from "@/components/portal/row-action-menu";
-import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { usePaginatedListQuery } from "@/hooks/use-paginated-list-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -187,9 +189,10 @@ function PortalFlightsPageContent() {
   }, [schedulePlanFilter]);
 
   const fetchSchedules = useCallback(
-    async (search: string) => {
-      const res = await listSchedules({
-        limit: 100,
+    async (search: string, limit: number, offset: number) => {
+      return listSchedules({
+        limit,
+        offset,
         search: search.trim() || undefined,
         flight_number: schedulePlanFilter.trim() ? undefined : flightNumberFilter.trim() || undefined,
         schedule_plan: schedulePlanFilter.trim() || undefined,
@@ -201,7 +204,6 @@ function PortalFlightsPageContent() {
         departure_date: departureDateFilter.trim() || undefined,
         departure_time: departureTimeFilter.trim() || undefined,
       });
-      return res.data;
     },
     [statusFilter, departureDateFilter, departureTimeFilter, flightNumberFilter, schedulePlanFilter],
   );
@@ -210,10 +212,15 @@ function PortalFlightsPageContent() {
     search: searchQuery,
     setSearch: setSearchQuery,
     rows,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     loading,
     error,
     refresh,
-  } = useLiveListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: listReloadKey });
+  } = usePaginatedListQuery<FlightScheduleRow>(fetchSchedules, { reloadKey: listReloadKey });
   const hasListFilters =
     !!searchQuery.trim() ||
     statusFilter !== ALL_STATUSES_VALUE ||
@@ -856,7 +863,7 @@ function PortalFlightsPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <PaginatedListPage>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex items-center justify-between gap-3 sm:block">
           <div className="min-w-0">
@@ -917,6 +924,7 @@ function PortalFlightsPageContent() {
           </Button>
           <PortalAddButton
             className="hidden h-10 sm:inline-flex"
+            doctype="Flight Schedule"
             onClick={() => {
               formAlerts.clearAlerts();
               setAddOpen(true);
@@ -927,7 +935,7 @@ function PortalFlightsPageContent() {
         </div>
       </div>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader className="space-y-3 pb-4">
           {schedulePlanFilter ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -1008,12 +1016,23 @@ function PortalFlightsPageContent() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+        <CardContent className="flex min-h-0 flex-1 flex-col pb-6">
+          {error && <p className="mb-3 shrink-0 text-sm text-destructive">{error}</p>}
           {loading ? (
             <p className="text-muted-foreground">Loading...</p>
           ) : (
-            <div className="rounded-md border">
+            <PaginatedListContainer
+              className="rounded-md"
+              pagination={
+                <ListPagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              }
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1127,7 +1146,7 @@ function PortalFlightsPageContent() {
                   )))}
                 </TableBody>
               </Table>
-            </div>
+            </PaginatedListContainer>
           )}
         </CardContent>
       </Card>
@@ -1936,7 +1955,7 @@ function PortalFlightsPageContent() {
         loading={deleting}
         onConfirm={submitDelete}
       />
-    </div>
+    </PaginatedListPage>
   );
 }
 
