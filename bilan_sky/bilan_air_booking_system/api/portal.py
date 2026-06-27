@@ -2332,9 +2332,9 @@ def get_portal_reports(year=None):
 
 
 @frappe.whitelist()
-def list_payment_bookings(limit=50, offset=0):
+def list_payment_bookings(limit=50, offset=0, search=None):
 	"""Bookings with payment / invoice context for the payments page."""
-	result = list_air_bookings(limit=limit, offset=offset)
+	result = list_air_bookings(limit=limit, offset=offset, search=search)
 	for row in result["data"]:
 		row["payment_entry"] = frappe.db.get_value("Air Booking", row["name"], "payment_entry")
 		links = frappe.get_all(

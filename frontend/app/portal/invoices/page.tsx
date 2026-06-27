@@ -12,8 +12,10 @@ import {
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListRowActions } from "@/components/portal/list-row-actions";
+import { ListPagination } from "@/components/portal/list-pagination";
+import { PaginatedListContainer, PaginatedListPage } from "@/components/portal/paginated-list-container";
 import { ListSearch } from "@/components/portal/list-search";
-import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { usePaginatedListQuery } from "@/hooks/use-paginated-list-query";
 import { useCurrency } from "@/contexts/currency-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,16 +41,28 @@ function docstatusLabel(docstatus?: number): string {
 
 export default function PortalInvoicesPage() {
   const { formatMoney } = useCurrency();
-  const fetchInvoices = useCallback(async (search: string) => {
-    const res = await listBookingInvoices({
-      search: search.trim() || undefined,
-      limit: 100,
-    });
-    return res.data;
-  }, []);
-  const { search, setSearch, rows, loading, error } = useLiveListQuery<BookingInvoiceRow>(
-    fetchInvoices,
+  const fetchInvoices = useCallback(
+    async (search: string, limit: number, offset: number) => {
+      return listBookingInvoices({
+        search: search.trim() || undefined,
+        limit,
+        offset,
+      });
+    },
+    [],
   );
+  const {
+    search,
+    setSearch,
+    rows,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    loading,
+    error,
+  } = usePaginatedListQuery<BookingInvoiceRow>(fetchInvoices);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<BookingInvoiceDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -68,7 +82,7 @@ export default function PortalInvoicesPage() {
   const selectedRow = rows.find((r) => r.name === selectedId);
 
   return (
-    <div className="space-y-6">
+    <PaginatedListPage>
       <div>
         <h2 className="text-2xl font-semibold">Invoices</h2>
         <p className="text-sm text-muted-foreground">
@@ -87,7 +101,17 @@ export default function PortalInvoicesPage() {
       {loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : (
-        <div className="rounded-lg border bg-card">
+        <PaginatedListContainer
+          pagination={
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          }
+        >
           <Table>
             <TableHeader>
               <TableRow>
@@ -160,7 +184,7 @@ export default function PortalInvoicesPage() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </PaginatedListContainer>
       )}
 
       <DetailSheet
@@ -239,6 +263,6 @@ export default function PortalInvoicesPage() {
           </>
         )}
       </DetailSheet>
-    </div>
+    </PaginatedListPage>
   );
 }

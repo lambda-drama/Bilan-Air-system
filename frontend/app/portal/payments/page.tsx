@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { listPaymentBookings, type AirBookingRow } from "@/services/portal";
@@ -9,9 +9,11 @@ import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog
 import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
+import { ListPagination } from "@/components/portal/list-pagination";
+import { PaginatedListContainer, PaginatedListPage } from "@/components/portal/paginated-list-container";
 import { ListRowActions } from "@/components/portal/list-row-actions";
 import { ListSearch } from "@/components/portal/list-search";
-import { useClientListFilter } from "@/hooks/use-client-list-filter";
+import { usePaginatedListQuery } from "@/hooks/use-paginated-list-query";
 import { useCurrency } from "@/contexts/currency-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,36 +32,35 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const PAYMENT_SEARCH_KEYS: (keyof AirBookingRow)[] = [
-  "name",
-  "payer_name",
-  "payment_status",
-  "sales_invoice",
-];
 
 export default function PortalPaymentsPage() {
   const { formatMoney } = useCurrency();
-  const [allRows, setAllRows] = useState<AirBookingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { search, setSearch, filtered: rows } = useClientListFilter(
-    allRows,
-    PAYMENT_SEARCH_KEYS,
+  const fetchPayments = useCallback(
+    async (search: string, limit: number, offset: number) => {
+      return listPaymentBookings({
+        limit,
+        offset,
+        search: search.trim() || undefined,
+      });
+    },
+    [],
   );
+  const {
+    search,
+    setSearch,
+    rows,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    loading,
+    refresh,
+  } = usePaginatedListQuery<AirBookingRow>(fetchPayments);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<BookingDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
-
-  const load = () => {
-    setLoading(true);
-    listPaymentBookings({ limit: 100 })
-      .then((res) => setAllRows(res.data))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -76,7 +77,7 @@ export default function PortalPaymentsPage() {
   const selectedRow = rows.find((b) => b.name === selectedId);
 
   return (
-    <div className="space-y-6">
+    <PaginatedListPage>
       <div>
         <h2 className="text-2xl font-semibold">Payments</h2>
         <p className="text-sm text-muted-foreground">
@@ -97,7 +98,17 @@ export default function PortalPaymentsPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="rounded-lg border bg-card">
+        <PaginatedListContainer
+          pagination={
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          }
+        >
           <Table>
             <TableHeader>
               <TableRow>
@@ -152,7 +163,7 @@ export default function PortalPaymentsPage() {
               )))}
             </TableBody>
           </Table>
-        </div>
+        </PaginatedListContainer>
       )}
 
       <DetailSheet
@@ -200,10 +211,10 @@ export default function PortalPaymentsPage() {
         onOpenChange={(open) => !open && setPaymentDialogPnr(null)}
         onSuccess={(pnr) => {
           toast.success("Payment confirmed");
-          load();
+          refresh();
           if (selectedId === pnr) fetchBookingDetails(pnr).then(setDetail);
         }}
       />
-    </div>
+    </PaginatedListPage>
   );
 }
