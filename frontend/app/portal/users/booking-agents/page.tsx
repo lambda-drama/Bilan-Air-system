@@ -1,23 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { BilanFormDialog, FormField, FormGrid } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { ListSearch } from "@/components/portal/list-search";
+import { useAuth } from "@/contexts/auth-context";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { useLiveListQuery } from "@/hooks/use-live-list-query";
+import { hasFullPortalPermissions } from "@/lib/portal-access";
 import { getMissingRequired } from "@/lib/validate-form";
 import { canActOnRow } from "@/lib/portal-permissions";
 import { cn } from "@/lib/utils";
 import {
   createBookingAgent,
   createBookingCompany,
+  deleteBookingAgent,
   getBookingAgentDefaults,
   listBookingAgents,
   listBookingCompanies,
+  listRoleProfileOptions,
   resendBookingAgentActivation,
   saveBookingAgent,
   type BookingCompanyRow,
@@ -92,6 +97,7 @@ const emptyForm = {
   can_confirm_ticket: "Yes" as "Yes" | "No",
   deposit_required: "No" as "Yes" | "No",
   credit_limit: "0",
+  role_profile_name: "",
 };
 
 const CREATE_STEPS = [
@@ -245,6 +251,7 @@ function YesNoSelect({
 }
 
 export default function PortalBookingAgentsPage() {
+  const { user } = useAuth();
   const fetchRows = useCallback(async (search: string) => {
     const res = await listBookingAgents({ limit: 200, search: search.trim() || undefined });
     return res.data;
@@ -257,6 +264,7 @@ export default function PortalBookingAgentsPage() {
   const [companies, setCompanies] = useState<BookingCompanyRow[]>([]);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [companyForm, setCompanyForm] = useState(emptyCompanyForm);
+  const [roleProfileOptions, setRoleProfileOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [companySaving, setCompanySaving] = useState(false);
   const [agentSaving, setAgentSaving] = useState(false);
   const [resendingActivation, setResendingActivation] = useState(false);
@@ -264,8 +272,11 @@ export default function PortalBookingAgentsPage() {
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const [deletingAgent, setDeletingAgent] = useState(false);
   const formAlerts = useFormDialogAlerts();
   const isEditing = !!editingAgentId;
+  const canManageRoleProfiles = hasFullPortalPermissions(user?.roles, user?.name);
   const formSteps = isEditing ? EDIT_STEPS : CREATE_STEPS;
   const maxStep = formSteps.length;
 
@@ -298,6 +309,25 @@ export default function PortalBookingAgentsPage() {
   useEffect(() => {
     if (!open) return;
     loadCompanies();
+    if (canManageRoleProfiles) {
+      listRoleProfileOptions()
+        .then((rows) => {
+          setRoleProfileOptions(
+            rows.map((row) => ({
+              value: row.name,
+              label: row.role_profile || row.name,
+            })),
+          );
+          setForm((prev) => {
+            if (editingAgentId || prev.role_profile_name || !rows.length) return prev;
+            const defaultRole = rows.find((row) => row.name === "Agent" || row.role_profile === "Agent");
+            return defaultRole ? { ...prev, role_profile_name: defaultRole.name } : prev;
+          });
+        })
+        .catch(() => setRoleProfileOptions([]));
+    } else {
+      setRoleProfileOptions([]);
+    }
     getBookingAgentDefaults()
       .then((defaults) => {
         setCitySuggestions(defaults.cities ?? []);
@@ -315,7 +345,7 @@ export default function PortalBookingAgentsPage() {
         setActivationByEmail(defaults.send_booking_agent_activation_email !== 0);
       })
       .catch(() => {});
-  }, [open, loadCompanies, editingAgentId]);
+  }, [open, loadCompanies, editingAgentId, canManageRoleProfiles]);
 
   const handleCreateCompany = async () => {
     const name = companyForm.company_agency.trim();
@@ -424,6 +454,7 @@ export default function PortalBookingAgentsPage() {
     can_confirm_ticket: form.can_confirm_ticket,
     deposit_required: form.deposit_required,
     credit_limit: creditEditable ? parseFloat(form.credit_limit) || 0 : 0,
+    ...(canManageRoleProfiles ? { role_profile_name: form.role_profile_name || undefined } : {}),
   });
 
   const handleSave = async () => {
@@ -516,6 +547,7 @@ export default function PortalBookingAgentsPage() {
       can_confirm_ticket: (String(row.can_confirm_ticket || "Yes") as "Yes" | "No"),
       deposit_required: (String(row.deposit_required || "No") as "Yes" | "No"),
       credit_limit: String(row.credit_limit ?? 0),
+      role_profile_name: String(row.role_profile_name || ""),
     });
     setOpen(true);
   };
@@ -540,6 +572,37 @@ export default function PortalBookingAgentsPage() {
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update status");
+    }
+  };
+
+  const requestDelete = (row: Record<string, unknown>) => {
+    if (!canActOnRow(row as { can_delete?: number }, "delete")) {
+      toast.error("You do not have permission to delete this booking agent.");
+      return;
+    }
+    if (!row.booking_agent) {
+      toast.error("No booking agent profile linked to this user.");
+      return;
+    }
+    setDeleteTarget(row);
+  };
+
+  const handleDelete = async () => {
+    const agentId = String(deleteTarget?.booking_agent || "");
+    if (!agentId) return;
+    setDeletingAgent(true);
+    try {
+      await deleteBookingAgent(agentId);
+      toast.success("Booking agent deleted");
+      if (selectedUser === String(deleteTarget?.name || "")) {
+        setSelectedUser(null);
+      }
+      setDeleteTarget(null);
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete booking agent");
+    } finally {
+      setDeletingAgent(false);
     }
   };
 
@@ -636,6 +699,12 @@ export default function PortalBookingAgentsPage() {
                               >
                                 {inactive ? "Reactivate" : "Inactivate"}
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => requestDelete(u)}
+                              >
+                                Delete
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         ) : null}
@@ -695,6 +764,7 @@ export default function PortalBookingAgentsPage() {
             <DetailSection title="User rights">
               <DetailRow label="Active" value={String(selected.status || selected.agent_status || "—")} />
               <DetailRow label="User type" value={String(selected.user_type || "Agent")} />
+              <DetailRow label="Role profile" value={String(selected.role_profile_name || "Agent")} />
               <DetailRow label="Can book ticket" value={String(selected.can_book_ticket || "—")} />
               <DetailRow label="Can confirm ticket" value={String(selected.can_confirm_ticket || "—")} />
               <DetailRow label="Deposit required" value={String(selected.deposit_required || "—")} />
@@ -711,6 +781,34 @@ export default function PortalBookingAgentsPage() {
               ) : null}
             </DetailSection>
             <div className="flex flex-col gap-2 pt-2">
+              {selected.booking_agent &&
+              canActOnRow(selected as { can_write?: number }, "write") ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    className="bg-gold text-navy hover:bg-gold-dark sm:flex-1"
+                    onClick={() => openEdit(selected)}
+                  >
+                    Edit booking agent
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="sm:flex-1"
+                    onClick={() => void toggleInactive(selected)}
+                  >
+                    {isAgentInactive(selected) ? "Reactivate" : "Inactivate"}
+                  </Button>
+                  {canActOnRow(selected as { can_delete?: number }, "delete") ? (
+                    <Button
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50 sm:flex-1"
+                      onClick={() => requestDelete(selected)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               {selected.activation_pending &&
               selected.booking_agent &&
               canActOnRow(selected as { can_write?: number }, "write") ? (
@@ -983,6 +1081,21 @@ export default function PortalBookingAgentsPage() {
                 </SelectContent>
               </Select>
             </FormField>
+            {canManageRoleProfiles ? (
+              <FormField label="Role profile">
+                <SearchableSelect
+                  options={roleProfileOptions}
+                  value={form.role_profile_name}
+                  valueLabel={
+                    roleProfileOptions.find((option) => option.value === form.role_profile_name)?.label
+                  }
+                  onValueChange={(v) => setForm({ ...form, role_profile_name: v })}
+                  placeholder="Select role profile..."
+                  emptyMessage="No role profiles found"
+                  clearable={false}
+                />
+              </FormField>
+            ) : null}
             <FormField label="Can book ticket?" required>
               <YesNoSelect
                 value={form.can_book_ticket}
@@ -1095,6 +1208,32 @@ export default function PortalBookingAgentsPage() {
           </FormField>
         </FormGrid>
       </BilanFormDialog>
+
+      <ConfirmActionDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete booking agent?"
+        description={
+          <p>
+            Delete{" "}
+            <strong>
+              {String(
+                deleteTarget?.company_display ||
+                  deleteTarget?.company_agency ||
+                  deleteTarget?.agent_name ||
+                  deleteTarget?.full_name ||
+                  deleteTarget?.name ||
+                  "this booking agent",
+              )}
+            </strong>
+            ? This also removes the linked portal login if it is no longer used anywhere else.
+          </p>
+        }
+        confirmLabel="Delete"
+        tone="destructive"
+        loading={deletingAgent}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

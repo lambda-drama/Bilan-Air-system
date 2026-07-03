@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { DollarSign, LayoutGrid, Pencil, Plane, Scale } from "lucide-react";
+import { DollarSign, LayoutGrid, Pencil, Plane, Power, Scale, Trash2 } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { BilanFormDialog, FormField, FormGrid, FormSection } from "@/components/portal/form-dialog";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
 import { ListSearch } from "@/components/portal/list-search";
+import { PermissionGate } from "@/components/portal/permission-gate";
 import { PortalAddButton } from "@/components/portal/portal-add-button";
 import { RowActionMenu, RowActionMenuItem } from "@/components/portal/row-action-menu";
 import { SearchableSelect } from "@/components/portal/searchable-select";
@@ -30,9 +32,15 @@ import { fetchAllRoutes } from "@/services/flightRoute";
 import { fetchAllAirplanes } from "@/services/airplane";
 import { listFlightSetups, type FlightSetupRow } from "@/services/flightSchedule";
 import {
+  deleteFlightSchedulePlan,
+  listFlightSchedulePlans,
+} from "@/services/flightSchedulePlan";
+import {
   flightSetupPath,
+  deleteFlightSetup,
   getFlightSetup,
   saveFlightSetup,
+  setFlightSetupActive,
 } from "@/services/flightSetup";
 import { richTextToPlain } from "@/lib/rich-text";
 import { toast } from "sonner";
@@ -65,6 +73,16 @@ const emptyForm = {
   is_active: true,
 };
 
+type FlightSetupDeleteTarget = {
+  flight_number: string;
+  plan_count?: number;
+  schedule_count?: number;
+};
+
+function isFlightSetupActive(value?: number | boolean | null) {
+  return value !== 0 && value !== false;
+}
+
 export default function FlightSetupPage() {
   const {
     search,
@@ -95,6 +113,10 @@ export default function FlightSetupPage() {
   const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof getFlightSetup>> | null>(null);
+  const [toggleLoadingFlightNumber, setToggleLoadingFlightNumber] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FlightSetupDeleteTarget | null>(null);
+  const [deleteLinkedPlansOpen, setDeleteLinkedPlansOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const formAlerts = useFormDialogAlerts();
 
   const selectedRoute = routes.find((r) => r.value === editForm.route);
@@ -157,6 +179,7 @@ export default function FlightSetupPage() {
   };
 
   const selectedRow = rows.find((r) => r.flight_number === selectedFlightNumber);
+  const selectedIsActive = isFlightSetupActive(detail?.is_active ?? selectedRow?.is_active);
 
   useEffect(() => {
     if (!selectedFlightNumber) {
@@ -200,6 +223,93 @@ export default function FlightSetupPage() {
       formAlerts.setSubmitError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleToggleActive = async (flightNumber: string, currentActive: boolean) => {
+    setToggleLoadingFlightNumber(flightNumber);
+    try {
+      const updated = await setFlightSetupActive(flightNumber, !currentActive);
+      setDetail((prev) => (prev?.flight_number === flightNumber ? updated : prev));
+      toast.success(
+        !currentActive
+          ? `Flight setup ${flightNumber} activated`
+          : `Flight setup ${flightNumber} deactivated`,
+      );
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update flight setup");
+    } finally {
+      setToggleLoadingFlightNumber(null);
+    }
+  };
+
+  const resetDeleteFlow = () => {
+    setDeleteLinkedPlansOpen(false);
+    setDeleteTarget(null);
+  };
+
+  const deleteFlightSetupRecord = async (target: FlightSetupDeleteTarget) => {
+    setDeleteLoading(true);
+    try {
+      await deleteFlightSetup(target.flight_number);
+      toast.success(`Flight setup ${target.flight_number} deleted`);
+      if (selectedFlightNumber === target.flight_number) {
+        setSelectedFlightNumber(null);
+        setDetail(null);
+      }
+      resetDeleteFlow();
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete flight setup");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    if ((deleteTarget.plan_count ?? 0) > 0) {
+      setDeleteLinkedPlansOpen(true);
+      return;
+    }
+    await deleteFlightSetupRecord(deleteTarget);
+  };
+
+  const handleDeleteLinkedPlansAndFlightSetup = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const plansRes = await listFlightSchedulePlans({
+        flight_number: deleteTarget.flight_number,
+        limit: 500,
+      });
+      let deletedPlanCount = 0;
+      let deletedScheduleCount = 0;
+      for (const plan of plansRes.data) {
+        const result = await deleteFlightSchedulePlan(plan.name, {
+          deleteSchedules: true,
+        });
+        deletedPlanCount += 1;
+        deletedScheduleCount += result.deleted_schedules ?? 0;
+      }
+      await deleteFlightSetup(deleteTarget.flight_number);
+      toast.success(
+        `Flight setup ${deleteTarget.flight_number} deleted after removing ${deletedPlanCount} recurring plan(s)` +
+          (deletedScheduleCount > 0
+            ? ` and ${deletedScheduleCount} linked departure(s)`
+            : ""),
+      );
+      if (selectedFlightNumber === deleteTarget.flight_number) {
+        setSelectedFlightNumber(null);
+        setDetail(null);
+      }
+      resetDeleteFlow();
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete linked recurring plans");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -312,9 +422,24 @@ export default function FlightSetupPage() {
                           <RowActionMenu>
                             <RowActionMenuItem
                               icon={Pencil}
+                              doctype="Flight Setup"
                               onClick={() => openEdit(row.flight_number)}
                             >
                               Edit flight setup
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={Power}
+                              doctype="Flight Setup"
+                              permission="write"
+                              disabled={toggleLoadingFlightNumber === row.flight_number}
+                              onClick={() =>
+                                void handleToggleActive(
+                                  row.flight_number,
+                                  isFlightSetupActive(row.is_active),
+                                )
+                              }
+                            >
+                              {isFlightSetupActive(row.is_active) ? "Deactivate flight setup" : "Activate flight setup"}
                             </RowActionMenuItem>
                             <RowActionMenuItem
                               icon={DollarSign}
@@ -343,6 +468,22 @@ export default function FlightSetupPage() {
                               href={flightSetupPath(row.flight_number, "plans")}
                             >
                               Recurring plans
+                            </RowActionMenuItem>
+                            <RowActionMenuItem
+                              icon={Trash2}
+                              variant="destructive"
+                              doctype="Flight Setup"
+                              permission="delete"
+                              onClick={() => {
+                                setDeleteLinkedPlansOpen(false);
+                                setDeleteTarget({
+                                  flight_number: row.flight_number,
+                                  plan_count: row.plan_count,
+                                  schedule_count: row.schedule_count,
+                                });
+                              }}
+                            >
+                              Delete flight setup
                             </RowActionMenuItem>
                           </RowActionMenu>
                         </TableCell>
@@ -458,16 +599,30 @@ export default function FlightSetupPage() {
         footer={
           selectedFlightNumber ? (
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button
-                className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1"
-                onClick={() => {
-                  const fn = selectedFlightNumber;
-                  setSelectedFlightNumber(null);
-                  void openEdit(fn);
-                }}
-              >
-                Edit flight setup
-              </Button>
+              <PermissionGate doctype="Flight Setup" permission="write">
+                <Button
+                  className="bg-gold text-navy hover:bg-gold-dark min-w-[140px] flex-1"
+                  onClick={() => {
+                    const fn = selectedFlightNumber;
+                    setSelectedFlightNumber(null);
+                    void openEdit(fn);
+                  }}
+                >
+                  Edit flight setup
+                </Button>
+              </PermissionGate>
+              <PermissionGate doctype="Flight Setup" permission="write">
+                <Button
+                  variant="outline"
+                  className="min-w-[140px] flex-1"
+                  disabled={toggleLoadingFlightNumber === selectedFlightNumber}
+                  onClick={() =>
+                    void handleToggleActive(selectedFlightNumber, selectedIsActive)
+                  }
+                >
+                  {selectedIsActive ? "Deactivate" : "Activate"}
+                </Button>
+              </PermissionGate>
               <Button variant="outline" className="min-w-[140px] flex-1" asChild>
                 <Link href={flightSetupPath(selectedFlightNumber, "pricing")}>Flight pricing</Link>
               </Button>
@@ -477,6 +632,22 @@ export default function FlightSetupPage() {
               <Button variant="outline" className="min-w-[140px] flex-1" asChild>
                 <Link href={flightSetupPath(selectedFlightNumber, "plans")}>Recurring plans</Link>
               </Button>
+              <PermissionGate doctype="Flight Setup" permission="delete">
+                <Button
+                  variant="outline"
+                  className="min-w-[140px] flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                  onClick={() => {
+                    setDeleteLinkedPlansOpen(false);
+                    setDeleteTarget({
+                      flight_number: selectedFlightNumber,
+                      plan_count: selectedRow?.plan_count,
+                      schedule_count: selectedRow?.schedule_count,
+                    });
+                  }}
+                >
+                  Delete flight setup
+                </Button>
+              </PermissionGate>
             </div>
           ) : undefined
         }
@@ -543,6 +714,55 @@ export default function FlightSetupPage() {
           </>
         )}
       </DetailSheet>
+
+      <ConfirmActionDialog
+        open={!!deleteTarget && !deleteLinkedPlansOpen}
+        onOpenChange={(open) => !open && resetDeleteFlow()}
+        title="Delete flight setup?"
+        description={
+          <>
+            <p>
+              Delete <strong>{deleteTarget?.flight_number}</strong>? This removes the flight setup
+              master, including its pricing and penalty setup.
+            </p>
+            {!!((deleteTarget?.plan_count ?? 0) || (deleteTarget?.schedule_count ?? 0)) && (
+              <p className="text-destructive">
+                This flight setup still has <strong>{deleteTarget?.plan_count ?? 0}</strong>{" "}
+                recurring plan(s) and <strong>{deleteTarget?.schedule_count ?? 0}</strong>{" "}
+                departure(s).
+              </p>
+            )}
+          </>
+        }
+        confirmLabel={(deleteTarget?.plan_count ?? 0) > 0 ? "Next" : "Delete"}
+        tone="destructive"
+        loading={deleteLoading}
+        onConfirm={handleDelete}
+      />
+
+      <ConfirmActionDialog
+        open={!!deleteTarget && deleteLinkedPlansOpen}
+        onOpenChange={(open) => setDeleteLinkedPlansOpen(open)}
+        title="Delete linked recurring plans first?"
+        description={
+          <>
+            <p>
+              <strong>{deleteTarget?.flight_number}</strong> still has linked recurring plans.
+            </p>
+            <p className="text-destructive">
+              Delete <strong>{deleteTarget?.plan_count ?? 0}</strong> recurring plan(s)
+              {deleteTarget?.schedule_count
+                ? ` and up to ${deleteTarget.schedule_count} linked departure(s)`
+                : ""}{" "}
+              first, then continue deleting the original flight setup.
+            </p>
+          </>
+        }
+        confirmLabel="Delete linked recurring"
+        tone="destructive"
+        loading={deleteLoading}
+        onConfirm={handleDeleteLinkedPlansAndFlightSetup}
+      />
     </div>
   );
 }

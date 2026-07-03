@@ -225,14 +225,13 @@ export function RecurringPlanDetailSheet({
             </p>
             {generatedCount > 0 ? (
               <p className="text-destructive">
-                This plan has <strong>{generatedCount}</strong> generated flight schedule
-                {generatedCount === 1 ? "" : "s"}. Deleting the plan will also permanently delete
-                those schedules (only if they have no active bookings).
+                This will first delete <strong>{generatedCount}</strong> linked departure
+                {generatedCount === 1 ? "" : "s"} created from this recurring plan.
               </p>
             ) : null}
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel={generatedCount > 0 ? "Delete plan & departures" : "Delete"}
         tone="destructive"
         loading={deleteLoading}
         onConfirm={handleDelete}

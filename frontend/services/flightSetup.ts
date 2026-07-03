@@ -123,6 +123,26 @@ export async function saveFlightSetup(data: {
   });
 }
 
+export async function setFlightSetupActive(
+  flightNumber: string,
+  isActive: boolean | number,
+): Promise<FlightSetupDetail> {
+  return apiRequest(methodUrl("portal", "set_flight_setup_active"), {
+    method: "POST",
+    body: JSON.stringify({
+      flight_number: flightNumber,
+      is_active: isActive ? 1 : 0,
+    }),
+  });
+}
+
+export async function deleteFlightSetup(flightNumber: string): Promise<{ deleted: string }> {
+  return apiRequest(methodUrl("portal", "delete_flight_setup"), {
+    method: "POST",
+    body: JSON.stringify({ flight_number: flightNumber }),
+  });
+}
+
 export async function saveFlightSetupPrices(
   flightNumber: string,
   flightPrices: FlightSetupPriceRow[],

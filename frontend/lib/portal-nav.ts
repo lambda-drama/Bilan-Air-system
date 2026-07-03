@@ -15,6 +15,7 @@ import {
   Plane,
   Repeat,
   Settings,
+  ShieldCheck,
   Ticket,
   UserCog,
   UserX,
@@ -30,6 +31,8 @@ export type PortalNavLink = {
   icon: LucideIcon;
   /** Frappe doctype required for read access; omit for always-visible items. */
   doctype?: string | null;
+  /** Optional explicit role restriction (in addition to doctype permission). */
+  allowedRoles?: string[];
   /** BA Settings report flag for Booking Agent access. */
   reportKey?: AgentReportKey | null;
 };
@@ -43,6 +46,7 @@ export type PortalNavGroup = {
     label: string;
     icon: LucideIcon;
     doctype?: string | null;
+    allowedRoles?: string[];
     reportKey?: AgentReportKey | null;
   }>;
 };
@@ -83,11 +87,39 @@ export const portalNavItems: PortalNavItem[] = [
   },
   {
     type: "group",
+    label: "Permissions",
+    icon: ShieldCheck,
+    items: [
+      {
+        href: "/portal/permissions/roles",
+        label: "Roles",
+        icon: ShieldCheck,
+        doctype: "Role",
+        allowedRoles: ["System Manager"],
+      },
+      {
+        href: "/portal/permissions/role-profiles",
+        label: "Role profiles",
+        icon: UserCog,
+        doctype: "Role Profile",
+        allowedRoles: ["System Manager"],
+      },
+    ],
+  },
+  {
+    type: "group",
     label: "Users",
     icon: Users,
     items: [
       { href: "/portal/users/booking-agents", label: "Booking agents", icon: UserCog, doctype: "Booking Agent" },
       { href: "/portal/users/crew-members", label: "Crew members", icon: IdCard, doctype: "Crew Member" },
+      {
+        href: "/portal/users/staff",
+        label: "Staff",
+        icon: UserCog,
+        doctype: "User",
+        allowedRoles: ["System Manager"],
+      },
     ],
   },
   { type: "link", href: "/portal/fare-rules", label: "Fare rules", icon: Percent, doctype: "Fare Rule" },

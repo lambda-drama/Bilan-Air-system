@@ -28,3 +28,5 @@ bilan_sky.patches.v1_0.backfill_flight_schedule_is_active
 bilan_sky.patches.v1_0.backfill_flight_setup
 bilan_sky.patches.v1_0.enable_active_booking_agent_users
 bilan_sky.patches.v1_0.sync_booking_agent_owner
+bilan_sky.patches.v1_0.ensure_sub_agent_role
+bilan_sky.patches.v1_0.sync_permission_roles_and_profiles

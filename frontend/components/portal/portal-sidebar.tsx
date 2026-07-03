@@ -6,6 +6,7 @@ import { ChevronDown, LogOut } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 import { usePermissions } from "@/contexts/permissions-context";
 import { filterNavByPermissions } from "@/lib/portal-permissions";
 import {
@@ -24,6 +25,7 @@ function onPortalNavClick(onNavigate?: () => void) {
 
 function useVisibleNavItems() {
   const { permissions, agentReports, hasFullAccess, permissionsReady } = usePermissions();
+  const { user } = useAuth();
   return useMemo(() => {
     return portalNavItems
       .map((item): PortalNavItem | null => {
@@ -34,6 +36,7 @@ function useVisibleNavItems() {
             hasFullAccess,
             permissionsReady,
             agentReports,
+            user?.roles,
           ).length
             ? item
             : null;
@@ -44,12 +47,13 @@ function useVisibleNavItems() {
           hasFullAccess,
           permissionsReady,
           agentReports,
+          user?.roles,
         );
         if (!visibleItems.length) return null;
         return { ...item, items: visibleItems };
       })
       .filter((item): item is PortalNavItem => item !== null);
-  }, [permissions, agentReports, hasFullAccess, permissionsReady]);
+  }, [permissions, agentReports, hasFullAccess, permissionsReady, user?.roles]);
 }
 
 export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {

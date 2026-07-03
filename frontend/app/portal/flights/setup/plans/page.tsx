@@ -106,8 +106,14 @@ function FlightSetupPlansContent() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      await deleteFlightSchedulePlan(deleteTarget.name);
-      toast.success(`Plan ${deleteTarget.plan_title || deleteTarget.name} deleted`);
+      const result = await deleteFlightSchedulePlan(deleteTarget.name, {
+        deleteSchedules: (deleteTarget.generated_count ?? 0) > 0,
+      });
+      const scheduleMsg =
+        (result.deleted_schedules ?? 0) > 0
+          ? ` and ${result.deleted_schedules} linked departure(s)`
+          : "";
+      toast.success(`Plan ${deleteTarget.plan_title || deleteTarget.name} deleted${scheduleMsg}`);
       setDeleteTarget(null);
       refresh();
     } catch (e) {
@@ -251,7 +257,6 @@ function FlightSetupPlansContent() {
                               variant="destructive"
                               doctype="Flight Schedule Plan"
                               permission="delete"
-                              disabled={(row.generated_count ?? 0) > 0}
                               onClick={() => setDeleteTarget(row)}
                             >
                               Delete plan
@@ -293,12 +298,21 @@ function FlightSetupPlansContent() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete recurring plan?"
         description={
-          <p>
-            Delete <strong>{deleteTarget?.plan_title || deleteTarget?.name}</strong>? This cannot
-            be undone.
-          </p>
+          <>
+            <p>
+              Delete <strong>{deleteTarget?.plan_title || deleteTarget?.name}</strong>? This cannot
+              be undone.
+            </p>
+            {(deleteTarget?.generated_count ?? 0) > 0 ? (
+              <p className="text-destructive">
+                This will first delete{" "}
+                <strong>{deleteTarget?.generated_count ?? 0}</strong> linked departure(s) created
+                from this recurring plan.
+              </p>
+            ) : null}
+          </>
         }
-        confirmLabel="Delete"
+        confirmLabel={(deleteTarget?.generated_count ?? 0) > 0 ? "Delete plan & departures" : "Delete"}
         tone="destructive"
         loading={deleteLoading}
         onConfirm={handleDelete}

@@ -12,6 +12,7 @@
   "agent_name",
   "username",
   "user",
+  "sub_agent",
   "column_break_ba1",
   "first_name",
   "last_name",
@@ -251,12 +252,18 @@
    "fieldname": "section_break_other",
    "fieldtype": "Section Break",
    "label": "Other"
+  },
+  {
+   "default": "0",
+   "fieldname": "sub_agent",
+   "fieldtype": "Check",
+   "label": "Sub Agent"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-27 01:57:08.223425",
+ "modified": "2026-07-03 22:02:45.731811",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Booking Agent",
