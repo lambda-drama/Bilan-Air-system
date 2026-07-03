@@ -117,7 +117,7 @@ export function PassengerTicketDocument({ ticket }: { ticket: PassengerTicketDat
       </div>
 
       {/* ── TIME / SEAT / GATE GRID ── */}
-      <div className="grid grid-cols-6 gap-0 border-b border-[#e2e6ee] px-5 py-4">
+      <div className="grid grid-cols-7 gap-0 border-b border-[#e2e6ee] px-5 py-4">
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#8891a4]">Date</p>
           <p className="font-['Barlow_Condensed',sans-serif] text-[11px] font-bold leading-snug text-[#0d1f3c]">
@@ -143,15 +143,27 @@ export function PassengerTicketDocument({ ticket }: { ticket: PassengerTicketDat
           </p>
         </div>
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#8891a4]">Departing</p>
+          <p className="mb-1 whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.1em] text-[#8891a4]">
+            Boarding
+          </p>
+          <p className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold text-[#0d1f3c]">
+            {formatTicketClock(ticket.boarding_time)}
+          </p>
+        </div>
+        <div>
+          <p className="mb-1 whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.1em] text-[#8891a4]">
+            Departing
+          </p>
           <p className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold text-[#0d1f3c]">
             {formatTicketClock(ticket.departure_time)}
           </p>
         </div>
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#8891a4]">Boarding</p>
+          <p className="mb-1 whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.1em] text-[#8891a4]">
+            Arriving
+          </p>
           <p className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold text-[#0d1f3c]">
-            {formatTicketClock(ticket.boarding_time)}
+            {formatTicketClock(ticket.arrival_time)}
           </p>
         </div>
       </div>

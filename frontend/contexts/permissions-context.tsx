@@ -18,6 +18,8 @@ import {
   DENIED_AGENT_REPORT_PERMISSIONS,
   resolveRouteDoctype,
   resolveRouteReportKey,
+  resolveRouteAllowedRoles,
+  userHasAnyRequiredRole,
   type AgentReportKey,
   type AgentReportPermissions,
   type PortalPermissionType,
@@ -169,6 +171,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const canAccessRoute = useCallback(
     (pathname: string) => {
       const path = pathname.split("?")[0]?.replace(/\/$/, "") || "/portal";
+      const requiredRoles = resolveRouteAllowedRoles(path);
+      if (!userHasAnyRequiredRole(user?.roles, requiredRoles)) return false;
       const reportKey = resolveRouteReportKey(path);
       if (reportKey && !canViewReport(reportKey)) return false;
       const doctype = resolveRouteDoctype(path);

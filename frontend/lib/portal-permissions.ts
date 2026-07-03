@@ -82,8 +82,11 @@ export const PORTAL_ROUTE_DOCTYPES: Array<{ prefix: string; doctype: string | nu
   { prefix: "/portal/master/cabin-classes", doctype: "Cabin Class" },
   { prefix: "/portal/master/seat-classes", doctype: "Seat Class" },
   { prefix: "/portal/master/ticket-terms", doctype: "Ticket Terms" },
+  { prefix: "/portal/permissions/roles", doctype: "Role" },
+  { prefix: "/portal/permissions/role-profiles", doctype: "Role Profile" },
   { prefix: "/portal/users/booking-agents", doctype: "Booking Agent" },
   { prefix: "/portal/users/crew-members", doctype: "Crew Member" },
+  { prefix: "/portal/users/staff", doctype: "User" },
   { prefix: "/portal/fare-rules", doctype: "Fare Rule" },
   { prefix: "/portal/invoices", doctype: "Sales Invoice" },
   { prefix: "/portal/payments", doctype: "Payment Entry" },
@@ -106,6 +109,33 @@ export function resolveRouteDoctype(pathname: string): string | null | undefined
     }
   }
   return undefined;
+}
+
+export const PORTAL_ROUTE_ALLOWED_ROLES: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: "/portal/permissions/roles", roles: ["System Manager"] },
+  { prefix: "/portal/permissions/role-profiles", roles: ["System Manager"] },
+  { prefix: "/portal/users/staff", roles: ["System Manager"] },
+];
+
+export function resolveRouteAllowedRoles(pathname: string): string[] | null {
+  const path = pathname.split("?")[0]?.replace(/\/$/, "") || "/portal";
+  const sorted = [...PORTAL_ROUTE_ALLOWED_ROLES].sort((a, b) => b.prefix.length - a.prefix.length);
+  for (const { prefix, roles } of sorted) {
+    const normalized = prefix.replace(/\/$/, "");
+    if (path === normalized || path.startsWith(`${normalized}/`)) {
+      return roles;
+    }
+  }
+  return null;
+}
+
+export function userHasAnyRequiredRole(
+  userRoles: string[] | null | undefined,
+  requiredRoles: string[] | null | undefined,
+) {
+  if (!requiredRoles?.length) return true;
+  const current = new Set(userRoles || []);
+  return requiredRoles.some((role) => current.has(role));
 }
 
 export function canAccessDoctype(
@@ -141,16 +171,22 @@ export function canActOnRow(
   return row.can_write === 1 || row.can_write === true;
 }
 
-export function filterNavByPermissions<T extends { doctype?: string | null; reportKey?: AgentReportKey | null }>(
+export function filterNavByPermissions<T extends {
+  doctype?: string | null;
+  reportKey?: AgentReportKey | null;
+  allowedRoles?: string[] | null;
+}>(
   items: T[],
   permissions: PortalPermissionsMap | null | undefined,
   hasFullAccess = false,
   permissionsReady = false,
   agentReports?: AgentReportPermissions | null,
+  userRoles?: string[] | null,
 ): T[] {
-  if (hasFullAccess) return items;
-  if (!permissionsReady || !permissions) return items;
-  return items.filter((item) => {
+  const roleFiltered = items.filter((item) => userHasAnyRequiredRole(userRoles, item.allowedRoles));
+  if (hasFullAccess) return roleFiltered;
+  if (!permissionsReady || !permissions) return roleFiltered;
+  return roleFiltered.filter((item) => {
     if (item.reportKey && !canViewAgentReport(agentReports, item.reportKey, hasFullAccess)) {
       return false;
     }

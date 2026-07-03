@@ -10,6 +10,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 )
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
+	delete_portal_doc,
 	portal_query_ignore_permissions,
 	require_doctype_permission,
 	save_portal_doc,
@@ -507,6 +508,49 @@ def save_flight_setup(data):
 
 	save_portal_doc(doc, is_new=is_new)
 	return _flight_setup_payload(doc)
+
+
+@frappe.whitelist()
+def set_flight_setup_active(flight_number, is_active=1):
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+	if not flight_setup_available() or not frappe.db.exists("Flight Setup", flight_number):
+		frappe.throw(_("Flight setup not found for {0}.").format(flight_number))
+
+	doc = frappe.get_doc("Flight Setup", flight_number)
+	doc.is_active = cint(is_active)
+	save_portal_doc(doc, is_new=False)
+	return _flight_setup_payload(doc)
+
+
+@frappe.whitelist()
+def delete_flight_setup(flight_number):
+	require_portal_staff()
+	flight_number = (flight_number or "").strip()
+	if not flight_number:
+		frappe.throw(_("Flight number is required"))
+	if not flight_setup_available() or not frappe.db.exists("Flight Setup", flight_number):
+		frappe.throw(_("Flight setup not found for {0}.").format(flight_number))
+
+	linked_plans = frappe.db.count("Flight Schedule Plan", {"flight_number": flight_number})
+	linked_schedules = frappe.db.count("Flight Schedule", {"flight_number": flight_number})
+	if linked_plans or linked_schedules:
+		linked_parts = []
+		if linked_plans:
+			linked_parts.append(_("{0} recurring plan(s)").format(linked_plans))
+		if linked_schedules:
+			linked_parts.append(_("{0} flight schedule(s)").format(linked_schedules))
+		frappe.throw(
+			_("Cannot delete this flight setup while it still has linked {0}. Delete those first.").format(
+				" and ".join(linked_parts)
+			)
+		)
+
+	delete_portal_doc("Flight Setup", flight_number)
+	frappe.db.commit()
+	return {"deleted": flight_number}
 
 
 @frappe.whitelist()

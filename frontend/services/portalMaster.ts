@@ -189,6 +189,55 @@ export async function setCrewMemberStatus(name: string, status: string) {
   });
 }
 
+export type StaffUserRow = {
+  name: string;
+  email: string;
+  full_name: string;
+  mobile_no?: string | null;
+  enabled?: number | boolean;
+  role_profile_name?: string | null;
+  user_type?: string | null;
+  last_login?: string | null;
+};
+
+export async function listStaffUsersPortal(opts?: { limit?: number; offset?: number; search?: string }) {
+  return apiRequest<PaginatedResponse<StaffUserRow>>(master("list_staff_users_portal"), {
+    method: "POST",
+    body: JSON.stringify({
+      limit: opts?.limit ?? 100,
+      offset: opts?.offset ?? 0,
+      search: opts?.search ?? null,
+    }),
+  });
+}
+
+export async function createStaffUser(data: {
+  email: string;
+  full_name: string;
+  role_profile_name: string;
+  password: string;
+  mobile_no?: string;
+  enabled?: boolean | number;
+}) {
+  return apiRequest<StaffUserRow>(master("create_staff_user"), {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function saveStaffUser(data: {
+  name: string;
+  full_name: string;
+  role_profile_name: string;
+  mobile_no?: string;
+  enabled?: boolean | number;
+}) {
+  return apiRequest<StaffUserRow>(master("save_staff_user"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
 export async function listBookingAgents(opts?: { limit?: number; offset?: number; search?: string }) {
   return apiRequest<PaginatedResponse<Record<string, unknown>>>(master("list_booking_agents"), {
     method: "POST",
@@ -292,6 +341,7 @@ export async function createBookingAgent(params: {
   credit_limit?: number;
   linked_customer?: string;
   notes?: string;
+  role_profile_name?: string;
 }) {
   return apiRequest<Record<string, unknown>>(master("create_booking_agent"), {
     method: "POST",
@@ -326,5 +376,72 @@ export async function saveBookingAgent(data: Record<string, unknown>) {
   return apiRequest<Record<string, unknown>>(master("save_booking_agent"), {
     method: "POST",
     body: JSON.stringify({ data }),
+  });
+}
+
+export async function deleteBookingAgent(name: string) {
+  return apiRequest<{ deleted: string }>(master("delete_booking_agent"), {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export type PermissionRoleRow = {
+  name: string;
+  role_name: string;
+  desk_access?: number | boolean;
+  disabled?: number | boolean;
+  is_custom?: number | boolean;
+};
+
+export async function listPermissionRoles() {
+  return apiRequest<PermissionRoleRow[]>(master("list_permission_roles"), {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function savePermissionRole(data: {
+  role_name: string;
+  desk_access?: boolean | number;
+  disabled?: boolean | number;
+  two_factor_auth?: boolean | number;
+}) {
+  return apiRequest<PermissionRoleRow>(master("save_permission_role"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export type RoleProfileRow = {
+  name: string;
+  role_profile: string;
+  roles: string[];
+  modified?: string;
+  modified_by?: string;
+};
+
+export async function listRoleProfilesPortal() {
+  return apiRequest<RoleProfileRow[]>(master("list_role_profiles_portal"), {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function saveRoleProfilePortal(data: {
+  name?: string;
+  role_profile: string;
+  roles: string[];
+}) {
+  return apiRequest<RoleProfileRow>(master("save_role_profile_portal"), {
+    method: "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export async function listRoleProfileOptions() {
+  return apiRequest<Array<{ name: string; role_profile: string }>>(master("list_role_profile_options"), {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }

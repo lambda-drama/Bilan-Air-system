@@ -71,6 +71,13 @@ def _activation_pending(agent) -> bool:
 
 
 def serialize_booking_agent(agent) -> dict:
+	user_role_profile = None
+	user_roles = []
+	if getattr(agent, "user", None) and frappe.db.exists("User", agent.user):
+		user_role_profile = frappe.db.get_value("User", agent.user, "role_profile_name")
+		user_doc = frappe.get_doc("User", agent.user)
+		user_roles = [r.role for r in user_doc.roles]
+
 	full_name = " ".join(
 		p for p in (getattr(agent, "first_name", None), getattr(agent, "last_name", None)) if p
 	).strip()
@@ -91,6 +98,8 @@ def serialize_booking_agent(agent) -> dict:
 		"address_line2": getattr(agent, "address_line2", None),
 		"city": getattr(agent, "city", None),
 		"status": agent.status,
+		"role_profile_name": user_role_profile,
+		"roles": user_roles,
 		"user_type": getattr(agent, "user_type", "Agent"),
 		"can_book_ticket": getattr(agent, "can_book_ticket", "Yes"),
 		"can_confirm_ticket": getattr(agent, "can_confirm_ticket", "Yes"),
@@ -106,6 +115,9 @@ def serialize_booking_agent(agent) -> dict:
 		"activation_pending": _activation_pending(agent),
 		"linked_customer": agent.linked_customer,
 		"notes": agent.notes,
+		"role_profile_name": frappe.db.get_value("User", agent.user, "role_profile_name")
+		if getattr(agent, "user", None)
+		else None,
 	}
 	return enrich_agent_company_fields(row)
 
