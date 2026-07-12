@@ -118,7 +118,7 @@ export default function PortalReports() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="font-serif-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             Reports & Analytics
           </h1>
           <p className="text-muted-foreground">
@@ -146,26 +146,26 @@ export default function PortalReports() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
         {summaryCards.map((card) => (
           <Link key={card.title} href={card.href} className="group block">
-            <Card className="h-full transition-shadow group-hover:border-gold/40 group-hover:shadow-md">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground group-hover:text-foreground">
+            <Card className="bilan-kpi-card h-full transition-colors group-hover:border-gold/40 group-hover:bg-muted/30">
+              <CardContent className="px-3.5 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                       {card.title}
                     </p>
-                    <p className="text-2xl font-bold">
+                    <p className="bilan-stat-value mt-1 text-xl sm:text-2xl">
                       {loading ? (
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       ) : (
                         card.value
                       )}
                     </p>
                     {card.hint && !loading && (
                       <p
-                        className={`text-xs ${
+                        className={`mt-0.5 text-[11px] ${
                           card.hint.startsWith("+")
                             ? "text-green-500"
                             : card.hint.startsWith("-")
@@ -176,12 +176,14 @@ export default function PortalReports() {
                         {card.hint}
                       </p>
                     )}
-                    <p className="mt-2 flex items-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                    <p className="mt-0.5 flex items-center text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                       {card.linkLabel}
                       <ArrowRight className="ml-1 h-3 w-3" />
                     </p>
                   </div>
-                  <card.icon className="h-8 w-8 text-accent" />
+                  <div className="shrink-0 rounded-full bg-gold/15 p-1.5">
+                    <card.icon className="h-3.5 w-3.5 text-gold" />
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -25,7 +25,9 @@ export function PortalMasterPageHeader({
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="flex items-center justify-between gap-3 sm:block sm:min-w-0">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold">{title}</h1>
+          <h1 className="font-serif-display text-xl font-semibold tracking-tight sm:text-2xl">
+            {title}
+          </h1>
           {description ? (
             <p className="hidden text-muted-foreground sm:block">{description}</p>
           ) : null}
