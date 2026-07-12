@@ -1,14 +1,13 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { Playfair_Display } from 'next/font/google'
+import { Inter, Geist_Mono, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProviders } from '@/components/app-providers'
 import { BRAND_LOGO_URL } from '@/lib/brand'
 import './globals.css'
 
-const geistSans = Geist({
+const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-geist-sans',
+  variable: '--font-inter',
 })
 
 const geistMono = Geist_Mono({
@@ -19,6 +18,7 @@ const geistMono = Geist_Mono({
 const playfair = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-playfair',
+  weight: ['400', '600', '700'],
 })
 
 export const metadata: Metadata = {
@@ -47,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground`}
+        className={`${inter.variable} ${geistMono.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground`}
       >
         <AppProviders>{children}</AppProviders>
         {process.env.VERCEL === '1' && <Analytics />}

@@ -77,34 +77,32 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-      active ? "bg-gold text-navy" : "text-cream/70 hover:bg-navy-light hover:text-cream",
+      "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-[13px] font-medium tracking-tight transition-all",
+      active
+        ? "border-gold bg-sidebar-accent text-sidebar-accent-foreground"
+        : "border-transparent text-cream/70 hover:bg-navy-light hover:text-cream",
     );
 
   const renderGroup = (group: PortalNavGroup) => {
     const open = openGroups[group.label] ?? false;
-    const groupActive = isNavGroupActive(pathname, group);
 
     return (
-      <div key={group.label} className="space-y-0.5">
+      <div key={group.label} className="space-y-1.5">
         <button
           type="button"
           onClick={() => toggleGroup(group.label)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            groupActive
-              ? "bg-navy-light/80 text-cream"
-              : "text-cream/70 hover:bg-navy-light hover:text-cream",
-          )}
+          className="mb-1 flex w-full items-center justify-between rounded-md px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-cream/45 hover:text-cream/70"
         >
-          <group.icon className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-left">{group.label}</span>
+          <span>{group.label}</span>
           <ChevronDown
-            className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")}
+            className={cn(
+              "h-3.5 w-3.5 stroke-[1.5] transition-transform",
+              open && "rotate-180",
+            )}
           />
         </button>
         {open && (
-          <div className="ml-3 space-y-0.5 border-l border-cream/15 pl-2">
+          <div className="space-y-0.5">
             {group.items.map((item) => {
               const groupHrefs = group.items.map((i) => i.href);
               const active = isNavItemActive(pathname, item.href, groupHrefs);
@@ -116,7 +114,12 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
                   onClick={() => onPortalNavClick(onNavigate)}
                   className={linkClass(active)}
                 >
-                  <item.icon className="h-4 w-4 shrink-0 opacity-80" />
+                  <item.icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 stroke-[1.5]",
+                      active ? "text-gold" : "opacity-65",
+                    )}
+                  />
                   {item.label}
                 </Link>
               );
@@ -137,12 +140,14 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
           onClick={() => onPortalNavClick(onNavigate)}
         >
           <BrandLogo className="h-8 w-8 rounded-full" />
-          <span className="truncate font-serif text-xl font-bold text-cream">Bilan Air</span>
+          <span className="font-serif-display truncate text-lg font-semibold tracking-tight text-cream">
+            Bilan Air
+          </span>
         </Link>
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch]">
-        {visibleNavItems.map((item) =>
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-3 py-5 [-webkit-overflow-scrolling:touch]">
+        {visibleNavItems.map((item, index) =>
           item.type === "link" ? (
             <Link
               key={item.href}
@@ -151,11 +156,18 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() => onPortalNavClick(onNavigate)}
               className={linkClass(isNavItemActive(pathname, item.href))}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon
+                className={cn(
+                  "h-4 w-4 shrink-0 stroke-[1.5]",
+                  isNavItemActive(pathname, item.href) ? "text-gold" : "opacity-65",
+                )}
+              />
               {item.label}
             </Link>
           ) : (
-            renderGroup(item)
+            <div key={item.label} className={cn(index > 0 && "pt-4")}>
+              {renderGroup(item)}
+            </div>
           ),
         )}
       </nav>
@@ -165,9 +177,9 @@ export function PortalSidebar({ onNavigate }: { onNavigate?: () => void }) {
           href="/"
           prefetch={false}
           onClick={() => onPortalNavClick(onNavigate)}
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-cream/70 transition-colors hover:bg-navy-light hover:text-cream"
+          className="flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-[13px] font-medium tracking-tight text-cream/70 transition-all hover:bg-navy-light hover:text-cream"
         >
-          <LogOut className="h-5 w-5" />
+          <LogOut className="h-4 w-4 stroke-[1.5]" />
           Back to Website
         </Link>
       </div>

@@ -75,32 +75,44 @@ export default function PortalDashboard() {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end items-center gap-2 text-sm text-muted-foreground">
-        <Calendar className="h-4 w-4" />
-        <span>{currentTime.toLocaleDateString()}</span>
-        <Clock className="ml-2 h-4 w-4" />
-        <span>{currentTime.toLocaleTimeString()}</span>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="mb-0.5 flex items-end justify-between gap-3">
+        <div>
+          <p className="section-label mb-1">Overview</p>
+          <h1 className="font-serif-display text-xl font-semibold tracking-tight sm:text-2xl">
+            Dashboard
+          </h1>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
+          <span>{currentTime.toLocaleDateString()}</span>
+          <Clock className="ml-1 h-3.5 w-3.5" />
+          <span>{currentTime.toLocaleTimeString()}</span>
+        </div>
       </div>
 
       {/* Stats Grid */}
       {showDashboardStats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
           {statCards.map((stat) => (
             <Link key={stat.title} href={stat.href} className="group block">
-              <Card className="h-full transition-shadow group-hover:shadow-md group-hover:border-gold/40">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
-                    {stat.title}
-                  </CardTitle>
-                  <stat.icon className="h-5 w-5 text-gold" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className="mt-2 flex items-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                    View listing
-                    <ArrowRight className="ml-1 h-3 w-3" />
-                  </p>
+              <Card className="bilan-kpi-card h-full transition-colors group-hover:border-gold/40 group-hover:bg-muted/30">
+                <CardContent className="px-3.5 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        {stat.title}
+                      </p>
+                      <p className="bilan-stat-value mt-1 text-xl sm:text-2xl">{stat.value}</p>
+                      <p className="mt-0.5 flex items-center text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                        View listing
+                        <ArrowRight className="ml-1 h-3 w-3" />
+                      </p>
+                    </div>
+                    <div className="shrink-0 rounded-full bg-gold/15 p-1.5">
+                      <stat.icon className="h-3.5 w-3.5 text-gold" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </Link>
@@ -111,29 +123,36 @@ export default function PortalDashboard() {
       <DashboardFlightSearch />
 
       {showDashboardStats ? (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Bookings</CardTitle>
+        <Card className="gap-2 py-3">
+          <CardHeader className="flex flex-row items-center justify-between px-3.5 py-0 pb-1">
+            <div>
+              <p className="section-label mb-1">Bookings</p>
+              <CardTitle className="text-base">Recent Bookings</CardTitle>
+            </div>
             <Link href="/portal/bookings">
               <Button variant="ghost" size="sm">
                 View All <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="px-3.5 pt-0">
+            <div className="space-y-2.5">
               {recentBookings.map((booking) => (
                 <div
                   key={booking.name}
-                  className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
+                  className="flex items-center justify-between border-b border-border/70 pb-2.5 last:border-0 last:pb-0"
                 >
-                  <div className="space-y-1">
-                    <p className="font-medium">{booking.payer_name}</p>
-                    <p className="text-sm text-muted-foreground">{booking.name}</p>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="truncate text-[13px] font-medium tracking-tight">
+                      {booking.payer_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{booking.name}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatMoney(booking.total_fare)}</p>
-                    <span className="text-xs text-muted-foreground">
+                  <div className="shrink-0 text-right">
+                    <p className="text-[13px] font-medium tracking-tight">
+                      {formatMoney(booking.total_fare)}
+                    </p>
+                    <span className="text-[11px] text-muted-foreground">
                       {booking.booking_status} / {booking.payment_status}
                     </span>
                   </div>
@@ -145,12 +164,13 @@ export default function PortalDashboard() {
       ) : null}
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+      <Card className="gap-2 py-3">
+        <CardHeader className="px-3.5 py-0 pb-1">
+          <p className="section-label mb-1">Actions</p>
+          <CardTitle className="text-base">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="px-3.5 pt-0">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             <BookingStartLink className="w-full">Office booking</BookingStartLink>
             <Link href="/portal/flights">
               <Button variant="outline" className="w-full">
