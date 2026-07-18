@@ -7,7 +7,13 @@
  "autoname": "field:company_agency",
  "field_order": [
   "company_agency",
-  "is_agency"
+  "is_agency",
+  "section_break_branding",
+  "logo",
+  "column_break_branding",
+  "show_logo_on_ticket",
+  "show_logo_on_baggage",
+  "show_logo_on_boarding_pass"
  ],
  "fields": [
   {
@@ -24,12 +30,47 @@
    "fieldname": "is_agency",
    "fieldtype": "Check",
    "label": "Is Agency"
+  },
+  {
+   "fieldname": "section_break_branding",
+   "fieldtype": "Section Break",
+   "label": "Print branding"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Agency logo"
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Show this logo on printed passenger tickets",
+   "fieldname": "show_logo_on_ticket",
+   "fieldtype": "Check",
+   "label": "Show on print ticket"
+  },
+  {
+   "default": "0",
+   "description": "Show this logo on printed baggage tags and receipts",
+   "fieldname": "show_logo_on_baggage",
+   "fieldtype": "Check",
+   "label": "Show on baggage"
+  },
+  {
+   "default": "0",
+   "description": "Show this logo on printed boarding passes",
+   "fieldname": "show_logo_on_boarding_pass",
+   "fieldtype": "Check",
+   "label": "Show on boarding pass"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-05 00:16:51.589499",
+ "modified": "2026-07-18 13:32:00.000000",
  "modified_by": "Administrator",
  "module": "Bilan Air Booking System",
  "name": "Booking Company",

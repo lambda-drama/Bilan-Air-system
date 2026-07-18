@@ -335,3 +335,52 @@ export async function getNoShowReport(params: {
     }),
   });
 }
+
+export interface AgentSalesRow {
+  booking_agent: string | null;
+  agent_name: string;
+  agent_email?: string | null;
+  bookings: number;
+  confirmed: number;
+  booked: number;
+  paid: number;
+  on_credit: number;
+  passengers: number;
+  revenue: number;
+  paid_revenue: number;
+  outstanding: number;
+}
+
+export interface AgentSalesReportData {
+  from_date: string;
+  to_date: string;
+  agents: AgentSalesRow[];
+  totals: {
+    bookings: number;
+    confirmed: number;
+    booked: number;
+    paid: number;
+    on_credit: number;
+    passengers: number;
+    revenue: number;
+    paid_revenue: number;
+    outstanding: number;
+  };
+  scoped_to_agent?: string | null;
+  agent_options: Array<{ value: string; label: string }>;
+}
+
+export async function getAgentSalesReport(params?: {
+  from_date?: string;
+  to_date?: string;
+  booking_agent?: string;
+}) {
+  return apiRequest<AgentSalesReportData>(methodUrl("portal", "get_agent_sales_report"), {
+    method: "POST",
+    body: JSON.stringify({
+      from_date: params?.from_date || null,
+      to_date: params?.to_date || null,
+      booking_agent: params?.booking_agent || null,
+    }),
+  });
+}

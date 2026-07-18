@@ -129,9 +129,14 @@ def _build_baggage_print_payload(baggage):
 	if baggage.checked_in_at:
 		checked_in_at = format_datetime(get_datetime(baggage.checked_in_at), "dd MMM yyyy, HH:mm")
 
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		company_print_logo_for_booking,
+	)
+
 	return {
 		"airline_name": "BILAN AIR",
 		"airline_tagline": "Beyond Skies Together",
+		"agency_logo_url": company_print_logo_for_booking(booking, "baggage"),
 		"tracking_number": baggage.tracking_number,
 		"passenger_name": baggage.passenger_name,
 		"passenger_last_name": _passenger_last_name(baggage.passenger_name),

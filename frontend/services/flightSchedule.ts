@@ -312,3 +312,16 @@ export async function rescheduleFlight(params: {
     },
   );
 }
+
+export async function updateFlightScheduleRoute(scheduleName: string, route: string) {
+  return apiRequest<{
+    schedule: string;
+    route: string;
+    previous_route?: string;
+    changed: boolean;
+    active_bookings: number;
+  }>(methodUrl("portal", "update_flight_schedule_route"), {
+    method: "POST",
+    body: JSON.stringify({ schedule_name: scheduleName, route }),
+  });
+}

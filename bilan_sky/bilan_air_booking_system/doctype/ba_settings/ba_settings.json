@@ -36,6 +36,7 @@
   "column_break_rooh",
   "agent_view_manifest",
   "agent_view_no_show",
+  "agent_view_agent_sales",
   "more_info_tab",
   "fare_item",
   "baggage_fee",
@@ -276,6 +277,10 @@
    "label": "Agent View Dashboard"
   },
   {
+   "fieldname": "column_break_rooh",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "0",
    "fieldname": "agent_view_manifest",
    "fieldtype": "Check",
@@ -288,8 +293,10 @@
    "label": "Agent View No Show"
   },
   {
-   "fieldname": "column_break_rooh",
-   "fieldtype": "Column Break"
+   "default": "0",
+   "fieldname": "agent_view_agent_sales",
+   "fieldtype": "Check",
+   "label": "Agent View Agent Sales"
   }
  ],
  "grid_page_length": 50,

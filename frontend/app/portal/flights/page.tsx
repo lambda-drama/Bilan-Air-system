@@ -28,6 +28,7 @@ import {
   listSchedules,
   rescheduleFlight,
   saveSchedule,
+  updateFlightScheduleRoute,
   type FlightScheduleRow,
 } from "@/services/flightSchedule";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
@@ -298,6 +299,10 @@ function PortalFlightsPageContent() {
   const [amendForm, setAmendForm] = useState<ScheduleFormState>(emptyScheduleForm);
   const [amendLoading, setAmendLoading] = useState(false);
   const amendAlerts = useFormDialogAlerts();
+  const [changeRouteTarget, setChangeRouteTarget] = useState<FlightScheduleRow | null>(null);
+  const [changeRouteValue, setChangeRouteValue] = useState("");
+  const [changeRouteLoading, setChangeRouteLoading] = useState(false);
+  const changeRouteAlerts = useFormDialogAlerts();
 
   const openOfficeBooking = (scheduleId: string) => {
     router.push(`/portal/booking/new/seats?schedule=${encodeURIComponent(scheduleId)}`);
@@ -637,6 +642,35 @@ function PortalFlightsPageContent() {
       refresh();
     } catch (e) {
       rescheduleAlerts.setSubmitError(e instanceof Error ? e.message : "Reschedule failed");
+    }
+  };
+
+  const openChangeRoute = (s: FlightScheduleRow) => {
+    changeRouteAlerts.clearAlerts();
+    setChangeRouteTarget(s);
+    setChangeRouteValue(s.route);
+  };
+
+  const submitChangeRoute = async () => {
+    if (!changeRouteTarget || !changeRouteValue) {
+      changeRouteAlerts.showValidation(["Route"]);
+      return;
+    }
+    changeRouteAlerts.clearAlerts();
+    setChangeRouteLoading(true);
+    try {
+      const res = await updateFlightScheduleRoute(changeRouteTarget.name, changeRouteValue);
+      toast.success(
+        res.changed
+          ? `Route updated on ${changeRouteTarget.flight_number}`
+          : "Route unchanged",
+      );
+      setChangeRouteTarget(null);
+      refresh();
+    } catch (e) {
+      changeRouteAlerts.setSubmitError(e instanceof Error ? e.message : "Could not change route");
+    } finally {
+      setChangeRouteLoading(false);
     }
   };
 
@@ -1858,6 +1892,18 @@ function PortalFlightsPageContent() {
                 label="Arrival"
                 value={`${selectedRow.arrival_date} ${selectedRow.arrival_time}`}
               />
+              {selectedRow.status !== "Cancelled" ? (
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openChangeRoute(selectedRow)}
+                  >
+                    Change route
+                  </Button>
+                </div>
+              ) : null}
             </DetailSection>
             <DetailSection title="Booking rules">
               <DetailRow
@@ -1955,6 +2001,49 @@ function PortalFlightsPageContent() {
         loading={deleting}
         onConfirm={submitDelete}
       />
+
+      <BilanFormDialog
+        open={!!changeRouteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setChangeRouteTarget(null);
+            changeRouteAlerts.clearAlerts();
+          }
+        }}
+        title={`Change route — ${changeRouteTarget?.flight_number ?? ""}`}
+        description="Updates the schedule route and regenerates segments. Blocked if this departure already has active bookings."
+        validationErrors={changeRouteAlerts.validationErrors}
+        submitError={changeRouteAlerts.submitError}
+        onDismiss={changeRouteAlerts.clearAlerts}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setChangeRouteTarget(null)}
+              disabled={changeRouteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-gold text-navy hover:bg-gold-dark"
+              disabled={changeRouteLoading}
+              onClick={() => void submitChangeRoute()}
+            >
+              {changeRouteLoading ? "Saving…" : "Save route"}
+            </Button>
+          </>
+        }
+      >
+        <FormField label="Route" required fullWidth>
+          <SearchableSelect
+            options={routeOptions}
+            value={changeRouteValue}
+            onValueChange={setChangeRouteValue}
+            placeholder="Select route..."
+            clearable={false}
+          />
+        </FormField>
+      </BilanFormDialog>
     </PaginatedListPage>
   );
 }

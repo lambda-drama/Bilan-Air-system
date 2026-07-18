@@ -13,7 +13,11 @@ from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM,
 
 
 def _load_booking(identifier, **kwargs):
-	return frappe.get_doc("Air Booking", resolve_air_booking(identifier), **kwargs)
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import assert_air_booking_agent_access
+
+	booking = frappe.get_doc("Air Booking", resolve_air_booking(identifier), **kwargs)
+	assert_air_booking_agent_access(booking)
+	return booking
 
 
 def _validate_seat_matches_cabin(seat_inventory_name: str, expected_cabin: str) -> None:
@@ -415,8 +419,15 @@ def _serialize_booking_details(booking):
 		),
 		"all_checked_in": all_checked_in,
 		"reason_for_cancel": strip_html(booking.reason_for_cancel or "").strip() or None,
+		"flight_schedule": booking.flight_schedule,
+		"boarding_airport": booking.boarding_airport,
+		"deboarding_airport": booking.deboarding_airport,
+		"boarding_label": airport_display_label(booking.boarding_airport) if booking.boarding_airport else None,
+		"deboarding_label": airport_display_label(booking.deboarding_airport) if booking.deboarding_airport else None,
 		"flight": {
 			"flight_number": flight.flight_number,
+			"schedule_id": flight.name,
+			"route": flight.route,
 			"origin": route.origin_airport,
 			"destination": route.destination_airport,
 			"origin_code": origin_iata,
@@ -500,19 +511,30 @@ def _build_passenger_ticket_payload(booking, pax, sequence_no):
 
 	policy = _baggage_policy(seat_inventory_name=pax.seat_number)
 
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		company_print_branding_for_booking,
+	)
+	from bilan_sky.bilan_air_booking_system.utils.iata_bcbp import build_iata_bcbp
+
+	seat_class = _seat_class_label(pax.seat_number)
+	pnr = booking.pnr or booking.get_public_reference()
+	agency = company_print_branding_for_booking(booking, "ticket")
+
 	return {
 		"airline_name": "BILAN AIR",
 		"airline_tagline": "Beyond Skies Together",
+		"agency_logo_url": agency["logo_url"] if agency else None,
+		"agency_name": agency["company_agency"] if agency else None,
 		"passenger_name": (pax.passenger_name or "").upper(),
 		"sequence_no": sequence_no,
-		"booking_ref": booking.pnr or booking.get_public_reference(),
+		"booking_ref": pnr,
 		"ticket_number": pax.ticket_number,
 		"flight_number": flight.flight_number,
 		"origin_code": origin_iata,
 		"destination_code": dest_iata,
 		"origin_label": _airport_full_label(route.origin_airport),
 		"destination_label": _airport_full_label(route.destination_airport),
-		"seat_class": _seat_class_label(pax.seat_number),
+		"seat_class": seat_class,
 		"departure_date": str(flight.departure_date),
 		"departure_time": flight.departure_time,
 		"arrival_time": flight.arrival_time,
@@ -522,6 +544,8 @@ def _build_passenger_ticket_payload(booking, pax, sequence_no):
 		"gate": "TBC",
 		"zone": str(sequence_no),
 		"passenger_type": pax.passenger_type or "Adult",
+		"fare_paid": flt(pax.fare_paid),
+		"payment_status": booking.payment_status or "",
 		"baggage_policy": {
 			"checked_kg": policy.get("checked_kg"),
 			"carry_on_kg": policy.get("carry_on_kg"),
@@ -530,7 +554,19 @@ def _build_passenger_ticket_payload(booking, pax, sequence_no):
 			"excess_fee_per_kg": policy.get("excess_baggage_fee_per_kg"),
 		},
 		"ticket_terms": _default_ticket_terms(),
-		"barcode_data": f"{booking.pnr or booking.name}|{pax.ticket_number}|{origin_iata}|{dest_iata}|{flight.flight_number}",
+		"barcode_data": build_iata_bcbp(
+			passenger_name=pax.passenger_name,
+			pnr=pnr,
+			origin_code=origin_iata,
+			destination_code=dest_iata,
+			flight_number=flight.flight_number,
+			departure_date=flight.departure_date,
+			seat=seat_label,
+			sequence_no=sequence_no,
+			seat_class=seat_class,
+			passenger_status="0",
+		),
+		"barcode_format": "pdf417",
 	}
 
 
@@ -586,15 +622,25 @@ def _build_boarding_pass_payload(booking, pax, sequence_no):
 	if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
 		seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
 
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		company_print_logo_for_booking,
+	)
+	from bilan_sky.bilan_air_booking_system.utils.iata_bcbp import build_iata_bcbp
+
+	seat_class = _seat_class_label(pax.seat_number)
+	pnr = booking.pnr or booking.get_public_reference()
+	status = "2" if (pax.check_in_status or "") == "Boarded" else "1"
+
 	return {
 		"airline_name": "BILAN AIR",
 		"airline_tagline": "Beyond Skies Together",
+		"agency_logo_url": company_print_logo_for_booking(booking, "boarding_pass"),
 		"passenger_name": (pax.passenger_name or "").upper(),
 		"passenger_type": pax.passenger_type or "Adult",
 		"sequence_no": sequence_no,
-		"booking_ref": booking.pnr or booking.get_public_reference(),
+		"booking_ref": pnr,
 		"reservation_ref": booking.name,
-		"pnr": booking.pnr or booking.get_public_reference(),
+		"pnr": pnr,
 		"ticket_number": pax.ticket_number,
 		"flight_number": flight.flight_number,
 		"origin_code": origin_iata,
@@ -609,12 +655,21 @@ def _build_boarding_pass_payload(booking, pax, sequence_no):
 		"seat": seat_label,
 		"gate": "TBC",
 		"zone": str(sequence_no),
-		"seat_class": _seat_class_label(pax.seat_number),
+		"seat_class": seat_class,
 		"check_in_status": pax.check_in_status,
-		"barcode_data": (
-			f"{booking.pnr or booking.name}|{pax.ticket_number or ''}|{origin_iata}|{dest_iata}|"
-			f"{flight.flight_number}|{seat_label}"
+		"barcode_data": build_iata_bcbp(
+			passenger_name=pax.passenger_name,
+			pnr=pnr,
+			origin_code=origin_iata,
+			destination_code=dest_iata,
+			flight_number=flight.flight_number,
+			departure_date=flight.departure_date,
+			seat=seat_label,
+			sequence_no=sequence_no,
+			seat_class=seat_class,
+			passenger_status=status,
 		),
+		"barcode_format": "pdf417",
 	}
 
 
@@ -653,7 +708,6 @@ def get_boarding_pass_print_data(pnr, passenger_row=None, passenger_index=None):
 @frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
     """Get booking by reservation ref (RES-…) or customer PNR."""
-    
     booking = _load_booking(pnr, ignore_permissions=True)
     return _serialize_booking_details(booking)
 
@@ -833,5 +887,56 @@ def confirm_booking_on_credit(pnr):
 	booking.check_permission("write")
 	result = booking.confirm_on_credit_and_invoice()
 	frappe.db.commit()
+	return result
+
+
+@frappe.whitelist()
+def get_booking_journey_options(pnr):
+	"""Airports available for boarding/deboarding on this booking's schedule."""
+	booking = _load_booking(pnr)
+	booking.check_permission("read")
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import default_journey_airports
+	from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label
+
+	defaults = default_journey_airports(booking.flight_schedule)
+	airports = []
+	for name in defaults.get("schedule_airports") or []:
+		airports.append(
+			{
+				"value": name,
+				"label": airport_display_label(name) or name,
+			}
+		)
+	return {
+		"flight_schedule": booking.flight_schedule,
+		"boarding_airport": booking.boarding_airport or defaults.get("boarding_airport"),
+		"deboarding_airport": booking.deboarding_airport or defaults.get("deboarding_airport"),
+		"is_multi_segment": defaults.get("is_multi_segment"),
+		"airports": airports,
+		"segments": defaults.get("segments") or [],
+	}
+
+
+@frappe.whitelist()
+def update_booking_journey(pnr, boarding_airport, deboarding_airport):
+	"""Change boarding/deboarding points on the same flight (partial journey)."""
+	booking = _load_booking(pnr)
+	booking.check_permission("write")
+	from bilan_sky.bilan_air_booking_system.utils.route_changes import update_booking_journey as _update
+
+	result = _update(booking, boarding_airport, deboarding_airport)
+	result["booking"] = _serialize_booking_details(_load_booking(pnr))
+	return result
+
+
+@frappe.whitelist()
+def change_booking_flight(pnr, flight_schedule, boarding_airport=None, deboarding_airport=None):
+	"""Move booking to another flight schedule (route/date change). Clears assigned seats."""
+	booking = _load_booking(pnr)
+	booking.check_permission("write")
+	from bilan_sky.bilan_air_booking_system.utils.route_changes import change_booking_flight as _change
+
+	result = _change(booking, flight_schedule, boarding_airport, deboarding_airport)
+	result["booking"] = _serialize_booking_details(_load_booking(pnr))
 	return result
 

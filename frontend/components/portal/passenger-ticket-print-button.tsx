@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { PassengerTicketDocument } from "@/components/portal/passenger-ticket-document";
 import { getPassengerTicketPrintData } from "@/services/airBooking";
 import type { PassengerTicketData } from "@/lib/passenger-ticket";
@@ -34,6 +36,7 @@ export function PassengerTicketPrintButton({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState<PassengerTicketData | null>(null);
+  const [showPrices, setShowPrices] = useState(false);
 
   const loadTicket = async () => {
     setLoading(true);
@@ -44,6 +47,7 @@ export function PassengerTicketPrintButton({
         passenger_index: passengerIndex,
       });
       setTicket(result.ticket);
+      setShowPrices(false);
       setOpen(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load ticket for printing.");
@@ -81,19 +85,39 @@ export function PassengerTicketPrintButton({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+          <DialogHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pr-10 sm:items-center sm:pr-12">
+            <DialogTitle className="min-w-0 text-left">
               {passengerName ? `Ticket — ${passengerName}` : "Passenger ticket"}
             </DialogTitle>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0 bg-gold text-navy hover:bg-gold-dark"
+              onClick={handlePrint}
+            >
+              <Printer className="mr-1.5 h-4 w-4" />
+              Print
+            </Button>
           </DialogHeader>
-          {ticket ? <PassengerTicketDocument ticket={ticket} /> : null}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <div className="min-w-0">
+              <Label htmlFor="show-ticket-prices" className="text-sm font-medium">
+                Show ticket prices
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Include fare paid on the preview and printed ticket
+              </p>
+            </div>
+            <Switch
+              id="show-ticket-prices"
+              checked={showPrices}
+              onCheckedChange={setShowPrices}
+            />
+          </div>
+          {ticket ? <PassengerTicketDocument ticket={ticket} showPrices={showPrices} /> : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Close
-            </Button>
-            <Button type="button" className="bg-gold text-navy hover:bg-gold-dark" onClick={handlePrint}>
-              <Printer className="mr-2 h-4 w-4" />
-              Print
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -102,7 +126,7 @@ export function PassengerTicketPrintButton({
       {open && ticket && typeof document !== "undefined"
         ? createPortal(
             <div id="passenger-ticket-print-root" className="passenger-ticket-print-portal" aria-hidden>
-              <PassengerTicketDocument ticket={ticket} />
+              <PassengerTicketDocument ticket={ticket} showPrices={showPrices} />
             </div>,
             document.body,
           )

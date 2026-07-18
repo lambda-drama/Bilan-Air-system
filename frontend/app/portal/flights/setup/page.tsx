@@ -209,14 +209,28 @@ export default function FlightSetupPage() {
     formAlerts.clearAlerts();
     setEditLoading(true);
     try {
-      await saveFlightSetup({
+      const saved = await saveFlightSetup({
         flight_number: flightNumber,
         route: editForm.route,
         airplane: editForm.airplane,
         terms_and_conditions: editForm.terms_and_conditions,
         is_active: editForm.is_active ? 1 : 0,
       });
-      toast.success(isCreate ? `Flight setup ${flightNumber} created` : `Flight ${flightNumber} updated`);
+      const cascade = saved.route_cascade;
+      if (
+        !isCreate &&
+        cascade &&
+        (cascade.updated_schedules > 0 || cascade.updated_plans > 0 || cascade.skipped_schedules > 0)
+      ) {
+        toast.success(
+          `Flight ${flightNumber} updated · ${cascade.updated_schedules} schedule(s) and ${cascade.updated_plans} plan(s) got the new route` +
+            (cascade.skipped_schedules
+              ? ` (${cascade.skipped_schedules} skipped — past or has bookings)`
+              : ""),
+        );
+      } else {
+        toast.success(isCreate ? `Flight setup ${flightNumber} created` : `Flight ${flightNumber} updated`);
+      }
       setEditOpen(false);
       refresh();
     } catch (e) {

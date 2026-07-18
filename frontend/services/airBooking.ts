@@ -54,6 +54,11 @@ export interface BookingDetails {
   payer_name?: string;
   payer_phone?: string;
   payer_email?: string;
+  flight_schedule?: string;
+  boarding_airport?: string | null;
+  deboarding_airport?: string | null;
+  boarding_label?: string | null;
+  deboarding_label?: string | null;
   passengers: Array<{
     row_name?: string;
     name: string;
@@ -70,10 +75,20 @@ export interface BookingDetails {
   }>;
   flight: {
     flight_number: string;
+    schedule_id?: string;
+    route?: string;
     origin: string;
     destination: string;
+    origin_code?: string;
+    destination_code?: string;
+    origin_label?: string;
+    destination_label?: string;
     departure_date: string;
     departure_time: string;
+    arrival_date?: string;
+    arrival_time?: string;
+    status?: string;
+    is_active?: number | boolean;
     only_prepayment?: number | boolean;
   };
   baggage?: BaggageRecord[];
@@ -210,6 +225,73 @@ export async function confirmBookingOnCredit(bookingRef: string): Promise<Confir
   return apiRequest(methodUrl("air_booking", "confirm_booking_on_credit"), {
     method: "POST",
     body: JSON.stringify({ pnr: bookingRef }),
+  });
+}
+
+export type BookingJourneyOptions = {
+  flight_schedule: string;
+  boarding_airport?: string | null;
+  deboarding_airport?: string | null;
+  is_multi_segment?: boolean;
+  airports: Array<{ value: string; label: string }>;
+  segments?: Array<Record<string, unknown>>;
+};
+
+export async function getBookingJourneyOptions(pnr: string): Promise<BookingJourneyOptions> {
+  return apiRequest(methodUrl("air_booking", "get_booking_journey_options"), {
+    method: "POST",
+    body: JSON.stringify({ pnr: normalizeBookingLookup(pnr) }),
+  });
+}
+
+export async function updateBookingJourney(params: {
+  pnr: string;
+  boarding_airport: string;
+  deboarding_airport: string;
+}) {
+  return apiRequest<{
+    reservation_ref: string;
+    pnr?: string | null;
+    boarding_airport: string;
+    deboarding_airport: string;
+    total_fare?: number;
+    changed: boolean;
+    seat_warnings?: string[];
+    booking: BookingDetails;
+  }>(methodUrl("air_booking", "update_booking_journey"), {
+    method: "POST",
+    body: JSON.stringify({
+      pnr: normalizeBookingLookup(params.pnr),
+      boarding_airport: params.boarding_airport,
+      deboarding_airport: params.deboarding_airport,
+    }),
+  });
+}
+
+export async function changeBookingFlight(params: {
+  pnr: string;
+  flight_schedule: string;
+  boarding_airport?: string;
+  deboarding_airport?: string;
+}) {
+  return apiRequest<{
+    reservation_ref: string;
+    pnr?: string | null;
+    flight_schedule: string;
+    boarding_airport: string;
+    deboarding_airport: string;
+    total_fare?: number;
+    flight_number?: string;
+    route?: string;
+    booking: BookingDetails;
+  }>(methodUrl("air_booking", "change_booking_flight"), {
+    method: "POST",
+    body: JSON.stringify({
+      pnr: normalizeBookingLookup(params.pnr),
+      flight_schedule: params.flight_schedule,
+      boarding_airport: params.boarding_airport || null,
+      deboarding_airport: params.deboarding_airport || null,
+    }),
   });
 }
 

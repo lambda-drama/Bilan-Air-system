@@ -55,6 +55,52 @@ def get_booking_agent_for_user(user: str | None = None):
 	return frappe.get_doc("Booking Agent", name)
 
 
+def get_scoped_booking_agent_name(user: str | None = None) -> str | None:
+	"""
+	If this user may only see their own Air Bookings, return their Booking Agent name.
+	Returns None when no agent scoping applies (staff / full portal access).
+	Returns empty string when they are an agent but have no usable profile (see nothing).
+	"""
+	from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_full_portal_permissions
+	from bilan_sky.bilan_air_booking_system.utils.portal_report_access import user_is_booking_agent
+
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return None
+	if user_has_full_portal_permissions(user):
+		return None
+	if not user_is_booking_agent(user):
+		return None
+	agent = get_booking_agent_for_user(user)
+	if not agent:
+		return ""
+	return agent.name
+
+
+def apply_air_booking_agent_scope(filters: dict | None = None, user: str | None = None) -> dict:
+	"""Restrict Air Booking list filters to the current agent's bookings when required."""
+	filters = dict(filters or {})
+	scoped = get_scoped_booking_agent_name(user)
+	if scoped is None:
+		return filters
+	if scoped == "":
+		# Force empty result set for agents without a linked Active profile.
+		filters["name"] = "__no_agent_bookings__"
+		return filters
+	filters["booking_agent"] = scoped
+	return filters
+
+
+def assert_air_booking_agent_access(booking, user: str | None = None) -> None:
+	"""Block agents from opening bookings made by someone else."""
+	scoped = get_scoped_booking_agent_name(user)
+	if scoped is None:
+		return
+	booking_agent = getattr(booking, "booking_agent", None) or ""
+	if scoped == "" or booking_agent != scoped:
+		frappe.throw(_("You can only view bookings you have made."), frappe.PermissionError)
+
+
 def booking_agent_row_for_user(user: str | None = None) -> dict | None:
 	agent = get_booking_agent_for_user(user)
 	if not agent:

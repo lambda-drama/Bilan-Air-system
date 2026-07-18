@@ -93,6 +93,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "flight_schedule",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -102,6 +103,7 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "description": "Where the passenger boards (required on multi-segment flights).",
    "fieldname": "boarding_airport",
    "fieldtype": "Link",
@@ -109,6 +111,7 @@
    "options": "Airport"
   },
   {
+   "allow_on_submit": 1,
    "description": "Where the passenger leaves the aircraft (required on multi-segment flights).",
    "fieldname": "deboarding_airport",
    "fieldtype": "Link",

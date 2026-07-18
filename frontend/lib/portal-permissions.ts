@@ -16,7 +16,7 @@ export type DoctypePermissions = Partial<Record<PortalPermissionType, 0 | 1>> & 
 export type PortalPermissionsMap = Record<string, DoctypePermissions>;
 
 /** Booking-agent report access from BA Settings (System Manager bypasses). */
-export type AgentReportKey = "analytics" | "dashboard" | "manifest" | "no_show";
+export type AgentReportKey = "analytics" | "dashboard" | "manifest" | "no_show" | "agent_sales";
 
 export type AgentReportPermissions = Record<AgentReportKey, 0 | 1>;
 
@@ -24,6 +24,7 @@ export const AGENT_REPORT_ROUTE_KEYS: Array<{ prefix: string; reportKey: AgentRe
   { prefix: "/portal/reports/analytics", reportKey: "analytics" },
   { prefix: "/portal/reports/m-fest", reportKey: "manifest" },
   { prefix: "/portal/reports/no-show", reportKey: "no_show" },
+  { prefix: "/portal/reports/agent-sales", reportKey: "agent_sales" },
 ];
 
 export function resolveRouteReportKey(pathname: string): AgentReportKey | null {
@@ -53,6 +54,7 @@ export const DEFAULT_AGENT_REPORT_PERMISSIONS: AgentReportPermissions = {
   dashboard: 1,
   manifest: 1,
   no_show: 1,
+  agent_sales: 1,
 };
 
 /** Fail-closed when report flags are not yet loaded from the server. */
@@ -61,6 +63,7 @@ export const DENIED_AGENT_REPORT_PERMISSIONS: AgentReportPermissions = {
   dashboard: 0,
   manifest: 0,
   no_show: 0,
+  agent_sales: 0,
 };
 
 /** Map portal routes (longest prefix wins) to the doctype that gates access. */
@@ -93,6 +96,7 @@ export const PORTAL_ROUTE_DOCTYPES: Array<{ prefix: string; doctype: string | nu
   { prefix: "/portal/reports/analytics", doctype: "Air Booking" },
   { prefix: "/portal/reports/m-fest", doctype: "Flight Schedule" },
   { prefix: "/portal/reports/no-show", doctype: "Air Booking" },
+  { prefix: "/portal/reports/agent-sales", doctype: "Air Booking" },
   { prefix: "/portal/reports", doctype: "Air Booking" },
   { prefix: "/portal/profile", doctype: null },
   { prefix: "/portal/settings", doctype: null },

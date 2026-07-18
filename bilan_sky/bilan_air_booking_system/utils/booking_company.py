@@ -8,11 +8,11 @@ from frappe.utils import cint
 
 
 def serialize_booking_company(doc) -> dict:
-	return {
-		"name": doc.name,
-		"company_agency": doc.company_agency,
-		"is_agency": cint(getattr(doc, "is_agency", 0)),
-	}
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		serialize_company_branding,
+	)
+
+	return serialize_company_branding(doc)
 
 
 def company_agency_label(name: str | None) -> str | None:

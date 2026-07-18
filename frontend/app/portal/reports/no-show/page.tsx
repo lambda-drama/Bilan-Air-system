@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calendar, FileText, Loader2, Sheet } from "lucide-react";
+import { Calendar, Loader2 } from "lucide-react";
 import { ListSearch } from "@/components/portal/list-search";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { usePersistedPortalReport } from "@/hooks/use-persisted-portal-report";
@@ -33,10 +33,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PortalReportPdfPreviewDialog } from "@/components/portal/portal-report-pdf-preview";
 import {
   buildReportSubtitle,
-  exportPortalReportPdf,
+  exportPortalReportExcel,
+  fetchPortalReportPdf,
   type PortalReportPdfColumn,
+  type PortalReportPdfFile,
 } from "@/lib/portal-report-export";
 import { toast } from "sonner";
 
@@ -119,6 +122,9 @@ export default function PortalNoShowReportPage() {
     { value: string; label: string }[]
   >([]);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfFile, setPdfFile] = useState<PortalReportPdfFile | null>(null);
 
   useEffect(() => {
     fetchAirportsForPortal()
@@ -207,9 +213,19 @@ export default function PortalNoShowReportPage() {
     setDepartureTimes([]);
   };
 
-  const exportPlaceholder = (label: string) => {
-    toast.message(`${label} export is not available yet.`);
-  };
+  const buildExportRows = () =>
+    filteredRows.map((row) => ({
+      flight_no: row.flight_no || "",
+      departure_date: formatDepartureDate(row.departure_date),
+      pnr_number: row.pnr_number || "",
+      passenger_name: row.passenger_name || "",
+      ticket_type: row.ticket_type || "",
+      agent: row.agent || "",
+      passport_number: row.passport_number || "",
+      destination: row.destination || "",
+      phone: row.phone || "",
+      status: row.status || "",
+    }));
 
   const handleExportPdf = async () => {
     if (!searched || !appliedFilters.flight_number) {
@@ -223,30 +239,45 @@ export default function PortalNoShowReportPage() {
 
     setExportingPdf(true);
     try {
-      await exportPortalReportPdf({
+      const file = await fetchPortalReportPdf({
         title: "NO SHOW REPORT",
         subtitle: buildReportSubtitle(appliedFilters, "Departed or arrived flights only"),
         filename: `no-show-${appliedFilters.flight_number}-${appliedFilters.departure_date}.pdf`,
         reportKey: "no_show",
         columns: NO_SHOW_PDF_COLUMNS,
-        rows: filteredRows.map((row) => ({
-          flight_no: row.flight_no || "",
-          departure_date: formatDepartureDate(row.departure_date),
-          pnr_number: row.pnr_number || "",
-          passenger_name: row.passenger_name || "",
-          ticket_type: row.ticket_type || "",
-          agent: row.agent || "",
-          passport_number: row.passport_number || "",
-          destination: row.destination || "",
-          phone: row.phone || "",
-          status: row.status || "",
-        })),
+        rows: buildExportRows(),
       });
-      toast.success("PDF downloaded.");
+      setPdfFile(file);
+      setPdfPreviewOpen(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to export PDF");
     } finally {
       setExportingPdf(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!searched || !appliedFilters.flight_number) {
+      toast.error("Search and load results before exporting.");
+      return;
+    }
+    if (!filteredRows.length) {
+      toast.error("No rows to export.");
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      exportPortalReportExcel({
+        filename: `no-show-${appliedFilters.flight_number}-${appliedFilters.departure_date}`,
+        columns: NO_SHOW_PDF_COLUMNS,
+        rows: buildExportRows(),
+      });
+      toast.success("Excel file downloaded.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to export Excel");
+    } finally {
+      setExportingExcel(false);
     }
   };
 
@@ -360,31 +391,26 @@ export default function PortalNoShowReportPage() {
             placeholder="Filter"
             className="max-w-xs"
           />
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
             <Button
               type="button"
-              size="icon"
-              variant="default"
-              className="bg-primary"
-              aria-label="Export spreadsheet"
-              onClick={() => exportPlaceholder("Spreadsheet")}
+              variant="outline"
+              className="border-gold hover:border-gold hover:bg-gold hover:text-navy"
+              disabled={exportingExcel || loading}
+              onClick={handleExportExcel}
             >
-              <Sheet className="h-4 w-4" />
+              {exportingExcel ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Excel
             </Button>
             <Button
               type="button"
-              size="icon"
-              variant="default"
-              className="bg-primary"
-              aria-label="Export PDF"
+              variant="outline"
+              className="border-gold hover:border-gold hover:bg-gold hover:text-navy"
               disabled={exportingPdf || loading}
               onClick={() => void handleExportPdf()}
             >
-              {exportingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
+              {exportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              PDF
             </Button>
           </div>
         </div>
@@ -510,6 +536,16 @@ export default function PortalNoShowReportPage() {
           {" · only departed or arrived flights"}
         </p>
       ) : null}
+
+      <PortalReportPdfPreviewDialog
+        open={pdfPreviewOpen}
+        onOpenChange={(open) => {
+          setPdfPreviewOpen(open);
+          if (!open) setPdfFile(null);
+        }}
+        title="No show report"
+        file={pdfFile}
+      />
     </div>
   );
 }

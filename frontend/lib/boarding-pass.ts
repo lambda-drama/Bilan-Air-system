@@ -1,6 +1,7 @@
 export interface BoardingPassData {
   airline_name: string;
   airline_tagline: string;
+  agency_logo_url?: string | null;
   passenger_name: string;
   passenger_type: string;
   sequence_no: number;
@@ -24,6 +25,7 @@ export interface BoardingPassData {
   seat_class: string;
   check_in_status?: string;
   barcode_data: string;
+  barcode_format?: "pdf417" | "code128";
 }
 
 export function formatBoardingClock(time: string) {

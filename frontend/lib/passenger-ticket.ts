@@ -3,6 +3,8 @@ import type { BookingDetails } from "@/services/airBooking";
 export interface PassengerTicketData {
   airline_name: string;
   airline_tagline: string;
+  agency_logo_url?: string | null;
+  agency_name?: string | null;
   passenger_name: string;
   sequence_no: number;
   booking_ref: string;
@@ -22,6 +24,8 @@ export interface PassengerTicketData {
   gate: string;
   zone: string;
   passenger_type: string;
+  fare_paid?: number;
+  payment_status?: string;
   baggage_policy: {
     checked_kg?: number;
     carry_on_kg?: number;
@@ -34,6 +38,7 @@ export interface PassengerTicketData {
     terms_html?: string;
   };
   barcode_data: string;
+  barcode_format?: "pdf417" | "code128";
 }
 
 export function isPassengerTicketPrintable(

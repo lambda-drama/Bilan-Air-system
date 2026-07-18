@@ -13,19 +13,22 @@ from bilan_sky.bilan_air_booking_system.utils.portal_access import (
 )
 
 BOOKING_AGENT_ROLE = "Booking Agent"
+SUB_AGENT_ROLE = "Sub Agent"
+AGENT_SCOPED_ROLES = frozenset({BOOKING_AGENT_ROLE, SUB_AGENT_ROLE})
 
 AGENT_REPORT_FIELDS = {
 	"analytics": "agent_view_analytics",
 	"dashboard": "agent_view_dashboard",
 	"manifest": "agent_view_manifest",
 	"no_show": "agent_view_no_show",
+	"agent_sales": "agent_view_agent_sales",
 }
 
 
 def user_is_booking_agent(user: str | None = None) -> bool:
-	"""True when the user has the Booking Agent role or a linked Booking Agent profile."""
+	"""True when the user is a Booking Agent / Sub Agent or has a linked Booking Agent profile."""
 	user = user or frappe.session.user
-	if BOOKING_AGENT_ROLE in frappe.get_roles(user):
+	if AGENT_SCOPED_ROLES.intersection(frappe.get_roles(user)):
 		return True
 	if not frappe.db.table_exists("tabBooking Agent"):
 		return False
@@ -64,6 +67,7 @@ def require_agent_report_access(report_key: str) -> None:
 		"dashboard": _("Dashboard"),
 		"manifest": _("Manifest"),
 		"no_show": _("No show report"),
+		"agent_sales": _("Agent sales report"),
 	}
 	label = labels.get(report_key, report_key)
 	frappe.throw(

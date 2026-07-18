@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2 } from "lucide-react";
@@ -11,7 +11,9 @@ import { SearchableSelect } from "@/components/portal/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
+import { useBookingAgentCreditEligibility } from "@/hooks/use-booking-agent-credit";
 import { useBookingSettings } from "@/hooks/use-booking-settings";
 import { useFormDialogAlerts } from "@/hooks/use-form-dialog-alerts";
 import { officeBookingAfterFlightPath } from "@/lib/booking-seat-step";
@@ -32,11 +34,7 @@ import {
 } from "@/lib/passenger-search-counts";
 import { toast } from "sonner";
 import { getFlightSchedule } from "@/services/flightSchedule";
-import {
-  bookingLookupRef,
-  confirmPaymentAndInvoice,
-  createBooking,
-} from "@/services/airBooking";
+import { bookingLookupRef, createBooking } from "@/services/airBooking";
 
 const MAX_TRAVELERS = 9;
 
@@ -64,6 +62,11 @@ export default function OfficeBookingTravelersPage() {
   const { enableSeatSelection, loading: settingsLoading } = useBookingSettings();
   const { validationErrors, submitError, clearAlerts, showValidation, setSubmitError } =
     useFormDialogAlerts();
+  const {
+    canConfirmOnCredit: allowConfirmOnCredit,
+    confirmOnCreditDisabledReason,
+    loading: agentCreditLoading,
+  } = useBookingAgentCreditEligibility();
 
   const [draft, setDraft] = useState(loadOfficeBookingDraft());
   const [payer, setPayer] = useState({ name: "", email: "", phone: "" });
@@ -72,9 +75,16 @@ export default function OfficeBookingTravelersPage() {
   const [onlyPrepayment, setOnlyPrepayment] = useState(false);
   const [payerIsTraveling, setPayerIsTraveling] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentDialog, setPaymentDialog] = useState<{
+    bookingRef: string;
+    totalFare: number;
+  } | null>(null);
+  const paymentConfirmedRef = useRef(false);
 
   const seatCount = draft?.selectedSeatIds?.length ?? 0;
   const needsMoreSeats = enableSeatSelection && passengers.length > seatCount;
+  const creditActionEnabled =
+    !agentCreditLoading && allowConfirmOnCredit && !onlyPrepayment;
 
   useEffect(() => {
     if (settingsLoading) return;
@@ -212,9 +222,15 @@ export default function OfficeBookingTravelersPage() {
       if (!p.passenger_type) missing.push(`Traveler ${n} passenger type (Adult / Child / Infant)`);
     });
     if (onlyPrepayment && !markPaid) {
-      missing.push("This flight requires pre-payment — mark as paid to continue");
+      missing.push("This flight requires pre-payment — choose Confirm to continue");
     }
     return missing;
+  };
+
+  const goToDone = (displayRef: string, paid: boolean, totalFare: number | string | undefined) => {
+    router.push(
+      `/portal/booking/new/done?ref=${encodeURIComponent(displayRef)}&paid=${paid ? "1" : "0"}&total=${totalFare ?? ""}`,
+    );
   };
 
   const submitBooking = async () => {
@@ -248,15 +264,6 @@ export default function OfficeBookingTravelersPage() {
         })),
       });
 
-      let displayRef = result.reservation_ref;
-      if (markPaid) {
-        const paid = await confirmPaymentAndInvoice(bookingLookupRef(result));
-        displayRef = (paid.pnr as string) || result.reservation_ref;
-        toast.success(`Booking ${displayRef} created and paid`);
-      } else {
-        toast.success(`Booking ${result.reservation_ref} reserved (payment pending)`);
-      }
-
       saveOfficeBookingDraft({
         ...draft,
         payer,
@@ -266,14 +273,45 @@ export default function OfficeBookingTravelersPage() {
         payerIsTraveling,
       });
 
-      router.push(
-        `/portal/booking/new/done?ref=${encodeURIComponent(displayRef)}&paid=${markPaid ? "1" : "0"}&total=${result.total_fare}`,
-      );
+      const bookingRef = bookingLookupRef(result);
+      const totalFare = Number(result.total_fare) || 0;
+
+      if (!markPaid) {
+        toast.success(`Booking ${result.reservation_ref} created as Booked (payment pending)`);
+        goToDone(result.reservation_ref, false, totalFare);
+        return;
+      }
+
+      // Confirm path: create as Booked first, then ask how to pay.
+      paymentConfirmedRef.current = false;
+      setPaymentDialog({ bookingRef, totalFare });
+      toast.success(`Booking ${result.reservation_ref} created — choose how to confirm.`);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Booking failed");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePaymentDialogOpenChange = (open: boolean) => {
+    if (open) return;
+    const pending = paymentDialog;
+    setPaymentDialog(null);
+    if (!pending || paymentConfirmedRef.current) return;
+    toast.message("Saved as Booked — confirm payment later from Bookings if needed.");
+    goToDone(pending.bookingRef, false, pending.totalFare);
+  };
+
+  const handlePaymentSuccess = (displayRef: string, method: "payment" | "credit") => {
+    paymentConfirmedRef.current = true;
+    const totalFare = paymentDialog?.totalFare ?? 0;
+    setPaymentDialog(null);
+    toast.success(
+      method === "credit"
+        ? `Booking ${displayRef} confirmed on agent credit`
+        : `Booking ${displayRef} confirmed (paid)`,
+    );
+    goToDone(displayRef, true, totalFare);
   };
 
   if (!draft) {
@@ -446,23 +484,49 @@ export default function OfficeBookingTravelersPage() {
         </FormSection>
       ))}
 
-      <div className="mt-4 flex items-center justify-between rounded-lg border p-4">
+      <div className="mt-4 space-y-3 rounded-lg border p-4">
         <div>
-          <Label className="text-sm font-medium">Paid at counter</Label>
+          <Label className="text-sm font-medium">Reservation status</Label>
           <p className="text-xs text-muted-foreground">
             {onlyPrepayment
-              ? "This flight requires pre-payment — reservation without payment is not allowed."
-              : "Creates sales invoice and records payment immediately"}
+              ? "This flight requires pre-payment — only Confirm is allowed."
+              : "Choose how to save this booking on the last step."}
           </p>
         </div>
-        <Switch
-          checked={markPaid}
-          disabled={onlyPrepayment}
-          onCheckedChange={(v) => {
-            setMarkPaid(v);
-            persistDraft(passengers, payer, v);
+        <RadioGroup
+          value={markPaid ? "confirm" : "booked"}
+          onValueChange={(v) => {
+            if (onlyPrepayment && v === "booked") return;
+            const next = v === "confirm";
+            setMarkPaid(next);
+            persistDraft(passengers, payer, next);
           }}
-        />
+          className="space-y-2"
+        >
+          <div className="flex items-start gap-2">
+            <RadioGroupItem
+              value="booked"
+              id="status-booked"
+              disabled={onlyPrepayment}
+              className="mt-0.5"
+            />
+            <Label htmlFor="status-booked" className="cursor-pointer font-normal leading-snug">
+              <span className="font-medium">Booked only</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Hold the reservation with payment pending. No PNR until confirmed.
+              </span>
+            </Label>
+          </div>
+          <div className="flex items-start gap-2">
+            <RadioGroupItem value="confirm" id="status-confirm" className="mt-0.5" />
+            <Label htmlFor="status-confirm" className="cursor-pointer font-normal leading-snug">
+              <span className="font-medium">Confirm</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Create the reservation, then choose payment or agent credit to issue the PNR.
+              </span>
+            </Label>
+          </div>
+        </RadioGroup>
       </div>
 
       <div className="mt-8 flex justify-between gap-3 border-t pt-6">
@@ -481,12 +545,28 @@ export default function OfficeBookingTravelersPage() {
         <Button
           className="bg-gold text-navy hover:bg-gold-dark"
           disabled={submitting || needsMoreSeats}
-          onClick={submitBooking}
+          onClick={() => void submitBooking()}
         >
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Create booking
+          {markPaid ? "Confirm booking" : "Create as Booked"}
         </Button>
       </div>
+
+      <ConfirmPaymentDialog
+        open={!!paymentDialog}
+        pnr={paymentDialog?.bookingRef ?? null}
+        totalFare={paymentDialog?.totalFare}
+        allowConfirmOnCredit
+        confirmOnCreditDisabledReason={
+          creditActionEnabled
+            ? null
+            : onlyPrepayment
+              ? "This flight requires pre-payment. Use normal payment."
+              : confirmOnCreditDisabledReason
+        }
+        onOpenChange={handlePaymentDialogOpenChange}
+        onSuccess={handlePaymentSuccess}
+      />
     </BookingFlowLayout>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { Plane } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
+import { AgencyPrintLogo, BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
+import { useCurrency } from "@/contexts/currency-context";
 import {
   formatTicketClock,
   formatTicketDate,
@@ -17,11 +18,20 @@ const BAGGAGE_ALLOWANCE_NOTES = [
   "Do not pack valuables, cash, or fragile items in checked baggage.",
 ] as const;
 
-export function PassengerTicketDocument({ ticket }: { ticket: PassengerTicketData }) {
+export function PassengerTicketDocument({
+  ticket,
+  showPrices = false,
+}: {
+  ticket: PassengerTicketData;
+  showPrices?: boolean;
+}) {
+  const { formatMoney } = useCurrency();
   const checkedKg = ticket.baggage_policy.checked_kg ?? 23;
   const carryOnKg = ticket.baggage_policy.carry_on_kg ?? 6;
   const checkedPieces = ticket.baggage_policy.checked_pieces ?? 1;
   const carryOnPieces = ticket.baggage_policy.carry_on_pieces ?? 1;
+  const farePaid = ticket.fare_paid != null ? Number(ticket.fare_paid) : null;
+  const showFare = showPrices && farePaid != null && !Number.isNaN(farePaid);
 
   const countdowns = [
     { num: "3", unit: "hours", desc: "Arrive at the airport before departure" },
@@ -34,24 +44,41 @@ export function PassengerTicketDocument({ ticket }: { ticket: PassengerTicketDat
     <div className="passenger-ticket-sheet mx-auto w-full max-w-[760px] overflow-hidden rounded-sm bg-white font-[Barlow,sans-serif] shadow-xl print:shadow-none">
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between border-b-2 border-[#0d1f3c] bg-[#f3f4f7] px-5 py-3.5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3 border-b-2 border-[#0d1f3c] bg-[#f3f4f7] px-5 py-3.5">
+        <div className="flex shrink-0 flex-col items-center gap-1">
           <BrandLogo
-            className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-[#e2e6ee]"
+            className="h-12 w-12 rounded-full object-cover ring-1 ring-[#e2e6ee]"
             alt={ticket.airline_name}
           />
-          <div>
-            <p className="text-[9px] uppercase tracking-[0.2em] text-[#8891a4]">
-              E-Ticket · {ticket.airline_tagline}
-            </p>
-            <p className="font-['Barlow_Condensed',sans-serif] text-[22px] font-extrabold tracking-wide text-[#0d1f3c]">
-              {ticket.airline_name}
-            </p>
+          <p className="max-w-[4.75rem] text-center font-['Barlow_Condensed',sans-serif] text-[11px] font-black leading-none tracking-wide text-[#0d1f3c]">
+            {ticket.airline_name}
+          </p>
+        </div>
+        <div className="min-w-0 flex-1 self-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-[#8891a4]">
+            E-Ticket · {ticket.airline_tagline}
+          </p>
+        </div>
+        <div className="shrink-0 self-center rounded bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-[#e2e6ee]">
+          <PrintBarcodeStrip
+            value={ticket.barcode_data}
+            format={ticket.barcode_format || "pdf417"}
+          />
+        </div>
+        {ticket.agency_logo_url ? (
+          <div className="flex shrink-0 flex-col items-center gap-1">
+            <AgencyPrintLogo
+              src={ticket.agency_logo_url}
+              className="h-12 w-12 rounded-full object-cover ring-1 ring-[#e2e6ee]"
+              alt={ticket.agency_name || "Agency"}
+            />
+            {ticket.agency_name ? (
+              <p className="max-w-[5.5rem] text-center font-['Barlow_Condensed',sans-serif] text-[11px] font-black leading-none tracking-wide text-[#0d1f3c]">
+                {ticket.agency_name}
+              </p>
+            ) : null}
           </div>
-        </div>
-        <div className="rounded bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-[#e2e6ee]">
-          <PrintBarcodeStrip value={ticket.barcode_data} />
-        </div>
+        ) : null}
       </div>
 
       {/* ── PASSENGER ROW ── */}
@@ -171,6 +198,25 @@ export function PassengerTicketDocument({ ticket }: { ticket: PassengerTicketDat
       <p className="border-b border-[#e2e6ee] px-5 py-2 text-[11px] text-[#666]">
         Gate closes &nbsp;<strong>{formatTicketClock(ticket.gate_close_time)}</strong>
       </p>
+
+      {showFare ? (
+        <div className="flex items-center justify-between border-b border-[#e2e6ee] bg-[#f8f9fb] px-5 py-3">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#8891a4]">
+              Fare paid
+            </p>
+            <p className="font-['Barlow_Condensed',sans-serif] text-[20px] font-extrabold text-[#0d1f3c]">
+              {formatMoney(farePaid)}
+            </p>
+          </div>
+          <div className="text-right text-[11px] text-[#666]">
+            <p>{ticket.passenger_type}</p>
+            {ticket.payment_status ? (
+              <p className="mt-0.5 font-semibold text-[#0d1f3c]">{ticket.payment_status}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* ── BAGGAGE INFO SEPARATOR ── */}
       <div className="flex border-b border-[#e2e6ee]">

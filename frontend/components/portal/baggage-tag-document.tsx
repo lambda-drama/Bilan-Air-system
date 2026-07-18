@@ -1,7 +1,7 @@
 "use client";
 
 import { Plane, Scissors } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
+import { AgencyPrintLogo, BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import {
   formatBaggageClock,
@@ -12,15 +12,18 @@ import {
 export function BaggageTagDocument({ baggage }: { baggage: BaggagePrintData }) {
   return (
     <div className="baggage-print-sheet mx-auto w-full max-w-[340px] bg-white text-navy shadow-lg print:shadow-none">
-      <div className="flex items-center justify-between border-b-2 border-navy bg-navy px-4 py-2 text-cream">
-        <div className="flex items-center gap-2">
-          <BrandLogo className="h-6 w-6 shrink-0 rounded-full" alt={baggage.airline_name} />
-          <span className="text-xs font-bold tracking-wider">{baggage.airline_name}</span>
-        </div>
-        <div className="flex items-center gap-1 text-xs font-semibold">
+      <div className="flex items-center gap-2 border-b-2 border-navy bg-navy px-4 py-2 text-cream">
+        <BrandLogo className="h-6 w-6 shrink-0 rounded-full" alt={baggage.airline_name} />
+        <span className="min-w-0 flex-1 text-xs font-bold tracking-wider">{baggage.airline_name}</span>
+        <div className="flex shrink-0 items-center gap-1 text-xs font-semibold">
           <Plane className="h-3.5 w-3.5 text-gold" />
           {baggage.flight_number}
         </div>
+        <AgencyPrintLogo
+          src={baggage.agency_logo_url}
+          className="h-6 w-6 shrink-0 rounded-full bg-white/10 object-contain"
+          alt="Agency"
+        />
       </div>
 
       <div className="border-b border-dashed border-navy/25 px-4 py-5 text-center">
@@ -68,7 +71,7 @@ export function BaggageTagDocument({ baggage }: { baggage: BaggagePrintData }) {
           Bag {baggage.sequence_no} of {baggage.total_bags}
         </p>
         <div className="mx-auto mt-3 flex justify-center">
-          <PrintBarcodeStrip value={baggage.barcode_data} />
+          <PrintBarcodeStrip value={baggage.barcode_data} format="code128" />
         </div>
       </div>
 

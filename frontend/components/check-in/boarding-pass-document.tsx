@@ -1,7 +1,7 @@
 "use client";
 
 import { Plane } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
+import { AgencyPrintLogo, BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import {
   formatBoardingClock,
@@ -12,23 +12,26 @@ import {
 export function BoardingPassDocument({ pass }: { pass: BoardingPassData }) {
   return (
     <div className="boarding-pass-sheet mx-auto w-full max-w-[820px] overflow-hidden bg-white text-navy shadow-lg print:shadow-none">
-      <div className="flex items-center justify-between border-b-2 border-navy bg-navy px-5 py-3 text-cream">
-        <div className="flex items-center gap-3">
-          <BrandLogo
-            className="h-10 w-10 shrink-0 rounded-full"
-            alt={pass.airline_name}
-          />
-          <div>
-            <p className="text-xs font-bold tracking-[0.2em]">{pass.airline_name}</p>
-            <p className="text-[10px] text-cream/70">{pass.airline_tagline}</p>
-          </div>
+      <div className="flex items-center gap-3 border-b-2 border-navy bg-navy px-5 py-3 text-cream">
+        <BrandLogo
+          className="h-10 w-10 shrink-0 rounded-full"
+          alt={pass.airline_name}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold tracking-[0.2em]">{pass.airline_name}</p>
+          <p className="text-[10px] text-cream/70">{pass.airline_tagline}</p>
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold">
             Boarding pass
           </p>
           <p className="font-mono text-sm font-bold">{pass.booking_ref}</p>
         </div>
+        <AgencyPrintLogo
+          src={pass.agency_logo_url}
+          className="h-10 w-10 shrink-0 rounded-full bg-white/10 object-contain"
+          alt="Agency"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-0 md:grid-cols-[1fr_auto]">
@@ -59,7 +62,10 @@ export function BoardingPassDocument({ pass }: { pass: BoardingPassData }) {
         </div>
 
         <div className="flex flex-col items-center justify-center border-b border-navy/10 p-5 md:w-44 md:border-b-0">
-          <PrintBarcodeStrip value={pass.barcode_data} />
+          <PrintBarcodeStrip
+            value={pass.barcode_data}
+            format={pass.barcode_format || "pdf417"}
+          />
           {pass.ticket_number ? (
             <p className="mt-2 font-mono text-[10px] text-navy/60">{pass.ticket_number}</p>
           ) : null}

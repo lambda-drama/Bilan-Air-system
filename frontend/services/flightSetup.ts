@@ -16,6 +16,11 @@ export interface FlightSetupDetail {
   flight_penalties?: FlightSetupPenaltyRow[];
   price_count?: number;
   penalty_count?: number;
+  route_cascade?: {
+    updated_schedules: number;
+    skipped_schedules: number;
+    updated_plans: number;
+  };
 }
 
 export interface FlightSetupPriceRow {
