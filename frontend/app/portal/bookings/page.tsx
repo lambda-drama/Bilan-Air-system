@@ -16,7 +16,7 @@ import {
 } from "@/components/portal/cancel-booking-dialog";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
 import { ConfirmPaymentDialog } from "@/components/portal/confirm-payment-dialog";
-import { openDeskDocument } from "@/services/desk";
+import { ChangeBookingRouteDialog } from "@/components/portal/change-booking-route-dialog";
 import { toast } from "sonner";
 import { DetailRow, DetailSection, DetailSheet } from "@/components/portal/detail-sheet";
 import { DocLink } from "@/components/portal/doc-link";
@@ -132,6 +132,7 @@ function PortalBookingsPageContent() {
   const [paymentDialogPnr, setPaymentDialogPnr] = useState<string | null>(null);
   const [confirmingCreditId, setConfirmingCreditId] = useState<string | null>(null);
   const [creditConfirmRef, setCreditConfirmRef] = useState<string | null>(null);
+  const [routeChangeMode, setRouteChangeMode] = useState<"journey" | "flight" | null>(null);
   const {
     loading: agentCreditLoading,
     canConfirmOnCredit: allowConfirmOnCredit,
@@ -145,6 +146,8 @@ function PortalBookingsPageContent() {
     : detail?.flight?.only_prepayment
       ? "This flight requires pre-payment. Use Confirm payment instead."
       : confirmOnCreditDisabledReason;
+  const canChangeRoute =
+    !!detail && detail.status !== "Void" && detail.status !== "Flight Taken";
 
   useEffect(() => {
     clearPortalPointerLocks();
@@ -427,7 +430,9 @@ function PortalBookingsPageContent() {
                           <DropdownMenuContent align="end">
                             {b.payment_status !== "Refunded" ? (
                               <DropdownMenuItem
-                                onClick={() => openDeskDocument("Air Booking", b.name)}
+                                onClick={() => {
+                                  setSelectedId(b.name);
+                                }}
                               >
                                 Edit
                               </DropdownMenuItem>
@@ -559,12 +564,36 @@ function PortalBookingsPageContent() {
               <DetailRow label="Flight" value={detail.flight.flight_number} />
               <DetailRow
                 label="Route"
-                value={`${detail.flight.origin} → ${detail.flight.destination}`}
+                value={`${detail.flight.origin_label || detail.flight.origin} → ${detail.flight.destination_label || detail.flight.destination}`}
+              />
+              <DetailRow
+                label="Journey"
+                value={`${detail.boarding_label || detail.boarding_airport || detail.flight.origin} → ${detail.deboarding_label || detail.deboarding_airport || detail.flight.destination}`}
               />
               <DetailRow
                 label="Departure"
                 value={`${detail.flight.departure_date} ${detail.flight.departure_time}`}
               />
+              {canChangeRoute ? (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRouteChangeMode("journey")}
+                  >
+                    Change boarding points
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRouteChangeMode("flight")}
+                  >
+                    Change flight / route
+                  </Button>
+                </div>
+              ) : null}
             </DetailSection>
             {detail.passengers?.length > 0 && (
               <DetailSection title="Passengers">
@@ -667,6 +696,21 @@ function PortalBookingsPageContent() {
           booking={cancelTarget}
           onOpenChange={(open) => !open && setCancelTarget(null)}
           onSuccess={handleCancelSuccess}
+        />
+      ) : null}
+
+      {routeChangeMode && selectedId ? (
+        <ChangeBookingRouteDialog
+          open
+          bookingRef={selectedId}
+          detail={detail}
+          mode={routeChangeMode}
+          onOpenChange={(open) => !open && setRouteChangeMode(null)}
+          onSuccess={(next) => {
+            setDetail(next);
+            refresh();
+            setRouteChangeMode(null);
+          }}
         />
       ) : null}
     </PaginatedListPage>

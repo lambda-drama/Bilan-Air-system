@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calendar, FileText, Loader2, Mail, MessageSquare } from "lucide-react";
+import { Calendar, Loader2, Mail, MessageSquare } from "lucide-react";
 import { ListSearch } from "@/components/portal/list-search";
 import { SearchableSelect } from "@/components/portal/searchable-select";
 import { usePersistedPortalReport } from "@/hooks/use-persisted-portal-report";
@@ -35,10 +35,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PortalReportPdfPreviewDialog } from "@/components/portal/portal-report-pdf-preview";
 import {
   buildReportSubtitle,
-  exportPortalReportPdf,
+  exportPortalReportExcel,
+  fetchPortalReportPdf,
   type PortalReportPdfColumn,
+  type PortalReportPdfFile,
 } from "@/lib/portal-report-export";
 import { toast } from "sonner";
 
@@ -112,6 +115,9 @@ export default function PortalMFestReportPage() {
     { value: string; label: string }[]
   >([]);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfFile, setPdfFile] = useState<PortalReportPdfFile | null>(null);
 
   useEffect(() => {
     fetchAirportsForPortal()
@@ -204,6 +210,21 @@ export default function PortalMFestReportPage() {
     toast.message(`${label} export is not available yet.`);
   };
 
+  const buildExportRows = () =>
+    filteredRows.map((row) => ({
+      pnr_number: row.pnr_number || "",
+      passenger_name: row.passenger_name || "",
+      class: row.class || "",
+      agent: getAgentFirstName(row.agent, row.agent_first_name) || row.agent || "",
+      agency_company: row.agency_company || "",
+      passport_number: row.passport_number || "",
+      origin: row.origin || "",
+      destination: row.destination || "",
+      phone: row.phone || "",
+      reservation_date: row.reservation_date || "",
+      status: row.status || "",
+    }));
+
   const handleExportPdf = async () => {
     if (!searched || !appliedFilters.flight_number) {
       toast.error("Search and load results before exporting.");
@@ -216,31 +237,45 @@ export default function PortalMFestReportPage() {
 
     setExportingPdf(true);
     try {
-      await exportPortalReportPdf({
-        title: "M.FEST REPORT",
+      const file = await fetchPortalReportPdf({
+        title: "Manifest",
         subtitle: buildReportSubtitle(appliedFilters),
         filename: `manifest-${appliedFilters.flight_number}-${appliedFilters.departure_date}.pdf`,
         reportKey: "manifest",
         columns: MANIFEST_PDF_COLUMNS,
-        rows: filteredRows.map((row) => ({
-          pnr_number: row.pnr_number || "",
-          passenger_name: row.passenger_name || "",
-          class: row.class || "",
-          agent: getAgentFirstName(row.agent, row.agent_first_name) || row.agent || "",
-          agency_company: row.agency_company || "",
-          passport_number: row.passport_number || "",
-          origin: row.origin || "",
-          destination: row.destination || "",
-          phone: row.phone || "",
-          reservation_date: row.reservation_date || "",
-          status: row.status || "",
-        })),
+        rows: buildExportRows(),
       });
-      toast.success("PDF downloaded.");
+      setPdfFile(file);
+      setPdfPreviewOpen(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to export PDF");
     } finally {
       setExportingPdf(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!searched || !appliedFilters.flight_number) {
+      toast.error("Search and load results before exporting.");
+      return;
+    }
+    if (!filteredRows.length) {
+      toast.error("No rows to export.");
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      exportPortalReportExcel({
+        filename: `manifest-${appliedFilters.flight_number}-${appliedFilters.departure_date}`,
+        columns: MANIFEST_PDF_COLUMNS,
+        rows: buildExportRows(),
+      });
+      toast.success("Excel file downloaded.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to export Excel");
+    } finally {
+      setExportingExcel(false);
     }
   };
 
@@ -351,41 +386,46 @@ export default function PortalMFestReportPage() {
             placeholder="Filter"
             className="max-w-xs"
           />
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
             <Button
               type="button"
-              size="icon"
-              variant="default"
-              className="bg-primary"
-              aria-label="Email manifest"
+              variant="outline"
               onClick={() => exportPlaceholder("Email")}
             >
-              <Mail className="h-4 w-4" />
+              <Mail className="mr-2 h-4 w-4" />
+              Email
             </Button>
             <Button
               type="button"
-              size="icon"
-              variant="default"
-              className="bg-primary"
-              aria-label="Message manifest"
+              variant="outline"
               onClick={() => exportPlaceholder("Message")}
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Message
             </Button>
             <Button
               type="button"
-              size="icon"
-              variant="default"
-              className="bg-primary"
-              aria-label="Export PDF"
+              variant="outline"
+              className="border-gold hover:border-gold hover:bg-gold hover:text-navy"
+              disabled={exportingExcel || loading}
+              onClick={handleExportExcel}
+            >
+              {exportingExcel ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-gold hover:border-gold hover:bg-gold hover:text-navy"
               disabled={exportingPdf || loading}
               onClick={() => void handleExportPdf()}
             >
               {exportingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              PDF
             </Button>
           </div>
         </div>
@@ -516,6 +556,16 @@ export default function PortalMFestReportPage() {
           {appliedFilters.destination ? ` · destination filter applied` : ""}
         </p>
       ) : null}
+
+      <PortalReportPdfPreviewDialog
+        open={pdfPreviewOpen}
+        onOpenChange={(open) => {
+          setPdfPreviewOpen(open);
+          if (!open) setPdfFile(null);
+        }}
+        title="Manifest"
+        file={pdfFile}
+      />
     </div>
   );
 }

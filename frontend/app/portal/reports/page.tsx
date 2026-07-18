@@ -9,6 +9,7 @@ const REPORT_LANDING_ROUTES = [
   { key: "analytics" as const, href: "/portal/reports/analytics" },
   { key: "manifest" as const, href: "/portal/reports/m-fest" },
   { key: "no_show" as const, href: "/portal/reports/no-show" },
+  { key: "agent_sales" as const, href: "/portal/reports/agent-sales" },
 ];
 
 export default function PortalReportsIndexPage() {

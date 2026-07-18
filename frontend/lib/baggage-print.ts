@@ -1,6 +1,7 @@
 export interface BaggagePrintData {
   airline_name: string;
   airline_tagline: string;
+  agency_logo_url?: string | null;
   tracking_number: string;
   passenger_name: string;
   passenger_last_name: string;

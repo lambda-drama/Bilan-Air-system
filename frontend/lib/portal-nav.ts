@@ -151,6 +151,13 @@ export const portalNavItems: PortalNavItem[] = [
         doctype: "Air Booking",
         reportKey: "no_show",
       },
+      {
+        href: "/portal/reports/agent-sales",
+        label: "Agent sales",
+        icon: Users,
+        doctype: "Air Booking",
+        reportKey: "agent_sales",
+      },
     ],
   },
   { type: "link", href: "/portal/settings", label: "Settings", icon: Settings },

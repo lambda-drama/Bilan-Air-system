@@ -6,6 +6,7 @@ from frappe import _
 PORTAL_STAFF_ROLES = frozenset(
 	{
 		"Booking Agent",
+		"Sub Agent",
 		"Check-in Agent",
 		"Support Agent",
 		"Pricing Manager",

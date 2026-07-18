@@ -47,7 +47,7 @@ export function NearestFlightDatesPanel({
       className={cn(
         isHero
           ? "text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-3"
-          : "rounded-lg border border-amber-200 bg-amber-50/80 p-4 space-y-3",
+          : "rounded-lg border border-amber-200 bg-amber-50/80 p-4 space-y-3 dark:border-amber-500/30 dark:bg-amber-950/40",
         className,
       )}
     >
@@ -65,7 +65,12 @@ export function NearestFlightDatesPanel({
 
       {!loading && suggestions.length > 0 ? (
         <div className="space-y-2">
-          <p className={cn("font-semibold text-sm", isHero ? "text-amber-900" : "text-foreground")}>
+          <p
+            className={cn(
+              "font-semibold text-sm",
+              isHero ? "text-amber-900" : "text-foreground",
+            )}
+          >
             {title}
           </p>
           <div className="flex flex-col gap-2">
@@ -78,11 +83,23 @@ export function NearestFlightDatesPanel({
                   "w-full rounded-lg border px-3 py-2 text-left transition-colors",
                   isHero
                     ? "border-amber-300/80 bg-white hover:border-gold hover:bg-gold/10"
-                    : "border-amber-200 bg-background hover:border-gold hover:bg-gold/5",
+                    : "border-amber-200 bg-background hover:border-gold hover:bg-gold/5 dark:border-amber-500/40 dark:bg-card dark:hover:bg-gold/10",
                 )}
               >
-                <span className="font-semibold text-navy">{useDateLabel(suggestion.date)}</span>
-                <span className="block text-xs text-navy/60 mt-0.5">
+                <span
+                  className={cn(
+                    "font-semibold",
+                    isHero ? "text-navy" : "text-foreground",
+                  )}
+                >
+                  {useDateLabel(suggestion.date)}
+                </span>
+                <span
+                  className={cn(
+                    "mt-0.5 block text-xs",
+                    isHero ? "text-navy/60" : "text-muted-foreground",
+                  )}
+                >
                   {formatDaysOffset(suggestion.days_from_anchor)}
                   {" · "}
                   {formatFlightCount(suggestion.flight_count)}

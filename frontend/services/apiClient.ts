@@ -62,9 +62,13 @@ export function clearCSRF() {
 }
 
 function getCSRF(): string | null {
-  const win = typeof window !== "undefined" ? (window as Record<string, unknown>) : null;
-  return (win?.csrf_token as string) || null;
+  if (typeof window === "undefined") return null;
+  const win = window as Record<string, unknown>;
+  if (win.csrf_token && typeof win.csrf_token === "string") return win.csrf_token;
+  return readCsrfFromMeta();
 }
+
+export { getCSRF };
 
 function mergeHeaders(
   base: Record<string, string>,

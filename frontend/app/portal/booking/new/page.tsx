@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -52,11 +52,24 @@ import {
 
 type SearchMode = "route" | "airports";
 
+function canRunOfficeFlightSearch(opts: {
+  mode: SearchMode;
+  route: string;
+  origin: string;
+  destination: string;
+  date: string;
+}) {
+  if (!opts.date) return false;
+  if (opts.mode === "route") return !!opts.route;
+  return !!(opts.origin && opts.destination);
+}
+
 function OfficeBookingSearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { formatMoney } = useCurrency();
   const { validationErrors, submitError, clearAlerts, showValidation } = useFormDialogAlerts();
+  const searchGeneration = useRef(0);
 
   const [searchMode, setSearchMode] = useState<SearchMode>("route");
   const [selectedRoute, setSelectedRoute] = useState("");
@@ -165,21 +178,6 @@ function OfficeBookingSearchContent() {
         setDepartureDate(nextDate);
         setSelectedRoute(nextRoute);
         setSearchMode(nextMode);
-
-        if (
-          draft &&
-          nextDate &&
-          (nextRoute || (nextOrigin && nextDestination))
-        ) {
-          void runFlightSearch({
-            mode: nextMode,
-            route: nextRoute,
-            origin: nextOrigin,
-            destination: nextDestination,
-            date: nextDate,
-            passengers: nextPassengers,
-          });
-        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -245,31 +243,35 @@ function OfficeBookingSearchContent() {
     }
   };
 
-  const runFlightSearch = async (opts: {
-    mode: SearchMode;
-    route: string;
-    origin: string;
-    destination: string;
-    date: string;
-    passengers: PassengerSearchCounts;
-  }) => {
-    if (!opts.date) {
-      showValidation(["Departure date"]);
-      return;
-    }
-    if (opts.mode === "route" && !opts.route) {
-      showValidation(["Route"]);
-      return;
-    }
-    if (opts.mode === "airports" && (!opts.origin || !opts.destination)) {
-      showValidation(["From", "To"]);
+  const runFlightSearch = async (
+    opts: {
+      mode: SearchMode;
+      route: string;
+      origin: string;
+      destination: string;
+      date: string;
+      passengers: PassengerSearchCounts;
+    },
+    options?: { validate?: boolean },
+  ) => {
+    const validate = options?.validate ?? true;
+    if (!canRunOfficeFlightSearch(opts)) {
+      if (validate) {
+        if (!opts.date) showValidation(["Departure date"]);
+        else if (opts.mode === "route") showValidation(["Route"]);
+        else showValidation(["From", "To"]);
+      }
       return;
     }
     clearAlerts();
+    const gen = ++searchGeneration.current;
     setSearching(true);
     setSearchError("");
+    setFlightResults([]);
     setDepartureSuggestions([]);
     setDepartureSuggestionsChecked(false);
+    setActiveScheduleId(null);
+    setActiveSeatClass(null);
     const seatNeed = seatsRequired(opts.passengers);
     try {
       const res =
@@ -285,6 +287,7 @@ function OfficeBookingSearchContent() {
               date: opts.date,
               passengers: seatNeed,
             });
+      if (gen !== searchGeneration.current) return;
       if (res.error) {
         setSearchError(res.error);
         setFlightResults([]);
@@ -297,35 +300,75 @@ function OfficeBookingSearchContent() {
         void loadDepartureSuggestions(opts, opts.date, seatNeed);
       }
     } catch (e) {
+      if (gen !== searchGeneration.current) return;
       setSearchError(e instanceof Error ? e.message : "Search failed");
       setFlightResults([]);
     } finally {
-      setSearching(false);
+      if (gen === searchGeneration.current) setSearching(false);
     }
   };
 
-  const searchFlights = () =>
-    runFlightSearch({
+  const searchFlights = (options?: { validate?: boolean }) =>
+    runFlightSearch(
+      {
+        mode: searchMode,
+        route: selectedRoute,
+        origin,
+        destination,
+        date: departureDate,
+        passengers: passengerCounts,
+      },
+      options,
+    );
+
+  // Re-search whenever route, airports, date, travelers, or search mode change.
+  useEffect(() => {
+    if (initializing) return;
+
+    const opts = {
       mode: searchMode,
       route: selectedRoute,
       origin,
       destination,
       date: departureDate,
-      passengers: passengerCounts,
-    });
+    };
+    if (!canRunOfficeFlightSearch(opts)) {
+      setFlightResults([]);
+      setSearchError("");
+      setDepartureSuggestions([]);
+      setDepartureSuggestionsChecked(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void runFlightSearch(
+        {
+          ...opts,
+          passengers: passengerCounts,
+        },
+        { validate: false },
+      );
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+    // Intentionally omit runFlightSearch — search when these criteria change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    initializing,
+    searchMode,
+    selectedRoute,
+    origin,
+    destination,
+    departureDate,
+    passengerCounts.adults,
+    passengerCounts.children,
+    passengerCounts.infants,
+  ]);
 
   const applyDepartureSuggestion = (suggestedDate: string) => {
     setDepartureDate(suggestedDate);
     setSearchError("");
     setDepartureSuggestions([]);
-    void runFlightSearch({
-      mode: searchMode,
-      route: selectedRoute,
-      origin,
-      destination,
-      date: suggestedDate,
-      passengers: passengerCounts,
-    });
   };
 
   const selectFlight = (flight: FlightSearchResult, chosenClass: string) => {
@@ -510,8 +553,21 @@ function OfficeBookingSearchContent() {
         </div>
       ) : null}
 
+      {searching && flightResults.length === 0 && !searchError ? (
+        <p className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Updating available flights…
+        </p>
+      ) : null}
+
       {flightResults.length > 0 && (
         <FormSection title="Available flights" className="mt-6">
+          {searching ? (
+            <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Refreshing results…
+            </p>
+          ) : null}
           <div className="space-y-4">
             {flightResults.map((f) => (
               <FlightFareResultCard
@@ -548,7 +604,7 @@ function OfficeBookingSearchContent() {
         </Button>
         <Button
           className="bg-gold text-navy hover:bg-gold-dark"
-          onClick={searchFlights}
+          onClick={() => void searchFlights({ validate: true })}
           disabled={searching}
         >
           {searching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

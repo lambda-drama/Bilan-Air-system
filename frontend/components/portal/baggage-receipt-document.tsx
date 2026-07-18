@@ -1,7 +1,7 @@
 "use client";
 
 import { Plane } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
+import { AgencyPrintLogo, BrandLogo } from "@/components/brand-logo";
 import { PrintBarcodeStrip } from "@/components/portal/print-barcode-strip";
 import { useCurrency } from "@/contexts/currency-context";
 import {
@@ -15,18 +15,21 @@ export function BaggageReceiptDocument({ baggage }: { baggage: BaggagePrintData 
 
   return (
     <div className="baggage-print-sheet mx-auto w-full max-w-[820px] bg-white text-navy shadow-lg print:shadow-none">
-      <div className="relative flex items-start justify-between gap-4 border-b border-navy/10 px-6 py-5">
-        <div className="flex items-center gap-4">
-          <BrandLogo
-            className="h-14 w-14 shrink-0 rounded-full"
-            alt={baggage.airline_name}
-          />
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-navy/50">Baggage receipt</p>
-            <p className="text-xs text-navy/60">{baggage.airline_tagline}</p>
-          </div>
+      <div className="relative flex items-center gap-4 border-b border-navy/10 px-6 py-5">
+        <BrandLogo
+          className="h-14 w-14 shrink-0 rounded-full"
+          alt={baggage.airline_name}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-navy/50">Baggage receipt</p>
+          <p className="text-xs text-navy/60">{baggage.airline_tagline}</p>
         </div>
-        <PrintBarcodeStrip value={baggage.barcode_data} />
+        <PrintBarcodeStrip value={baggage.barcode_data} format="code128" />
+        <AgencyPrintLogo
+          src={baggage.agency_logo_url}
+          className="h-14 w-14 shrink-0 rounded-full object-contain ring-1 ring-navy/10"
+          alt="Agency"
+        />
       </div>
 
       <div className="bg-amber-50 px-6 py-3 text-center text-sm font-medium text-amber-900">

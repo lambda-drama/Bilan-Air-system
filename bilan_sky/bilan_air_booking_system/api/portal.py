@@ -485,11 +485,13 @@ def save_flight_setup(data):
 		frappe.throw(_("Aircraft is required"))
 
 	is_new = not frappe.db.exists("Flight Setup", flight_number)
+	previous_route = None
 	if is_new:
 		doc = frappe.new_doc("Flight Setup")
 		doc.flight_number = flight_number
 	else:
 		doc = frappe.get_doc("Flight Setup", flight_number)
+		previous_route = doc.route
 
 	doc.route = data.get("route")
 	doc.airplane = data.get("airplane")
@@ -507,7 +509,26 @@ def save_flight_setup(data):
 		apply_flight_setup_penalties(doc, data.get("flight_penalties"))
 
 	save_portal_doc(doc, is_new=is_new)
-	return _flight_setup_payload(doc)
+
+	cascade = {"updated_schedules": 0, "skipped_schedules": 0, "updated_plans": 0}
+	if not is_new and previous_route and previous_route != doc.route:
+		from bilan_sky.bilan_air_booking_system.utils.route_changes import cascade_flight_setup_route
+
+		cascade = cascade_flight_setup_route(flight_number, doc.route, previous_route)
+
+	payload = _flight_setup_payload(doc)
+	payload["route_cascade"] = cascade
+	return payload
+
+
+@frappe.whitelist()
+def update_flight_schedule_route(schedule_name, route):
+	"""Change route on an existing schedule (blocked when it has active bookings)."""
+	require_portal_staff()
+	frappe.get_doc("Flight Schedule", schedule_name).check_permission("write")
+	from bilan_sky.bilan_air_booking_system.utils.route_changes import apply_route_to_schedule
+
+	return apply_route_to_schedule(schedule_name, route)
 
 
 @frappe.whitelist()
@@ -1016,6 +1037,8 @@ def search_bookings_for_checkin(query=None, limit=15):
 
 @frappe.whitelist()
 def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, search=None):
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import apply_air_booking_agent_scope
+
 	filters = {}
 	if status:
 		filters["reservation_status"] = status
@@ -1037,6 +1060,8 @@ def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, sear
 				"payer_name": ["like", f"%{q}%"],
 				"payer_phone": ["like", f"%{q}%"],
 			}
+
+	filters = apply_air_booking_agent_scope(filters)
 
 	result = _paginated(
 		"Air Booking",
@@ -1067,6 +1092,7 @@ def list_air_bookings(limit=50, offset=0, status=None, payment_status=None, sear
 def list_passenger_tickets(limit=50, offset=0, search=None):
 	"""Issued passenger tickets from confirmed Air Bookings."""
 	require_portal_staff()
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_scoped_booking_agent_name
 	from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM
 
 	conditions = [
@@ -1078,6 +1104,14 @@ def list_passenger_tickets(limit=50, offset=0, search=None):
 		"limit": cint(limit) or 50,
 		"offset": cint(offset),
 	}
+
+	scoped_agent = get_scoped_booking_agent_name()
+	if scoped_agent is not None:
+		if scoped_agent == "":
+			conditions.append("1=0")
+		else:
+			conditions.append("ab.booking_agent = %(booking_agent)s")
+			params["booking_agent"] = scoped_agent
 
 	if search and str(search).strip():
 		params["search"] = f"%{str(search).strip()}%"
@@ -1491,6 +1525,114 @@ def set_portal_user_image(user_image):
 	user.save()
 	frappe.db.commit()
 	return get_portal_user_profile()
+
+
+def _require_my_booking_company():
+	"""Booking Company linked to the current user's Booking Agent profile."""
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_booking_agent_for_user
+
+	agent = get_booking_agent_for_user()
+	if not agent:
+		frappe.throw(_("Only booking agents can manage agency branding."))
+	company_name = getattr(agent, "booking_company", None)
+	if not company_name or not frappe.db.exists("Booking Company", company_name):
+		frappe.throw(_("Your agent profile is not linked to a company / agency."))
+	return frappe.get_doc("Booking Company", company_name)
+
+
+@frappe.whitelist()
+def get_my_booking_company_branding():
+	"""Agency logo + print placement settings for the logged-in booking agent."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
+
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_booking_agent_for_user
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		serialize_company_branding,
+	)
+
+	agent = get_booking_agent_for_user()
+	if not agent or not getattr(agent, "booking_company", None):
+		return None
+	if not frappe.db.exists("Booking Company", agent.booking_company):
+		return None
+	return serialize_company_branding(frappe.get_doc("Booking Company", agent.booking_company))
+
+
+@frappe.whitelist()
+def update_my_booking_company_branding(data=None):
+	"""Update where the agency logo appears on prints (ticket / baggage / boarding pass)."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
+
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		serialize_company_branding,
+	)
+
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	data = data or {}
+
+	doc = _require_my_booking_company()
+	for field in (
+		"show_logo_on_ticket",
+		"show_logo_on_baggage",
+		"show_logo_on_boarding_pass",
+	):
+		if field in data:
+			doc.set(field, 1 if data.get(field) else 0)
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return serialize_company_branding(doc)
+
+
+@frappe.whitelist()
+def upload_my_booking_company_logo():
+	"""Upload agency logo for the logged-in agent's Booking Company."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Not logged in"), frappe.AuthenticationError)
+	require_portal_staff()
+
+	from frappe.utils.file_manager import save_file
+
+	from bilan_sky.bilan_air_booking_system.utils.company_print_branding import (
+		serialize_company_branding,
+	)
+
+	doc = _require_my_booking_company()
+	uploaded = frappe.request.files.get("file") if frappe.request.files else None
+	if not uploaded:
+		frappe.throw(_("No image file uploaded."))
+
+	filename = (uploaded.filename or "agency-logo.png").strip()
+	content = uploaded.stream.read()
+	if not content:
+		frappe.throw(_("Uploaded file is empty."))
+	if len(content) > 5 * 1024 * 1024:
+		frappe.throw(_("Image must be under 5 MB."))
+
+	content_type = (getattr(uploaded, "content_type", None) or "").lower()
+	if content_type and not content_type.startswith("image/"):
+		frappe.throw(_("Please upload an image file (JPG or PNG)."))
+
+	saved = save_file(
+		filename,
+		content,
+		"Booking Company",
+		doc.name,
+		folder="Home/Attachments",
+		is_private=0,
+		df="logo",
+	)
+	doc.logo = saved.file_url
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return serialize_company_branding(doc)
 
 
 def _resolve_flight_schedule_name(schedule_name):
@@ -2408,6 +2550,16 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 	conditions = ["link.invoice IS NOT NULL", "link.invoice != ''"]
 	params = {"limit": limit, "offset": offset}
 
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import get_scoped_booking_agent_name
+
+	scoped_agent = get_scoped_booking_agent_name()
+	if scoped_agent is not None:
+		if scoped_agent == "":
+			conditions.append("1=0")
+		else:
+			conditions.append("ab.booking_agent = %(booking_agent)s")
+			params["booking_agent"] = scoped_agent
+
 	if search:
 		like = f"%{search}%"
 		if is_remote_accounting_enabled():
@@ -2581,4 +2733,181 @@ def get_booking_invoice_detail(invoice_name):
 		"docstatus": invoice.get("docstatus"),
 		"remarks": invoice.get("remarks"),
 		"booking": booking,
+	}
+
+
+@frappe.whitelist()
+def get_agent_sales_report(from_date=None, to_date=None, booking_agent=None):
+	"""Sales totals grouped by booking agent for a date range."""
+	from frappe.utils import add_days, getdate
+
+	from bilan_sky.bilan_air_booking_system.utils.portal_access import user_has_full_portal_permissions
+	from bilan_sky.bilan_air_booking_system.utils.portal_report_access import user_is_booking_agent
+
+	require_portal_staff()
+	require_agent_report_access("agent_sales")
+
+	today = getdate()
+	start = getdate(from_date) if from_date else add_days(today, -30)
+	end = getdate(to_date) if to_date else today
+	if start > end:
+		frappe.throw(_("From date cannot be after to date."))
+
+	params = {
+		"void": "Void",
+		"from_date": str(start),
+		"to_date_exclusive": str(add_days(end, 1)),
+	}
+
+	agent_filter = ""
+	requested_agent = (booking_agent or "").strip() or None
+	scoped_to_agent = None
+
+	# Booking agents only see their own sales unless they have full portal access.
+	if user_is_booking_agent() and not user_has_full_portal_permissions():
+		own = frappe.db.get_value("Booking Agent", {"user": frappe.session.user}, "name")
+		if not own:
+			return {
+				"from_date": str(start),
+				"to_date": str(end),
+				"agents": [],
+				"totals": {
+					"bookings": 0,
+					"confirmed": 0,
+					"booked": 0,
+					"paid": 0,
+					"on_credit": 0,
+					"passengers": 0,
+					"revenue": 0,
+					"paid_revenue": 0,
+					"outstanding": 0,
+				},
+				"scoped_to_agent": None,
+				"agent_options": [],
+			}
+		requested_agent = own
+		scoped_to_agent = own
+
+	if requested_agent:
+		agent_filter = "AND IFNULL(ab.booking_agent, '') = %(booking_agent)s"
+		params["booking_agent"] = requested_agent
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			IFNULL(ab.booking_agent, '') AS booking_agent,
+			COUNT(*) AS bookings,
+			SUM(CASE WHEN ab.reservation_status = 'Confirm' THEN 1 ELSE 0 END) AS confirmed,
+			SUM(CASE WHEN ab.reservation_status = 'Booked' THEN 1 ELSE 0 END) AS booked,
+			SUM(CASE WHEN ab.payment_status = 'Paid' THEN 1 ELSE 0 END) AS paid,
+			SUM(CASE WHEN IFNULL(ab.confirmed_via, '') = 'Agent Credit' THEN 1 ELSE 0 END) AS on_credit,
+			COALESCE(SUM(ab.total_fare), 0) AS revenue,
+			COALESCE(
+				SUM(CASE WHEN ab.payment_status = 'Paid' THEN ab.total_fare ELSE 0 END),
+				0
+			) AS paid_revenue,
+			COALESCE(SUM(ab.total_fare), 0) - COALESCE(
+				SUM(CASE WHEN ab.payment_status = 'Paid' THEN ab.total_fare ELSE 0 END),
+				0
+			) AS outstanding
+		FROM `tabAir Booking` ab
+		WHERE ab.docstatus < 2
+			AND IFNULL(ab.reservation_status, '') != %(void)s
+			AND ab.booking_date >= %(from_date)s
+			AND ab.booking_date < %(to_date_exclusive)s
+			{agent_filter}
+		GROUP BY IFNULL(ab.booking_agent, '')
+		ORDER BY revenue DESC, bookings DESC
+		""",
+		params,
+		as_dict=True,
+	)
+
+	pax_rows = {
+		(row.booking_agent or ""): cint(row.passengers)
+		for row in frappe.db.sql(
+			f"""
+			SELECT
+				IFNULL(ab.booking_agent, '') AS booking_agent,
+				COUNT(p.name) AS passengers
+			FROM `tabAir Booking` ab
+			INNER JOIN `tabAir Booking Passenger` p ON p.parent = ab.name
+			WHERE ab.docstatus < 2
+				AND IFNULL(ab.reservation_status, '') != %(void)s
+				AND ab.booking_date >= %(from_date)s
+				AND ab.booking_date < %(to_date_exclusive)s
+				{agent_filter}
+			GROUP BY IFNULL(ab.booking_agent, '')
+			""",
+			params,
+			as_dict=True,
+		)
+	}
+
+	agents = []
+	totals = {
+		"bookings": 0,
+		"confirmed": 0,
+		"booked": 0,
+		"paid": 0,
+		"on_credit": 0,
+		"passengers": 0,
+		"revenue": 0.0,
+		"paid_revenue": 0.0,
+		"outstanding": 0.0,
+	}
+	for row in rows:
+		agent_id = row.booking_agent or ""
+		agent_name = "Unassigned / direct"
+		agent_email = None
+		if agent_id and frappe.db.exists("Booking Agent", agent_id):
+			profile = frappe.db.get_value(
+				"Booking Agent",
+				agent_id,
+				["agent_name", "email"],
+				as_dict=True,
+			)
+			if profile:
+				agent_name = profile.agent_name or agent_id
+				agent_email = profile.email or None
+
+		entry = {
+			"booking_agent": agent_id or None,
+			"agent_name": agent_name,
+			"agent_email": agent_email,
+			"bookings": cint(row.bookings),
+			"confirmed": cint(row.confirmed),
+			"booked": cint(row.booked),
+			"paid": cint(row.paid),
+			"on_credit": cint(row.on_credit),
+			"passengers": pax_rows.get(agent_id, 0),
+			"revenue": flt(row.revenue),
+			"paid_revenue": flt(row.paid_revenue),
+			"outstanding": flt(row.outstanding),
+		}
+		agents.append(entry)
+		for key in ("bookings", "confirmed", "booked", "paid", "on_credit", "passengers"):
+			totals[key] += entry[key]
+		totals["revenue"] += entry["revenue"]
+		totals["paid_revenue"] += entry["paid_revenue"]
+		totals["outstanding"] += entry["outstanding"]
+
+	agent_options = []
+	if not scoped_to_agent:
+		for profile in frappe.get_all(
+			"Booking Agent",
+			fields=["name", "agent_name"],
+			order_by="agent_name asc",
+		):
+			agent_options.append(
+				{"value": profile.name, "label": profile.agent_name or profile.name}
+			)
+
+	return {
+		"from_date": str(start),
+		"to_date": str(end),
+		"agents": agents,
+		"totals": totals,
+		"scoped_to_agent": scoped_to_agent,
+		"agent_options": agent_options,
 	}

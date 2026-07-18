@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, Ticket, XCircle } from "lucide-react";
+import { Loader2, Ticket, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { openDeskDocument } from "@/services/desk";
 import { confirmBookingOnCredit, type BookingDetails } from "@/services/airBooking";
 import type { AirBookingRow } from "@/services/portal";
 import { ConfirmActionDialog } from "@/components/portal/confirm-action-dialog";
@@ -42,7 +41,6 @@ export function PortalBookingSheetFooter({
   const isRefunded = paymentStatus === "Refunded";
   const isUnpaid = paymentStatus !== "Paid" && paymentStatus !== "Refunded";
   const showConfirmOnCredit = !isCancelled && status === "Booked";
-  const showEdit = !isRefunded;
   const creditActionDisabled = !allowConfirmOnCredit || confirmingCredit;
   const creditActionTooltip = !allowConfirmOnCredit
     ? confirmOnCreditDisabledReason
@@ -95,16 +93,6 @@ export function PortalBookingSheetFooter({
       />
 
       <div className="grid w-full grid-cols-2 gap-2">
-        {showEdit ? (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => openDeskDocument("Air Booking", pnr)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        ) : null}
         {showConfirmOnCredit && (
           <DisabledActionTooltip
             disabled={creditActionDisabled}
