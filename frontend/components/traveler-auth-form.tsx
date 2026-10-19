@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, UserPlus } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
-import { registerWebsiteUser } from '@/services/websiteAuth';
+import { registerWebsiteUser, requestPasswordReset } from '@/services/websiteAuth';
 import { ensureCSRF } from '@/services/apiClient';
 
 export interface TravelerAuthFormProps {
@@ -27,6 +27,9 @@ export function TravelerAuthForm({
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({
@@ -80,6 +83,20 @@ export function TravelerAuthForm({
     }
   };
 
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await requestPasswordReset(resetEmail.trim());
+      setResetSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the reset link');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="bilan-light-card rounded-2xl shadow-lg p-6">
       <div className="flex gap-2 mb-6">
@@ -93,6 +110,8 @@ export function TravelerAuthForm({
           }
           onClick={() => {
             setMode('login');
+            setResetMode(false);
+            setResetSent(false);
             setError('');
           }}
         >
@@ -109,6 +128,8 @@ export function TravelerAuthForm({
           }
           onClick={() => {
             setMode('signup');
+            setResetMode(false);
+            setResetSent(false);
             setError('');
           }}
         >
@@ -124,39 +145,122 @@ export function TravelerAuthForm({
       )}
 
       {mode === 'login' ? (
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <Label htmlFor="traveler-login-username">Email or username</Label>
-            <Input
-              id="traveler-login-username"
-              type="text"
-              required
-              autoComplete="username"
-              placeholder="admin@example.com or Administrator"
-              className="mt-1 bilan-light-field"
-              value={loginForm.username}
-              onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label htmlFor="traveler-login-password">Password</Label>
-            <PasswordInput
-              id="traveler-login-password"
-              required
-              autoComplete="current-password"
-              className="mt-1 bilan-light-field"
-              value={loginForm.password}
-              onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
-          </Button>
-        </form>
+        resetMode ? (
+          resetSent ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-800">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <p>
+                  If an account exists for{' '}
+                  <span className="font-medium break-all">{resetEmail}</span>, we&apos;ve sent a
+                  password reset link. Check your inbox and spam folder.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-navy/20 text-navy"
+                onClick={() => {
+                  setResetMode(false);
+                  setResetSent(false);
+                  setError('');
+                }}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to sign in
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleResetRequest} className="space-y-4">
+              <p className="text-sm text-navy/60">
+                Enter the email you use for Bilan Air. If an account exists, we&apos;ll send a link
+                to reset your password.
+              </p>
+              <div>
+                <Label htmlFor="traveler-reset-email">Email</Label>
+                <Input
+                  id="traveler-reset-email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  className="mt-1 bilan-light-field"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Send reset link'
+                )}
+              </Button>
+              <button
+                type="button"
+                className="w-full text-center text-sm font-medium text-navy/70 hover:text-gold"
+                onClick={() => {
+                  setResetMode(false);
+                  setError('');
+                }}
+              >
+                Back to sign in
+              </button>
+            </form>
+          )
+        ) : (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label htmlFor="traveler-login-username">Email or username</Label>
+              <Input
+                id="traveler-login-username"
+                type="text"
+                required
+                autoComplete="username"
+                placeholder="admin@example.com or Administrator"
+                className="mt-1 bilan-light-field"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="traveler-login-password">Password</Label>
+              <PasswordInput
+                id="traveler-login-password"
+                required
+                autoComplete="current-password"
+                className="mt-1 bilan-light-field"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              />
+            </div>
+            <div className="-mt-1 flex justify-end">
+              <button
+                type="button"
+                className="text-xs font-light text-gray-500 underline-offset-4 transition-colors hover:text-gray-700 hover:underline"
+                onClick={() => {
+                  setResetMode(true);
+                  setResetSent(false);
+                  setError('');
+                  const candidate = loginForm.username.trim();
+                  if (candidate.includes('@')) setResetEmail(candidate);
+                }}
+              >
+                Forgot password?
+              </button>
+            </div>
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+            </Button>
+          </form>
+        )
       ) : (
         <form onSubmit={handleSignup} className="space-y-4">
           <div>

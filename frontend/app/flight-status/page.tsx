@@ -298,7 +298,7 @@ export default function FlightStatusPage() {
                   )}
 
                   <div className={cn("flex flex-wrap gap-3", isRtl && "flex-row-reverse")}>
-                    <Button type="submit" className="bg-navy hover:bg-navy-light gap-2">
+                    <Button type="submit" className="bg-navy hover:bg-navy-light gap-2 text-cream">
                       <Search className="w-4 h-4" />
                       {copy.search.searchBtn}
                     </Button>

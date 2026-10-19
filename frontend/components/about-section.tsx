@@ -37,7 +37,7 @@ export function AboutSection() {
             <Button
               variant="outline"
               asChild
-              className="border-navy text-navy hover:bg-navy hover:text-cream"
+              className="border-navy bg-transparent text-navy hover:bg-navy hover:text-cream"
             >
               <Link href="/about">{t.about.learnMore}</Link>
             </Button>

@@ -256,6 +256,7 @@ export const en = {
     staffPortal: "Staff Portal",
     copyright: "All rights reserved.",
     locations: "Nairobi · Mogadishu · East Africa",
+    poweredBy: "Powered by Bilan",
     language: "Language",
     links: {
       bookFlight: "Book a Flight",
