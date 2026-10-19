@@ -19,6 +19,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Semgrep needs the PR base commit to report only newly introduced findings.
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
@@ -31,7 +34,12 @@ jobs:
       - name: Run Semgrep rules
         run: |
           pip install semgrep
-          semgrep ci --config ./frappe-semgrep-rules/rules --config r/python.lang.correctness
+          semgrep scan \
+            --config ./frappe-semgrep-rules/rules \
+            --config r/python.lang.correctness \
+            --baseline-commit "${{ github.event.pull_request.base.sha }}" \
+            --severity ERROR \
+            --error
 
   deps-vulnerable-check:
     name: 'Vulnerable Dependency Check'

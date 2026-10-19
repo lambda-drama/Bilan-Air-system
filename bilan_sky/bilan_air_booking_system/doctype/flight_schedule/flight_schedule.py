@@ -145,7 +145,8 @@ class FlightSchedule(Document):
 	def after_insert(self):
 		self._ensure_seat_inventory()
 
-	def on_update(self):
+	# _pending_fare_history_entry is a transient Python attribute, not a DocType field.
+	def on_update(self):  # nosemgrep: frappe-modifying-but-not-comitting
 		self._ensure_seat_inventory()
 		if self.has_value_changed("status") and self.status == "Departed":
 			mark_flight_taken_for_schedule(self.name)
@@ -154,7 +155,7 @@ class FlightSchedule(Document):
 			self._insert_fare_history_row(pending)
 			self._pending_fare_history_entry = None
 
-	def on_update_after_submit(self):
+	def on_update_after_submit(self):  # nosemgrep: frappe-modifying-but-not-comitting
 		pending = getattr(self, "_pending_fare_history_entry", None)
 		if pending:
 			self._insert_fare_history_row(pending)
