@@ -1,5 +1,7 @@
 ### Bilan Air Booking System
 
+[![CI](https://github.com/lambda-drama/Bilan-Air-system/actions/workflows/ci.yml/badge.svg)](https://github.com/lambda-drama/Bilan-Air-system/actions/workflows/ci.yml)
+
 Air booking system
 
 **Operations guide:** [docs/operations-guide.md](docs/operations-guide.md) — portal workflows, seat release, multi-stop (three-city) seating, booking agents.
