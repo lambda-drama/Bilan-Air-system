@@ -59,31 +59,31 @@ function CounterRow({
     <div
       className={cn(
         "flex items-center justify-between gap-3",
-        isHero ? "rounded-lg border border-navy/10 bg-white/70 px-3 py-2.5" : "py-1",
+        isHero ? "rounded-lg border border-navy/10 bg-white/70 px-2.5 py-1.5" : "py-1",
       )}
     >
       <div className="min-w-0">
-        <p className={cn("font-medium", isHero ? "text-navy text-sm" : "text-sm")}>{label}</p>
+        <p className={cn("font-medium", isHero ? "text-navy text-xs" : "text-sm")}>{label}</p>
         {hint ? (
-          <p className={cn("text-xs", isHero ? "text-navy/50" : "text-muted-foreground")}>{hint}</p>
+          <p className={cn("text-[11px] leading-tight", isHero ? "text-navy/50" : "text-xs text-muted-foreground")}>{hint}</p>
         ) : null}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-40",
+            "flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-40",
             isHero
               ? "border-navy/15 text-navy hover:bg-navy/5"
               : "border-input text-foreground hover:bg-muted",
           )}
           aria-label={`Decrease ${label}`}
         >
-          <Minus className="h-3.5 w-3.5" />
+          <Minus className="h-3 w-3" />
         </button>
-        <span className={cn("w-6 text-center font-semibold tabular-nums", isHero && "text-navy")}>
+        <span className={cn("w-5 text-center text-sm font-semibold tabular-nums", isHero && "text-navy")}>
           {value}
         </span>
         <button
@@ -91,14 +91,14 @@ function CounterRow({
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-40",
+            "flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-40",
             isHero
               ? "border-navy/15 text-navy hover:bg-navy/5"
               : "border-input text-foreground hover:bg-muted",
           )}
           aria-label={`Increase ${label}`}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-3 w-3" />
         </button>
       </div>
     </div>
@@ -133,7 +133,7 @@ export function FlightSearchPassengersCabin({
   );
 
   const passengerBlock = (
-    <div className={cn("space-y-2", isHero && "rounded-xl border border-navy/10 p-3 bg-white/50")}>
+    <div className={cn("space-y-1.5", isHero && "rounded-xl border border-navy/10 p-2.5 bg-white/50")}>
       {!isHero && (
         <p className="text-sm font-medium text-foreground">
           {labels.passengers}{" "}
@@ -141,7 +141,7 @@ export function FlightSearchPassengersCabin({
         </p>
       )}
       {isHero && (
-        <p className="text-navy/60 text-xs font-semibold tracking-wider mb-2">{labels.passengers}</p>
+        <p className="text-navy/60 text-[11px] font-semibold tracking-wide mb-1">{labels.passengers}</p>
       )}
       <CounterRow
         label={labels.adults}
@@ -176,14 +176,14 @@ export function FlightSearchPassengersCabin({
 
   const cabinField = isHero ? (
     <div>
-      <label className="text-navy/60 text-xs font-semibold tracking-wider">{labels.cabin}</label>
+      <label className="text-navy/60 text-[11px] font-semibold tracking-wide">{labels.cabin}</label>
       <SearchableSelect
         options={cabins}
         value={seatClass}
         onValueChange={(v) => onSeatClassChange(v as SeatClassOption)}
         clearable={false}
         disabled={disabled}
-        inputClassName="bilan-light-field h-auto min-h-[2.75rem] py-2.5 text-base shadow-none mt-1"
+        inputClassName="bilan-light-field h-auto min-h-[2.375rem] py-1.5 text-sm shadow-none mt-1"
       />
     </div>
   ) : (
@@ -199,7 +199,7 @@ export function FlightSearchPassengersCabin({
   );
 
   return (
-    <div className={cn(isHero ? "space-y-4" : "grid gap-4 sm:grid-cols-2", className)}>
+    <div className={cn(isHero ? "space-y-2" : "grid gap-4 sm:grid-cols-2", className)}>
       <div className={cn(!isHero && "sm:col-span-2")}>{passengerBlock}</div>
       {cabinField}
     </div>

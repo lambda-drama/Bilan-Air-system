@@ -1,12 +1,33 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { StaffDeskLink } from '@/components/staff-desk-link';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { BrandLogo } from '@/components/brand-logo';
 import { useTranslations } from '@/contexts/locale-context';
+import {
+  getPublicWebsiteBranding,
+  type PublicWebsiteBranding,
+} from '@/services/websiteAuth';
 
 export function Footer() {
   const t = useTranslations();
+  const [branding, setBranding] = useState<PublicWebsiteBranding | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getPublicWebsiteBranding()
+      .then((data) => {
+        if (active) setBranding(data);
+      })
+      .catch(() => {
+        // Keep the bundled logo and default attribution if branding is unavailable.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const footerLinks = {
     fly: [
@@ -35,7 +56,14 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           <div>
-            <h3 className="text-xl font-bold tracking-wide mb-4">{t.brand.name}</h3>
+            <div className="mb-4 flex items-center gap-3">
+              <BrandLogo
+                src={branding?.footer_logo || branding?.app_logo}
+                alt={t.brand.name}
+                className="h-12 w-auto max-w-[160px]"
+              />
+              <h3 className="text-xl font-bold tracking-wide">{t.brand.name}</h3>
+            </div>
             <p className="text-cream/60 text-sm leading-relaxed">{t.footer.tagline}</p>
           </div>
 
@@ -104,6 +132,7 @@ export function Footer() {
             &copy; {new Date().getFullYear()} Bilan Air. {t.footer.copyright}
           </p>
           <p className="text-cream/40 text-sm">{t.footer.locations}</p>
+          <p className="text-cream/40 text-sm">{t.footer.poweredBy}</p>
           <LanguageSwitcher variant="footer" />
         </div>
       </div>

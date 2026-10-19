@@ -280,7 +280,7 @@
   }
 
   .bilan-hero-cta {
-    @apply h-auto min-h-0 px-8 py-6 font-semibold;
+    @apply h-auto min-h-0 px-6 py-3 text-sm font-semibold;
   }
 
   /* Page & scroll motion */

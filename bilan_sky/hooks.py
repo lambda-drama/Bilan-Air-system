@@ -64,7 +64,6 @@ _bilan_frappe_www_routes = (
 	"me",
 	"profile",
 	"contact",
-	"about",
 	"error",
 	"404",
 	"update-password",

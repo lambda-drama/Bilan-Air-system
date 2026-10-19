@@ -46,7 +46,7 @@ export function NearestFlightDatesPanel({
     <div
       className={cn(
         isHero
-          ? "text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-3"
+          ? "text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 space-y-2"
           : "rounded-lg border border-amber-200 bg-amber-50/80 p-4 space-y-3 dark:border-amber-500/30 dark:bg-amber-950/40",
         className,
       )}
@@ -54,8 +54,8 @@ export function NearestFlightDatesPanel({
       {loading ? (
         <p
           className={cn(
-            "inline-flex items-center gap-2 text-sm",
-            isHero ? "text-amber-800/70" : "text-muted-foreground",
+            "inline-flex items-center gap-2",
+            isHero ? "text-xs text-amber-800/70" : "text-sm text-muted-foreground",
           )}
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -64,23 +64,23 @@ export function NearestFlightDatesPanel({
       ) : null}
 
       {!loading && suggestions.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <p
             className={cn(
-              "font-semibold text-sm",
-              isHero ? "text-amber-900" : "text-foreground",
+              "font-semibold",
+              isHero ? "text-xs text-amber-900" : "text-sm text-foreground",
             )}
           >
             {title}
           </p>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion.date}
                 type="button"
                 onClick={() => onSelect(suggestion.date)}
                 className={cn(
-                  "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                  "w-full rounded-lg border px-2.5 py-1.5 text-left transition-colors",
                   isHero
                     ? "border-amber-300/80 bg-white hover:border-gold hover:bg-gold/10"
                     : "border-amber-200 bg-background hover:border-gold hover:bg-gold/5 dark:border-amber-500/40 dark:bg-card dark:hover:bg-gold/10",
@@ -89,7 +89,7 @@ export function NearestFlightDatesPanel({
                 <span
                   className={cn(
                     "font-semibold",
-                    isHero ? "text-navy" : "text-foreground",
+                    isHero ? "text-xs text-navy" : "text-foreground",
                   )}
                 >
                   {useDateLabel(suggestion.date)}
@@ -97,7 +97,7 @@ export function NearestFlightDatesPanel({
                 <span
                   className={cn(
                     "mt-0.5 block text-xs",
-                    isHero ? "text-navy/60" : "text-muted-foreground",
+                    isHero ? "text-[11px] text-navy/60" : "text-xs text-muted-foreground",
                   )}
                 >
                   {formatDaysOffset(suggestion.days_from_anchor)}
@@ -116,7 +116,7 @@ export function NearestFlightDatesPanel({
       ) : null}
 
       {!loading && checked && suggestions.length === 0 ? (
-        <p className={cn("text-sm", isHero ? "text-amber-800/70" : "text-muted-foreground")}>
+        <p className={cn(isHero ? "text-xs text-amber-800/70" : "text-sm text-muted-foreground")}>
           {emptyLabel}
         </p>
       ) : null}

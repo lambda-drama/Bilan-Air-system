@@ -1,5 +1,13 @@
 import { apiRequest, methodUrl } from "./apiClient";
 
+export interface PublicWebsiteBranding {
+  app_name: string;
+  app_logo: string;
+  footer_logo: string;
+  footer_powered: string;
+  copyright: string;
+}
+
 export interface PublicBookingSettings {
   hold_duration_minutes: number;
   hold_duration_hours?: number;
@@ -42,6 +50,24 @@ export interface MyBookingRow {
   payer_phone?: string;
 }
 
+let publicWebsiteBrandingPromise: Promise<PublicWebsiteBranding> | null = null;
+
+export async function getPublicWebsiteBranding(): Promise<PublicWebsiteBranding> {
+  if (!publicWebsiteBrandingPromise) {
+    publicWebsiteBrandingPromise = apiRequest<PublicWebsiteBranding>(
+      methodUrl("website_auth", "get_public_website_branding"),
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    ).catch((error) => {
+      publicWebsiteBrandingPromise = null;
+      throw error;
+    });
+  }
+  return publicWebsiteBrandingPromise;
+}
+
 export async function getPublicBookingSettings(): Promise<PublicBookingSettings> {
   return apiRequest(methodUrl("website_auth", "get_public_booking_settings"), {
     method: "POST",
@@ -64,6 +90,13 @@ export async function registerWebsiteUser(data: {
       body: JSON.stringify(data),
     },
   );
+}
+
+export async function requestPasswordReset(email: string) {
+  return apiRequest("/api/method/frappe.core.doctype.user.user.reset_password", {
+    method: "POST",
+    body: JSON.stringify({ user: email.trim() }),
+  });
 }
 
 export async function getMyAccount(): Promise<WebsiteAccountProfile> {

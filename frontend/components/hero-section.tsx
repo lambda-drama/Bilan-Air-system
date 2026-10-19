@@ -38,10 +38,12 @@ import { useLocale, useTranslations } from '@/contexts/locale-context';
 import { useCurrency } from '@/contexts/currency-context';
 
 const heroFieldClass =
-  'bilan-light-field w-full mt-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gold';
+  'bilan-light-field w-full mt-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-gold';
 
 const heroAirportSelectInputClass =
-  'bilan-light-field h-auto min-h-[2.75rem] py-2.5 text-base shadow-none mt-1';
+  'bilan-light-field h-auto min-h-[2.375rem] py-1.5 text-sm shadow-none mt-1';
+
+const heroLabelClass = 'text-navy/60 text-[11px] font-semibold tracking-wide';
 
 export function HeroSection() {
   const router = useRouter();
@@ -532,49 +534,49 @@ export function HeroSection() {
         <Plane className="absolute top-1/2 right-1/4 transform -translate-y-1/2 w-96 h-96 text-navy-light/20 -rotate-12" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className={`grid lg:grid-cols-2 gap-16 items-center ${isRtl ? 'lg:[direction:rtl]' : ''}`}>
-          <div className={isRtl ? 'text-right lg:[direction:rtl]' : 'text-left'}>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
+        <div className={`grid lg:grid-cols-2 gap-10 items-start ${isRtl ? 'lg:[direction:rtl]' : ''}`}>
+          <div className={`${isRtl ? 'text-right lg:[direction:rtl]' : 'text-left'} lg:pt-8`}>
             <p
-              className="bilan-hero-rise text-gold text-xs font-semibold tracking-[0.3em] mb-6"
+              className="bilan-hero-rise text-gold text-[11px] font-semibold tracking-[0.3em] mb-4"
               style={{ animationDelay: "0.08s" }}
             >
               {t.hero.eyebrow}
             </p>
             <h1
-              className="bilan-hero-rise text-cream font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6"
+              className="bilan-hero-rise text-cream font-serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-5"
               style={{ animationDelay: "0.18s" }}
             >
               {t.hero.title}{' '}
               <span className="text-gold">{t.hero.titleHighlight}</span>
             </h1>
             <p
-              className="bilan-hero-rise text-cream/60 text-lg mb-8 max-w-lg"
+              className="bilan-hero-rise text-cream/60 text-base mb-6 max-w-lg"
               style={{ animationDelay: "0.28s" }}
             >
               {t.hero.subtitle}
             </p>
             <div
-              className={`bilan-hero-rise flex flex-wrap gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}
+              className={`bilan-hero-rise flex flex-wrap gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}
               style={{ animationDelay: "0.36s" }}
             >
               <Button
                 onClick={() => document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' })}
-                className="bilan-hero-cta bg-gold hover:bg-gold-dark text-navy w-full sm:w-auto"
+                className="bilan-hero-cta hidden sm:inline-flex bg-gold hover:bg-gold-dark text-navy sm:w-auto h-10 px-6 text-sm"
               >
                 {t.hero.searchFlights}
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => router.push('/manage-booking')}
-                className="bilan-hero-cta bilan-navy-outline-btn w-full sm:w-auto"
+                className="bilan-hero-cta bilan-navy-outline-btn w-full sm:w-auto h-10 px-6 text-sm"
               >
                 {t.hero.manageBooking}
               </Button>
             </div>
 
-            <div className={`mt-16 inline-flex items-center gap-2 border border-cream/20 rounded-lg px-6 py-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
-              <span className="text-gold text-3xl font-serif">
+            <div className={`mt-10 hidden sm:inline-flex items-center gap-2 border border-cream/20 rounded-lg px-5 py-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
+              <span className="text-gold text-2xl font-serif">
                 {origins.length > 0 ? `${origins.length}+` : '—'}
               </span>
               <span className="text-cream/60 text-sm">{t.hero.routesLive}</span>
@@ -583,33 +585,33 @@ export function HeroSection() {
 
           <div
             id="book"
-            className="bilan-hero-rise bg-cream rounded-2xl p-8 shadow-2xl"
+            className="bilan-hero-rise bg-cream rounded-2xl p-5 sm:p-6 shadow-2xl w-full"
             style={{ animationDelay: "0.42s" }}
           >
-            <div className="mb-6">
-              <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-2">{t.hero.flightSearch}</p>
+            <div className="mb-4">
+              <p className="text-gold text-[10px] font-semibold tracking-[0.18em] mb-1">{t.hero.flightSearch}</p>
               <div className={`flex items-start justify-between gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                <h2 className="text-navy text-2xl font-serif">{t.hero.findFlight}</h2>
+                <h2 className="text-navy text-xl font-serif">{t.hero.findFlight}</h2>
                 <Link
                   href={schedulesBrowseHref}
-                  className={`inline-flex items-center gap-1 text-xs font-semibold text-navy/50 hover:text-gold transition-colors shrink-0 mt-1 ${isRtl ? 'flex-row-reverse' : ''}`}
+                  className={`inline-flex items-center gap-1 text-[11px] font-semibold text-navy/50 hover:text-gold transition-colors shrink-0 mt-0.5 ${isRtl ? 'flex-row-reverse' : ''}`}
                   title={t.hero.viewAllSchedules}
                 >
                   <span className="hidden sm:inline">{t.hero.viewAllSchedules}</span>
-                  <ArrowUpRight className="w-4 h-4" />
+                  <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
-              <p className="text-navy/60 text-sm mt-1">{t.hero.routesHint}</p>
+              <p className="text-navy/60 text-xs mt-1">{t.hero.routesHint}</p>
             </div>
 
             {loadError && (
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
                 {loadError}
               </p>
             )}
 
             {searchError && (
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4 space-y-3">
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 space-y-2">
                 <p>{searchError}</p>
                 {(loadingDepartureSuggestions ||
                   departureSuggestions.length > 0 ||
@@ -639,7 +641,7 @@ export function HeroSection() {
             )}
 
             {returnLegWarning && (
-              <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 mb-4 space-y-3">
+              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 space-y-2">
                 <p>
                   {t.hero.returnFlightsNotFound.replace('{date}', formatSearchDate(returnDate))}
                 </p>
@@ -675,7 +677,7 @@ export function HeroSection() {
                   type="button"
                   onClick={proceedWithOutboundOnly}
                   variant="outline"
-                  className="w-full border-amber-300 text-navy hover:bg-white"
+                  className="w-full bg-white border-amber-300 text-navy hover:bg-amber-50"
                 >
                   {t.hero.proceedOutboundOnly}
                 </Button>
@@ -688,10 +690,10 @@ export function HeroSection() {
                 clearSearchFeedback();
                 setTripType(next);
               }}
-              className="mb-4"
+              className="mb-3"
             />
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {tripType === 'multicity' ? (
                 <>
                   {multiLegs.map((leg, index) => {
@@ -699,10 +701,10 @@ export function HeroSection() {
                     return (
                       <div
                         key={index}
-                        className="rounded-xl border border-navy/10 p-4 space-y-3 bg-white/60"
+                        className="rounded-xl border border-navy/10 p-3 space-y-2 bg-white/60"
                       >
                         <div className="flex items-center justify-between">
-                          <p className="text-navy text-xs font-semibold tracking-wider">
+                          <p className="text-navy text-[11px] font-semibold tracking-wide">
                             {t.hero.flight} {index + 1}
                           </p>
                           {multiLegs.length > 2 && (
@@ -716,40 +718,42 @@ export function HeroSection() {
                             </button>
                           )}
                         </div>
-                        <div>
-                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                            {t.hero.from}
-                          </label>
-                          <SearchableSelect
-                            options={airportsToSelectOptions(origins)}
-                            value={leg.origin}
-                            onValueChange={(code) => handleMultiLegOriginChange(index, code)}
-                            placeholder={t.hero.searchPlaceholder}
-                            emptyMessage={t.hero.noOrigin}
-                            disabled={origins.length === 0 || loadingAirports}
-                            isLoading={loadingAirports}
-                            clearable={false}
-                            inputClassName={heroAirportSelectInputClass}
-                          />
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className={heroLabelClass}>
+                              {t.hero.from}
+                            </label>
+                            <SearchableSelect
+                              options={airportsToSelectOptions(origins)}
+                              value={leg.origin}
+                              onValueChange={(code) => handleMultiLegOriginChange(index, code)}
+                              placeholder={t.hero.searchPlaceholder}
+                              emptyMessage={t.hero.noOrigin}
+                              disabled={origins.length === 0 || loadingAirports}
+                              isLoading={loadingAirports}
+                              clearable={false}
+                              inputClassName={heroAirportSelectInputClass}
+                            />
+                          </div>
+                          <div>
+                            <label className={heroLabelClass}>
+                              {t.hero.to}
+                            </label>
+                            <SearchableSelect
+                              options={airportsToSelectOptions(legDestOptions)}
+                              value={leg.destination}
+                              onValueChange={(code) => updateMultiLeg(index, { destination: code })}
+                              placeholder={t.hero.searchPlaceholder}
+                              emptyMessage={t.hero.noDestination}
+                              disabled={legDestOptions.length === 0 || loadingAirports}
+                              isLoading={loadingAirports}
+                              clearable={false}
+                              inputClassName={heroAirportSelectInputClass}
+                            />
+                          </div>
                         </div>
                         <div>
-                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                            {t.hero.to}
-                          </label>
-                          <SearchableSelect
-                            options={airportsToSelectOptions(legDestOptions)}
-                            value={leg.destination}
-                            onValueChange={(code) => updateMultiLeg(index, { destination: code })}
-                            placeholder={t.hero.searchPlaceholder}
-                            emptyMessage={t.hero.noDestination}
-                            disabled={legDestOptions.length === 0 || loadingAirports}
-                            isLoading={loadingAirports}
-                            clearable={false}
-                            inputClassName={heroAirportSelectInputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-navy/60 text-xs font-semibold tracking-wider">
+                          <label className={heroLabelClass}>
                             {t.hero.departure}
                           </label>
                           <input
@@ -768,7 +772,7 @@ export function HeroSection() {
                       type="button"
                       variant="outline"
                       onClick={addMultiLeg}
-                      className="w-full border-navy/20 text-navy"
+                      className="w-full h-9 text-sm bg-white border-navy/20 text-navy hover:bg-navy/5"
                     >
                       <Plus className="w-4 h-4 me-2" />
                       {t.hero.addFlight}
@@ -777,82 +781,86 @@ export function HeroSection() {
                 </>
               ) : (
                 <>
-              <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.from}</label>
-                {loadingAirports ? (
-                  <div className="mt-1 flex items-center gap-2 px-4 py-3 text-navy/50 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t.hero.loadingAirports}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className={heroLabelClass}>{t.hero.from}</label>
+                      {loadingAirports ? (
+                        <div className="mt-1 flex items-center gap-2 px-3 py-2 min-h-[2.375rem] text-navy/50 text-xs">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t.hero.loadingAirports}
+                        </div>
+                      ) : (
+                        <SearchableSelect
+                          options={originSelectOptions}
+                          value={origin}
+                          onValueChange={handleOriginChange}
+                          placeholder={t.hero.searchPlaceholder}
+                          emptyMessage={t.hero.noOrigin}
+                          disabled={origins.length === 0}
+                          clearable={false}
+                          inputClassName={heroAirportSelectInputClass}
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className={heroLabelClass}>{t.hero.to}</label>
+                      {loadingAirports ? (
+                        <div className="mt-1 flex items-center px-3 py-2 min-h-[2.375rem] text-navy/50 text-xs">—</div>
+                      ) : (
+                        <SearchableSelect
+                          options={destinationSelectOptions}
+                          value={destination}
+                          onValueChange={(code) => {
+                            clearSearchFeedback();
+                            setDestination(code);
+                          }}
+                          placeholder={t.hero.searchPlaceholder}
+                          emptyMessage={t.hero.noDestination}
+                          disabled={destinationOptions.length === 0}
+                          clearable={false}
+                          inputClassName={heroAirportSelectInputClass}
+                        />
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <SearchableSelect
-                    options={originSelectOptions}
-                    value={origin}
-                    onValueChange={handleOriginChange}
-                    placeholder={t.hero.searchPlaceholder}
-                    emptyMessage={t.hero.noOrigin}
-                    disabled={origins.length === 0}
-                    clearable={false}
-                    inputClassName={heroAirportSelectInputClass}
-                  />
-                )}
-              </div>
 
-              <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.to}</label>
-                {loadingAirports ? (
-                  <div className="mt-1 px-4 py-3 text-navy/50 text-sm">—</div>
-                ) : (
-                  <SearchableSelect
-                    options={destinationSelectOptions}
-                    value={destination}
-                    onValueChange={(code) => {
-                      clearSearchFeedback();
-                      setDestination(code);
-                    }}
-                    placeholder={t.hero.searchPlaceholder}
-                    emptyMessage={t.hero.noDestination}
-                    disabled={destinationOptions.length === 0}
-                    clearable={false}
-                    inputClassName={heroAirportSelectInputClass}
-                  />
-                )}
-              </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className={tripType === 'return' ? undefined : 'col-span-2'}>
+                      <label className={heroLabelClass}>
+                        {tripType === 'return' ? t.hero.depart : t.hero.departure}
+                      </label>
+                      <input
+                        type="date"
+                        value={departureDate}
+                        onChange={(e) => {
+                          clearSearchFeedback();
+                          setDepartureDate(e.target.value);
+                          if (returnDate && e.target.value > returnDate) {
+                            setReturnDate(e.target.value);
+                          }
+                        }}
+                        min={new Date().toISOString().split('T')[0]}
+                        className={heroFieldClass}
+                      />
+                    </div>
 
-              <div>
-                <label className="text-navy/60 text-xs font-semibold tracking-wider">
-                  {tripType === 'return' ? t.hero.depart : t.hero.departure}
-                </label>
-                <input
-                  type="date"
-                  value={departureDate}
-                  onChange={(e) => {
-                    clearSearchFeedback();
-                    setDepartureDate(e.target.value);
-                    if (returnDate && e.target.value > returnDate) {
-                      setReturnDate(e.target.value);
-                    }
-                  }}
-                  min={new Date().toISOString().split('T')[0]}
-                  className={heroFieldClass}
-                />
-              </div>
-
-              {tripType === 'return' && (
-                <div>
-                  <label className="text-navy/60 text-xs font-semibold tracking-wider">{t.hero.return}</label>
-                  <input
-                    type="date"
-                    value={returnDate}
-                    onChange={(e) => {
-                      clearSearchFeedback();
-                      setReturnDate(e.target.value);
-                    }}
-                    min={departureDate || new Date().toISOString().split('T')[0]}
-                    className={heroFieldClass}
-                  />
-                </div>
-              )}
+                    {tripType === 'return' && (
+                      <div>
+                        <label className={heroLabelClass}>{t.hero.return}</label>
+                        <input
+                          type="date"
+                          value={returnDate}
+                          onChange={(e) => {
+                            clearSearchFeedback();
+                            setReturnDate(e.target.value);
+                          }}
+                          min={departureDate || new Date().toISOString().split('T')[0]}
+                          className={heroFieldClass}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -876,7 +884,7 @@ export function HeroSection() {
               <Button
                 onClick={handleSearch}
                 disabled={searchDisabled}
-                className="w-full bg-gold hover:bg-gold-dark text-navy font-semibold py-6 mt-4 disabled:opacity-50"
+                className="w-full h-10 mt-1 bg-gold hover:bg-gold-dark text-navy text-sm font-semibold disabled:opacity-50"
               >
                 {loadingAirports || searching ? (
                   <Loader2 className="w-4 h-4 me-2 animate-spin" />
@@ -887,19 +895,19 @@ export function HeroSection() {
               </Button>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-navy/10">
-              <p className="text-navy/60 text-sm mb-3">{t.hero.alreadyBooked}</p>
+            <div className="mt-5 pt-4 border-t border-navy/10">
+              <p className="text-navy/60 text-xs mb-2">{t.hero.alreadyBooked}</p>
               <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
                 <Input
                   placeholder={t.hero.bookingRefPlaceholder}
                   value={bookingRef}
                   onChange={(e) => setBookingRef(e.target.value.toUpperCase())}
-                  className="bilan-light-field flex-1 h-11"
+                  className="bilan-light-field flex-1 h-9 text-sm"
                 />
                 <Button
                   onClick={handleManageBooking}
                   variant="outline"
-                  className="border-navy/20 text-navy hover:bg-navy/5 gap-1"
+                  className="h-9 text-sm bg-white border-navy/20 text-navy hover:bg-navy/5 gap-1"
                 >
                   {t.hero.manage} <ArrowRight className={`w-4 h-4 ${isRtl ? 'rotate-180' : ''}`} />
                 </Button>

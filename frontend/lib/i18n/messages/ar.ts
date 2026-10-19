@@ -256,6 +256,7 @@ export const ar: MessageTree = {
     staffPortal: "بوابة الموظفين",
     copyright: "جميع الحقوق محفوظة.",
     locations: "نيروبي · مقديشو · شرق أفريقيا",
+    poweredBy: "مدعوم من بيلان",
     language: "اللغة",
     links: {
       bookFlight: "احجز رحلة",

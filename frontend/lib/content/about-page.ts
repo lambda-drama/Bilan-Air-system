@@ -28,6 +28,12 @@ export type AboutPageContent = {
     paragraphs: string[];
     stats: { value: string; label: string }[];
   };
+  gallery: {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    items: { image: string; alt: string; title: string; body: string }[];
+  };
   values: {
     eyebrow: string;
     title: string;
@@ -64,6 +70,12 @@ const CITIES = [
   { code: "JIB", name: "Djibouti", x: 62, y: 38 },
   { code: "ADD", name: "Addis Ababa", x: 52, y: 42 },
   { code: "DAR", name: "Dar es Salaam", x: 48, y: 72 },
+];
+
+const GALLERY_IMAGES = [
+  "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1200&q=80",
+  "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80",
+  "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=1200&q=80",
 ];
 
 const en: AboutPageContent = {
@@ -126,6 +138,32 @@ const en: AboutPageContent = {
       { value: "6", label: "Countries Served" },
     ],
   },
+  gallery: {
+    eyebrow: "Life at Bilan",
+    title: "A closer look at our journey",
+    subtitle:
+      "From the ramp to the cabin, every detail is built around Somali hospitality and East African pride.",
+    items: [
+      {
+        image: GALLERY_IMAGES[0],
+        alt: "Bilan Air aircraft wing above the clouds",
+        title: "Above East Africa",
+        body: "Window-seat views over the region we call home, with a fleet planned around comfort and reliability.",
+      },
+      {
+        image: GALLERY_IMAGES[1],
+        alt: "Bilan Air team collaborating in the office",
+        title: "Our people",
+        body: "A growing team of aviation professionals united by one goal: making Somali aviation something the world looks up to.",
+      },
+      {
+        image: GALLERY_IMAGES[2],
+        alt: "East African landscape at golden hour",
+        title: "Our home",
+        body: "From Nairobi to Mogadishu, Djibouti and beyond, we connect the places and people that matter most.",
+      },
+    ],
+  },
   values: {
     eyebrow: "What We Stand For",
     title: "Our values",
@@ -184,27 +222,27 @@ const en: AboutPageContent = {
     title: "From idea to airline",
     milestones: [
       {
-        year: "2021",
+        year: "2026",
         title: "Founded in Nairobi",
         body: "Bilan Air is incorporated by a team of Somali aviation professionals with a shared vision: a world-class airline representing Somalia.",
       },
       {
-        year: "2022",
+        year: "2026",
         title: "First Route: Nairobi – Mogadishu",
         body: "We launch our inaugural route, operating daily scheduled services between Wilson Airport and Aden Adde International Airport.",
       },
       {
-        year: "2023",
+        year: "2026",
         title: "Fleet Expansion & Cargo Launch",
         body: "Second aircraft joins the fleet. Bilan Air launches dedicated cargo services supporting East African trade corridors.",
       },
       {
-        year: "2024",
+        year: "2026",
         title: "50,000 Passengers Milestone",
         body: "We reach 50,000 passengers carried, a proud moment for our team and a testament to the trust placed in us by the Somali community.",
       },
       {
-        year: "2025",
+        year: "2026",
         title: "Regional Expansion: 6 Countries",
         body: "New routes to Djibouti, Addis Ababa, and Dar es Salaam. Bilan Air now serves 6 countries across East Africa.",
       },
@@ -282,6 +320,31 @@ const ar: AboutPageContent = {
       { value: "6", label: "دول" },
     ],
   },
+  gallery: {
+    eyebrow: "الحياة في بيلان",
+    title: "نظرة أقرب على رحلتنا",
+    subtitle: "من ساحة الطائرات إلى المقصورة، كل تفصيل مبني على الضيافة الصومالية والفخر بشرق أفريقيا.",
+    items: [
+      {
+        image: GALLERY_IMAGES[0],
+        alt: "جناح طائرة بيلان إير فوق السحاب",
+        title: "فوق شرق أفريقيا",
+        body: "إطلالات من مقعد النافذة على المنطقة التي نعتبرها وطننا، بأسطول مخطط حول الراحة والموثوقية.",
+      },
+      {
+        image: GALLERY_IMAGES[1],
+        alt: "فريق بيلان إير أثناء العمل",
+        title: "فريقنا",
+        body: "فريق متنامٍ من محترفي الطيران متحد بهدف واحد: جعل الطيران الصومالي محط إعجاب العالم.",
+      },
+      {
+        image: GALLERY_IMAGES[2],
+        alt: "منظر طبيعي في شرق أفريقيا",
+        title: "وطننا",
+        body: "من نيروبي إلى مقديشو وجيبوتي وما بعدها، نربط الأماكن والناس الأكثر أهمية.",
+      },
+    ],
+  },
   values: {
     eyebrow: "ما نؤمن به",
     title: "قيمنا",
@@ -339,34 +402,34 @@ const ar: AboutPageContent = {
     title: "من فكرة إلى شركة طيران",
     milestones: [
       {
-        year: "2021",
-        title: "التأسيس في نairobi",
+        year: "2026",
+        title: "التأسيس في نيروبي",
         body: "تأسست بيلان إير على يد فريق من محترفي الطيران الصوماليين برؤية شركة طيران عالمية تمثل الصومال.",
       },
       {
-        year: "2022",
-        title: "أول مسار: Nairobi – Mogadishu",
+        year: "2026",
+        title: "أول مسار: نيروبي – مقديشو",
         body: "إطلاق مسارنا الأول بخدمات يومية مجدولة.",
       },
       {
-        year: "2023",
+        year: "2026",
         title: "توسيع الأسطول وإطلاق الشحن",
-        body: "انضمت طائرة ثانية. إطلاق خدمات الشحن الم dedicated.",
-      },
-      {
-        year: "2024",
-        title: "50,000 مسافر",
-        body: "بلغنا 50,000 مسافر — لحظة فخر لفريقنا وثقة الم community الصومالي.",
-      },
-      {
-        year: "2025",
-        title: "توسع إقليمي: 6 دول",
-        body: "مسارات جديدة إلى Djibouti وAddis Ababa وDar es Salaam.",
+        body: "انضمت طائرة ثانية. إطلاق خدمات الشحن المخصصة.",
       },
       {
         year: "2026",
-        title: "ما beyond شرق أفريقيا",
-        body: "تخطيط للرحلات طويلة المدى لربط diaspora الصومالي في أوروبا والخليج.",
+        title: "50,000 مسافر",
+        body: "بلغنا 50,000 مسافر — لحظة فخر لفريقنا وثقة المجتمع الصومالي.",
+      },
+      {
+        year: "2026",
+        title: "توسع إقليمي: 6 دول",
+        body: "مسارات جديدة إلى جيبوتي وأديس أبابا ودار السلام.",
+      },
+      {
+        year: "2026",
+        title: "ما بعد شرق أفريقيا",
+        body: "تخطيط للرحلات طويلة المدى لربط المغتربين الصوماليين في أوروبا والخليج.",
       },
     ],
   },

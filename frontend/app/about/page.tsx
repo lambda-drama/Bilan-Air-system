@@ -24,6 +24,9 @@ import { formatAirportDisplay } from "@/lib/format-airport";
 import { fetchAllRoutes } from "@/services/search";
 import { cn } from "@/lib/utils";
 
+const ABOUT_HERO_IMAGE =
+  "https://images.unsplash.com/photo-1569154941061-e231b4725ef1?auto=format&fit=crop&w=1400&q=80";
+
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p className="text-gold text-xs font-semibold tracking-[0.2em] mb-4 flex items-center gap-3">
@@ -107,17 +110,37 @@ export default function AboutPage() {
       <Navbar />
 
       {/* Hero */}
-      <section className="bg-navy pt-32 pb-24 text-cream">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Reveal>
-            <SectionEyebrow>{content.hero.eyebrow}</SectionEyebrow>
-            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6">
-              {content.hero.title}
-              <br />
-              {content.hero.titleLine2}
-            </h1>
-            <p className="text-cream/70 text-lg max-w-3xl leading-relaxed">{content.hero.body}</p>
-          </Reveal>
+      <section className="relative overflow-hidden bg-navy pt-32 pb-24 text-cream">
+        <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_20%_20%,rgba(212,175,55,0.18),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(212,175,55,0.12),transparent_40%)]" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-12 items-center">
+            <Reveal>
+              <SectionEyebrow>{content.hero.eyebrow}</SectionEyebrow>
+              <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6">
+                {content.hero.title}
+                <br />
+                {content.hero.titleLine2}
+              </h1>
+              <p className="text-cream/70 text-lg max-w-xl leading-relaxed">{content.hero.body}</p>
+            </Reveal>
+            <Reveal delay={120}>
+              <div className="relative overflow-hidden rounded-2xl border border-gold/25 shadow-2xl shadow-navy/40">
+                <img
+                  src={ABOUT_HERO_IMAGE}
+                  alt="Bilan Air aircraft on the apron"
+                  className="aspect-[4/3] w-full object-cover"
+                  loading="eager"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-navy/85 via-navy/10 to-transparent" />
+                <div className="absolute bottom-5 left-5 right-5 rounded-xl border border-cream/15 bg-navy/75 px-4 py-3 backdrop-blur-sm">
+                  <p className="text-gold text-[10px] font-semibold tracking-[0.25em]">
+                    {content.hero.eyebrow}
+                  </p>
+                  <p className="mt-1 text-sm text-cream/85">{content.hero.titleLine2}</p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -272,6 +295,37 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Gallery */}
+      <section className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal className="max-w-2xl mb-12">
+            <SectionEyebrow>{content.gallery.eyebrow}</SectionEyebrow>
+            <h2 className="text-navy font-serif text-3xl sm:text-4xl mb-4">{content.gallery.title}</h2>
+            <p className="text-navy/60">{content.gallery.subtitle}</p>
+          </Reveal>
+          <RevealStagger className="grid md:grid-cols-3 gap-6">
+            {content.gallery.items.map((item, index) => (
+              <RevealItem key={item.title} index={index}>
+                <article className="group h-full overflow-hidden rounded-2xl border border-navy/10 bg-cream bilan-lift">
+                  <div className="aspect-[4/3] overflow-hidden">
+                    <img
+                      src={item.image}
+                      alt={item.alt}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-navy text-lg font-semibold mb-2">{item.title}</h3>
+                    <p className="text-navy/60 text-sm leading-relaxed">{item.body}</p>
+                  </div>
+                </article>
+              </RevealItem>
+            ))}
+          </RevealStagger>
+        </div>
+      </section>
+
       {/* Values */}
       <section className="py-24 bg-navy">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -327,7 +381,7 @@ export default function AboutPage() {
           </Reveal>
           <div className="relative border-s border-gold/30 ms-4 sm:ms-6 space-y-10">
             {content.journey.milestones.map((item, index) => (
-              <Reveal key={item.year} delay={index * 60}>
+              <Reveal key={`${item.year}-${index}`} delay={index * 60}>
                 <div className="relative ps-8 sm:ps-10">
                   <span className="absolute -start-[5px] top-2 h-2.5 w-2.5 rounded-full bg-gold" />
                   <p className="text-gold font-serif text-2xl mb-2">{item.year}</p>

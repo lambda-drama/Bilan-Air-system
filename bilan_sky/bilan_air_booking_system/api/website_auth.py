@@ -1,5 +1,7 @@
 # Copyright (c) 2026, NF and contributors
 
+import os
+
 import frappe
 from frappe import _
 from frappe.utils import cint, getdate
@@ -201,6 +203,36 @@ def get_csrf_token():
 	return frappe.sessions.get_csrf_token()
 
 
+def _public_existing_file_url(file_url: str | None) -> str:
+	"""Return a /files URL only when the stored file exists on disk."""
+	file_url = (file_url or "").strip()
+	if not file_url or not file_url.startswith("/files/"):
+		return file_url
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not file_name:
+		return file_url
+	try:
+		path = frappe.get_doc("File", file_name).get_full_path()
+	except Exception:
+		return file_url
+	return file_url if os.path.exists(path) else ""
+
+
+@frappe.whitelist(allow_guest=True)
+def get_public_website_branding():
+	"""Public footer/navbar branding from Website Settings (guest-safe)."""
+	settings = frappe.get_single("Website Settings")
+	app_logo = _public_existing_file_url(settings.app_logo)
+	footer_logo = _public_existing_file_url(settings.footer_logo) or app_logo
+	return {
+		"app_name": settings.app_name or "Bilan Air",
+		"app_logo": app_logo,
+		"footer_logo": footer_logo,
+		"footer_powered": settings.footer_powered or "",
+		"copyright": settings.copyright or "",
+	}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_public_booking_settings():
 	"""Hold window and labels for the traveler booking UI."""
@@ -367,7 +399,9 @@ def update_password(
 	)
 
 	user = frappe.session.user
-	if user and user not in ("Guest", "Administrator") and user_has_portal_access(user):
-		return PORTAL_HOME_PATH
+	if user and user not in ("Guest", "Administrator"):
+		if user_has_portal_access(user):
+			return PORTAL_HOME_PATH
+		return "/account"
 
 	return redirect

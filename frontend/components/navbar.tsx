@@ -39,25 +39,14 @@ export function Navbar() {
   const { isRtl } = useLocale();
   const t = useTranslations();
 
-  const navLinks = isAuthenticated
-    ? [
-        { href: '/#book', label: t.nav.book },
-        { href: '/schedules', label: t.nav.schedules },
-        { href: '/flight-status', label: t.nav.flightStatus },
-        { href: '/check-in', label: t.nav.checkIn },
-        { href: '/#services', label: t.nav.services },
-        { href: '/manage-booking', label: t.nav.manageBooking },
-        { href: '/#contact', label: t.nav.contact },
-      ]
-    : [
-        { href: '/#book', label: t.nav.book },
-        { href: '/about', label: t.nav.about },
-        { href: '/schedules', label: t.nav.schedules },
-        { href: '/flight-status', label: t.nav.flightStatus },
-        { href: '/#services', label: t.nav.services },
-        { href: '/manage-booking', label: t.nav.manageBooking },
-        { href: '/#contact', label: t.nav.contact },
-      ];
+  const navLinks = [
+    { href: '/#book', label: t.nav.book },
+    { href: '/schedules', label: t.nav.schedules },
+    { href: '/flight-status', label: t.nav.flightStatus },
+    { href: '/manage-booking', label: t.nav.manageBooking },
+    { href: '/about', label: t.nav.about },
+    { href: '/#contact', label: t.nav.contact },
+  ];
 
   const closeMenu = () => setIsOpen(false);
 
