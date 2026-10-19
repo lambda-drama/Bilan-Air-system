@@ -167,6 +167,7 @@ home_page = "bilan_frontend"
 # before_app_install = "bilan_sky.utils.before_app_install"
 # after_app_install = "bilan_sky.utils.after_app_install"
 
+##Just a trial
 # Integration Cleanup
 # -------------------
 # To clean up dependencies/integrations with other apps
@@ -208,7 +209,7 @@ doc_events = {
 
 # hooks.py
 
-#Will check later if we need to add scheduled tasks for things like releasing expired seats, sending reminders, etc.
+# Will check later if we need to add scheduled tasks for things like releasing expired seats, sending reminders, etc.
 # scheduler_events = {
 #     "all": [
 #         "bilan_air.utils.tasks.release_expired_seats"
@@ -329,4 +330,3 @@ override_whitelisted_methods = {
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
