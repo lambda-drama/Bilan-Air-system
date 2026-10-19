@@ -21,67 +21,69 @@ def preview_baggage_fee(weight_kg, seat_class=None, seat_inventory_name=None):
 
 @frappe.whitelist()
 def add_baggage(pnr, weight_kg, passenger_id=None, passenger_name=None, passenger_index=None):
-    """Create baggage tracking record. ``pnr`` may be reservation ref (RES-…) or customer PNR."""
+	"""Create baggage tracking record. ``pnr`` may be reservation ref (RES-…) or customer PNR."""
 
-    from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
+	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import calculate_excess_fee
+	from bilan_sky.bilan_air_booking_system.utils.reservation_status import resolve_air_booking
 
-    from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import calculate_excess_fee
+	booking_name = resolve_air_booking(pnr)
+	booking = frappe.get_doc("Air Booking", booking_name)
+	passenger_row = None
 
-    booking_name = resolve_air_booking(pnr)
-    booking = frappe.get_doc("Air Booking", booking_name)
-    passenger_row = None
+	if passenger_index is not None:
+		passenger_row = booking.passengers[int(passenger_index)]
+		passenger_name = passenger_row.passenger_name
+		passenger_id = passenger_row.passenger
+	elif passenger_id and not passenger_name:
+		passenger_name = frappe.db.get_value("Passenger", passenger_id, "full_name")
 
-    if passenger_index is not None:
-        passenger_row = booking.passengers[int(passenger_index)]
-        passenger_name = passenger_row.passenger_name
-        passenger_id = passenger_row.passenger
-    elif passenger_id and not passenger_name:
-        passenger_name = frappe.db.get_value("Passenger", passenger_id, "full_name")
+	if not passenger_name:
+		frappe.throw("Traveler name is required for baggage tracking.")
 
-    if not passenger_name:
-        frappe.throw("Traveler name is required for baggage tracking.")
+	seat_inventory_name = passenger_row.seat_number if passenger_row else None
+	excess_result = calculate_excess_fee(weight_kg, seat_inventory_name=seat_inventory_name)
+	is_excess = excess_result["is_excess"]
+	fee = excess_result["fee"]
 
-    seat_inventory_name = passenger_row.seat_number if passenger_row else None
-    excess_result = calculate_excess_fee(weight_kg, seat_inventory_name=seat_inventory_name)
-    is_excess = excess_result["is_excess"]
-    fee = excess_result["fee"]
-    
-    baggage = frappe.get_doc({
-        "doctype": "Baggage Tracking",
-        "air_booking": booking.name,
-        "passenger": passenger_id,
-        "passenger_name": passenger_name,
-        "flight_schedule": booking.flight_schedule,
-        "weight_kg": weight_kg,
-        "baggage_fee": fee,
-        "is_excess": is_excess,
-        "status": "Checked In"
-    })
-    baggage.insert(ignore_permissions=True)
+	baggage = frappe.get_doc(
+		{
+			"doctype": "Baggage Tracking",
+			"air_booking": booking.name,
+			"passenger": passenger_id,
+			"passenger_name": passenger_name,
+			"flight_schedule": booking.flight_schedule,
+			"weight_kg": weight_kg,
+			"baggage_fee": fee,
+			"is_excess": is_excess,
+			"status": "Checked In",
+		}
+	)
+	baggage.insert(ignore_permissions=True)
 
-    link_row = {
-        "doctype": "Air Booking Baggage Link",
-        "parent": booking.name,
-        "parenttype": "Air Booking",
-        "parentfield": "baggage_tracking_numbers",
-        "baggage_tracking": baggage.name,
-    }
-    if booking.docstatus == 1:
-        frappe.get_doc(link_row).insert(ignore_permissions=True)
-    else:
-        booking.append("baggage_tracking_numbers", {"baggage_tracking": baggage.name})
-        booking.flags.ignore_validate = True
-        booking.save(ignore_permissions=True)
+	link_row = {
+		"doctype": "Air Booking Baggage Link",
+		"parent": booking.name,
+		"parenttype": "Air Booking",
+		"parentfield": "baggage_tracking_numbers",
+		"baggage_tracking": baggage.name,
+	}
+	if booking.docstatus == 1:
+		frappe.get_doc(link_row).insert(ignore_permissions=True)
+	else:
+		booking.append("baggage_tracking_numbers", {"baggage_tracking": baggage.name})
+		booking.flags.ignore_validate = True
+		booking.save(ignore_permissions=True)
 
-    frappe.db.commit()
-    
-    return {
-        "tracking_number": baggage.tracking_number,
-        "weight_kg": weight_kg,
-        "fee": fee,
-        "is_excess": is_excess,
-        "passenger_name": passenger_name,
-    }
+	frappe.db.commit()
+
+	return {
+		"tracking_number": baggage.tracking_number,
+		"weight_kg": weight_kg,
+		"fee": fee,
+		"is_excess": is_excess,
+		"passenger_name": passenger_name,
+	}
+
 
 def _passenger_last_name(name):
 	parts = (name or "").strip().split()
@@ -170,9 +172,10 @@ def get_baggage_print_data(tracking_number):
 	if not tracking_number:
 		frappe.throw(_("Tracking number is required."))
 
-	baggage_name = frappe.db.get_value(
-		"Baggage Tracking", {"tracking_number": tracking_number}, "name"
-	) or tracking_number
+	baggage_name = (
+		frappe.db.get_value("Baggage Tracking", {"tracking_number": tracking_number}, "name")
+		or tracking_number
+	)
 	if not frappe.db.exists("Baggage Tracking", baggage_name):
 		frappe.throw(_("Baggage tag not found."))
 
@@ -187,18 +190,19 @@ def get_baggage_print_data(tracking_number):
 
 @frappe.whitelist(allow_guest=True)
 def trace_baggage(tracking_number):
-    """Track baggage by tracking number"""
-    
-    baggage_name = frappe.db.get_value(
-        "Baggage Tracking", {"tracking_number": tracking_number}, "name"
-    ) or tracking_number
-    baggage = frappe.get_doc("Baggage Tracking", baggage_name)
+	"""Track baggage by tracking number"""
 
-    return {
-        "tracking_number": baggage.tracking_number,
-        "status": baggage.status,
-        "passenger": baggage.passenger,
-        "passenger_name": baggage.passenger_name,
-        "flight": baggage.flight_schedule,
-        "weight_kg": baggage.weight_kg
-    }
+	baggage_name = (
+		frappe.db.get_value("Baggage Tracking", {"tracking_number": tracking_number}, "name")
+		or tracking_number
+	)
+	baggage = frappe.get_doc("Baggage Tracking", baggage_name)
+
+	return {
+		"tracking_number": baggage.tracking_number,
+		"status": baggage.status,
+		"passenger": baggage.passenger,
+		"passenger_name": baggage.passenger_name,
+		"flight": baggage.flight_schedule,
+		"weight_kg": baggage.weight_kg,
+	}

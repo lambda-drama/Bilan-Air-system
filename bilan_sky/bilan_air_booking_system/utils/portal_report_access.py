@@ -40,9 +40,7 @@ def get_agent_report_permissions(user: str | None = None) -> dict[str, int]:
 	user = user or frappe.session.user
 	if user_has_full_portal_permissions(user) or not user_is_booking_agent(user):
 		return {key: 1 for key in AGENT_REPORT_FIELDS}
-	return {
-		key: cint(get_ba_setting(fieldname, 0)) for key, fieldname in AGENT_REPORT_FIELDS.items()
-	}
+	return {key: cint(get_ba_setting(fieldname, 0)) for key, fieldname in AGENT_REPORT_FIELDS.items()}
 
 
 def can_access_agent_report(report_key: str, user: str | None = None) -> bool:
@@ -81,7 +79,7 @@ def require_agent_report_access_any(*report_keys: str) -> None:
 	require_portal_staff()
 	if user_has_full_portal_permissions():
 		return
-	if not user_is_booking_agent(user):
+	if not user_is_booking_agent():
 		return
 	if any(can_access_agent_report(key) for key in report_keys):
 		return

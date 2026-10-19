@@ -64,7 +64,9 @@ def _resolve_html_file(route_path: str) -> str:
 		if os.path.isfile(full_path):
 			return full_path
 
-	frappe.throw("Bilan frontend page not found. Run yarn build from the app root.", frappe.PageDoesNotExistError)
+	frappe.throw(
+		"Bilan frontend page not found. Run yarn build from the app root.", frappe.PageDoesNotExistError
+	)
 
 
 def _inject_csrf(html: str, csrf_token: str) -> str:

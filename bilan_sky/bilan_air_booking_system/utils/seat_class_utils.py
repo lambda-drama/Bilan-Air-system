@@ -59,15 +59,11 @@ def _attach_cabin_names(rows: list[dict]) -> list[dict]:
 			cabin_names[row.name] = row.cabin_name
 	for row in rows:
 		row["cabin_name"] = cabin_names.get(row.get("cabin_class") or "")
-		row["display_label"] = fare_class_display_label(
-			row.get("class_name"), row.get("cabin_name")
-		)
+		row["display_label"] = fare_class_display_label(row.get("class_name"), row.get("cabin_name"))
 	return rows
 
 
-def fare_class_display_label(
-	class_name: str | None, cabin_name: str | None = None
-) -> str:
+def fare_class_display_label(class_name: str | None, cabin_name: str | None = None) -> str:
 	"""Human fare class label for price lists — avoids repeating the cabin name."""
 	class_name = (class_name or "").strip()
 	cabin_name = (cabin_name or "").strip()

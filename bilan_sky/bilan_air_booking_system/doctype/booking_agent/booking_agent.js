@@ -46,8 +46,7 @@ function apply_agent_profile_name(frm) {
 	}
 	return frappe
 		.call({
-			method:
-				"bilan_sky.bilan_air_booking_system.doctype.booking_agent.booking_agent.get_agent_profile_name",
+			method: "bilan_sky.bilan_air_booking_system.doctype.booking_agent.booking_agent.get_agent_profile_name",
 			args: {
 				booking_company: frm.doc.booking_company,
 				username: frm.doc.username,

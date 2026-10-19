@@ -26,9 +26,7 @@ class FlightRoute(Document):
 
 		if not self.is_multi_segment or not self.route_segments:
 			return
-		total = sum(
-			duration_to_seconds(getattr(row, "duration", None)) for row in self.route_segments
-		)
+		total = sum(duration_to_seconds(getattr(row, "duration", None)) for row in self.route_segments)
 		if total:
 			self.duration = total
 
@@ -44,7 +42,7 @@ class FlightRoute(Document):
 				frappe.throw(
 					_(
 						"Multi-segment routes need at least two legs. "
-						"Use a direct route for a single origin–destination pair."
+						"Use a direct route for a single origin-destination pair."
 					)
 				)
 			validate_route_segments(self.route_segments)

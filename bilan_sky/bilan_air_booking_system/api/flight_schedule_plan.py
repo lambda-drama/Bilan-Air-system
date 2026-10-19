@@ -128,7 +128,9 @@ def save_flight_schedule_plan(data):
 	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_schedule_override_payload
 
 	normalize_schedule_override_payload(data)
-	payload = {k: v for k, v in data.items() if k not in ("name", "base_fares_override", "base_fare_override")}
+	payload = {
+		k: v for k, v in data.items() if k not in ("name", "base_fares_override", "base_fare_override")
+	}
 
 	if not (payload.get("plan_title") or "").strip():
 		payload["plan_title"] = next_plan_title()

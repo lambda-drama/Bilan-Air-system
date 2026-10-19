@@ -5,13 +5,12 @@ from frappe import _
 from frappe.utils import cint
 
 from bilan_sky.bilan_air_booking_system.api.portal import _paginated
-from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
-from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.agent_address import (
 	create_or_update_agent_address,
 	default_address_country,
 	get_agent_address_name,
 )
+from bilan_sky.bilan_air_booking_system.utils.airports import enrich_route_airport_labels
 from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
 	booking_agent_activation_by_email,
 	create_booking_agent_profile,
@@ -32,6 +31,7 @@ from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
 	require_doctype_permission,
 	save_portal_doc,
 )
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.user_accounts import (
 	create_or_get_user,
 	split_full_name,
@@ -609,6 +609,8 @@ def create_booking_company(company_agency, is_agency=0):
 	require_doctype_permission("Booking Company", "create")
 	from bilan_sky.bilan_air_booking_system.utils.booking_company import (
 		create_booking_company as _create,
+	)
+	from bilan_sky.bilan_air_booking_system.utils.booking_company import (
 		serialize_booking_company,
 	)
 
@@ -1126,7 +1128,9 @@ def save_booking_agent(data):
 		)
 		doc.agent_address = address_name
 
-	if doc.user and any(k in data for k in ("first_name", "last_name", "phone", "phone_2", "role_profile_name")):
+	if doc.user and any(
+		k in data for k in ("first_name", "last_name", "phone", "phone_2", "role_profile_name")
+	):
 		user = frappe.get_doc("User", doc.user)
 		if "first_name" in data:
 			user.first_name = doc.first_name
@@ -1329,9 +1333,7 @@ def resend_booking_agent_activation(booking_agent=None, user=None):
 	require_portal_staff()
 	if not booking_agent_activation_by_email():
 		frappe.throw(
-			_(
-				"Activation email is disabled in BA Settings. Set or reset the password from Desk instead."
-			)
+			_("Activation email is disabled in BA Settings. Set or reset the password from Desk instead.")
 		)
 	from bilan_sky.bilan_air_booking_system.utils.user_activation import (
 		send_user_activation_email,

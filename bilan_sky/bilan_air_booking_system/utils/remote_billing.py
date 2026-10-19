@@ -17,7 +17,6 @@ from bilan_sky.bilan_air_booking_system.utils.remote_erp import (
 	remote_accounting_config,
 )
 
-
 REMOTE_ITEM_GROUP = "Service"
 
 
@@ -174,9 +173,9 @@ def ensure_remote_item(
 	verified = _find_remote_item_code(client, remote_code)
 	if not verified:
 		frappe.throw(
-			_("Item {0} could not be created on the accounting site. Check API user permissions for Item.").format(
-				item_code
-			)
+			_(
+				"Item {0} could not be created on the accounting site. Check API user permissions for Item."
+			).format(item_code)
 		)
 	return verified
 
@@ -348,7 +347,7 @@ def generate_remote_invoice_number(client, company: str) -> str:
 	year = str(nowdate())[:4]
 	seq = _get_next_remote_invoice_sequence(client, abbr, year)
 	prefix = f"{abbr}-{year}-"
-	for _ in range(50):
+	for _attempt in range(50):
 		invoice_no = f"{prefix}{seq:05d}"
 		if not _remote_invoice_number_in_use(client, invoice_no):
 			return invoice_no
@@ -569,7 +568,11 @@ def create_remote_refund_payment_entry(
 
 	refund_due = _refund_amount_due_on_invoice(invoice)
 	if refund_due <= 0:
-		frappe.throw(_("Return invoice {0} has no refundable amount on the accounting site.").format(return_invoice_name))
+		frappe.throw(
+			_("Return invoice {0} has no refundable amount on the accounting site.").format(
+				return_invoice_name
+			)
+		)
 
 	if not paid_account:
 		paid_account = resolve_remote_paid_to_account(settings, mode_of_payment)
@@ -634,7 +637,9 @@ def create_remote_payment_entry(
 				pe = client.get_doc("Payment Entry", pe_name)
 				if pe.get("docstatus") == 1:
 					return pe_name
-		frappe.throw(_("Sales Invoice {0} is already fully paid on the accounting site.").format(invoice_name))
+		frappe.throw(
+			_("Sales Invoice {0} is already fully paid on the accounting site.").format(invoice_name)
+		)
 
 	if not paid_account:
 		paid_account = resolve_remote_paid_to_account(settings, mode_of_payment)

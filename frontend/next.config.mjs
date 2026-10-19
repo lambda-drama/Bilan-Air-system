@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 
-const isDev = process.env.NODE_ENV !== "production"
+const isDev = process.env.NODE_ENV !== "production";
 
 const nextConfig = {
   ...(isDev ? {} : { output: "export" }),
@@ -17,7 +17,7 @@ const nextConfig = {
   ...(isDev
     ? {
         async rewrites() {
-          const frappeUrl = process.env.FRAPPE_URL || "http://localhost:8000"
+          const frappeUrl = process.env.FRAPPE_URL || "http://localhost:8000";
           return [
             {
               source: "/api/:path*",
@@ -27,10 +27,10 @@ const nextConfig = {
               source: "/files/:path*",
               destination: `${frappeUrl}/files/:path*`,
             },
-          ]
+          ];
         },
       }
     : {}),
-}
+};
 
-export default nextConfig
+export default nextConfig;

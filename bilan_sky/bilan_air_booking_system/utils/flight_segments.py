@@ -14,9 +14,7 @@ def _child_segment_fields(parent_doctype: str) -> list[str]:
 	child_dt = f"{parent_doctype} Segment"
 	columns = set(frappe.db.get_table_columns(child_dt) or [])
 	fields = [
-		field
-		for field in ("segment_index", "origin_airport", "destination_airport")
-		if field in columns
+		field for field in ("segment_index", "origin_airport", "destination_airport") if field in columns
 	]
 	for optional in ("duration", "arrival_date", "arrival_time"):
 		if optional in columns:
@@ -118,13 +116,20 @@ def default_journey_airports(schedule_name: str) -> dict:
 def validate_route_segments(segments: list) -> None:
 	if not segments:
 		frappe.throw(_("Add at least one flight segment."))
-	ordered = sorted(segments, key=lambda r: cint(r.segment_index if hasattr(r, "segment_index") else r.get("segment_index")))
+	ordered = sorted(
+		segments,
+		key=lambda r: cint(r.segment_index if hasattr(r, "segment_index") else r.get("segment_index")),
+	)
 	for idx, row in enumerate(ordered):
-		expected = idx if len(ordered) > 1 else cint(
-			row.segment_index if hasattr(row, "segment_index") else row.get("segment_index", 0)
+		expected = (
+			idx
+			if len(ordered) > 1
+			else cint(row.segment_index if hasattr(row, "segment_index") else row.get("segment_index", 0))
 		)
 		origin = row.origin_airport if hasattr(row, "origin_airport") else row.get("origin_airport")
-		dest = row.destination_airport if hasattr(row, "destination_airport") else row.get("destination_airport")
+		dest = (
+			row.destination_airport if hasattr(row, "destination_airport") else row.get("destination_airport")
+		)
 		if not origin or not dest:
 			frappe.throw(_("Each segment needs a from and to airport."))
 		if origin == dest:
@@ -148,9 +153,7 @@ def sync_schedule_segments_from_route(schedule) -> None:
 	from bilan_sky.bilan_air_booking_system.utils.flight_duration import estimate_schedule_arrival
 
 	segments = get_route_segments(schedule.route)
-	estimates = estimate_schedule_arrival(
-		schedule.route, schedule.departure_date, schedule.departure_time
-	)
+	estimates = estimate_schedule_arrival(schedule.route, schedule.departure_date, schedule.departure_time)
 	by_index = {row["segment_index"]: row for row in estimates.get("segments") or []}
 
 	child_columns = set(frappe.db.get_table_columns("Flight Schedule Segment") or [])

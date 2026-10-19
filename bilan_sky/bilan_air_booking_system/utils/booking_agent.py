@@ -161,9 +161,6 @@ def serialize_booking_agent(agent) -> dict:
 		"activation_pending": _activation_pending(agent),
 		"linked_customer": agent.linked_customer,
 		"notes": agent.notes,
-		"role_profile_name": frappe.db.get_value("User", agent.user, "role_profile_name")
-		if getattr(agent, "user", None)
-		else None,
 	}
 	return enrich_agent_company_fields(row)
 
@@ -324,7 +321,9 @@ def validate_credit_confirmation_for_booking(booking, user: str | None = None):
 	amount = flt(booking.total_fare)
 	if amount <= 0:
 		frappe.throw(
-			_("Cannot confirm on credit until a total fare is calculated. Assign seats, save the reservation, and ensure route fares are set."),
+			_(
+				"Cannot confirm on credit until a total fare is calculated. Assign seats, save the reservation, and ensure route fares are set."
+			),
 			title=_("Zero fare"),
 		)
 	agent = resolve_credit_agent_for_confirmation(booking, user=user)

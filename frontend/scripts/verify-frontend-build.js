@@ -17,7 +17,11 @@ function listHtmlFiles(dir) {
 			files.push(...listHtmlFiles(fullPath));
 			continue;
 		}
-		if (entry.name.endsWith(".html") && entry.name !== "404.html" && entry.name !== "_not-found.html") {
+		if (
+			entry.name.endsWith(".html") &&
+			entry.name !== "404.html" &&
+			entry.name !== "_not-found.html"
+		) {
 			files.push(fullPath);
 		}
 	}

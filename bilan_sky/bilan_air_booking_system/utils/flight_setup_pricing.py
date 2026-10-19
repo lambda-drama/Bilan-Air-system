@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import frappe
+from frappe import _
 from frappe.utils import cint, flt
 
 from bilan_sky.bilan_air_booking_system.utils.flight_setup import flight_setup_available
@@ -111,9 +112,10 @@ def get_flight_setup_price_row(
 	if not seat_class:
 		return None
 	for row in doc.get("flight_prices") or []:
-		if _seat_classes_match_for_pricing(seat_class, row.seat_class) and _normalize_passenger_type(
-			row.passenger_type
-		) == pt:
+		if (
+			_seat_classes_match_for_pricing(seat_class, row.seat_class)
+			and _normalize_passenger_type(row.passenger_type) == pt
+		):
 			return row.as_dict()
 	return None
 
@@ -175,9 +177,9 @@ def _ensure_flight_setup_child_table(doc, fieldname: str) -> None:
 	if doc.meta.get_field(fieldname):
 		return
 	frappe.throw(
-		_(
-			"Flight Setup is missing the {0} table. Run bench migrate on this site, then try again."
-		).format(fieldname),
+		_("Flight Setup is missing the {0} table. Run bench migrate on this site, then try again.").format(
+			fieldname
+		),
 		title=_("Database update required"),
 	)
 

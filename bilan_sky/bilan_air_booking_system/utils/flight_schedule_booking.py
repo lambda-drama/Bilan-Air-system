@@ -35,7 +35,5 @@ def assert_credit_confirmation_allowed(schedule_name: str | None) -> None:
 		return
 	if cint(frappe.db.get_value("Flight Schedule", schedule_name, "only_prepayment")):
 		frappe.throw(
-			_(
-				"This flight is marked Only Pre-Payment. Confirm with payment — agent credit is not allowed."
-			)
+			_("This flight is marked Only Pre-Payment. Confirm with payment — agent credit is not allowed.")
 		)

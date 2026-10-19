@@ -65,7 +65,9 @@ def crew_member_is_pilot(crew_member: str | None) -> bool:
 	return crew_role_category(role) == PILOT_CATEGORY
 
 
-def validate_flight_crew_pilots(doc, *, require_captain: bool = False, require_first_officer: bool = False) -> None:
+def validate_flight_crew_pilots(
+	doc, *, require_captain: bool = False, require_first_officer: bool = False
+) -> None:
 	"""Ensure captain and first officer are active crew with Pilot-category roles."""
 	if require_captain and not doc.captain:
 		frappe.throw(_("Captain is required."))

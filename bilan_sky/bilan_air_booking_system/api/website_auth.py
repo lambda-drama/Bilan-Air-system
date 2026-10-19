@@ -5,7 +5,7 @@ import os
 import frappe
 from frappe import _
 from frappe.utils import cint, getdate
-from frappe.utils.password import update_password
+from frappe.utils.password import update_password as set_user_password
 
 from bilan_sky.bilan_air_booking_system.utils.portal_access import (
 	require_portal_staff,
@@ -107,8 +107,7 @@ def _enrich_booking_rows(bookings: list[dict]) -> list[dict]:
 				departure_time = str(schedule.departure_time or "")
 				if schedule.route:
 					route_name = (
-						frappe.db.get_value("Flight Route", schedule.route, "route_name")
-						or schedule.route
+						frappe.db.get_value("Flight Route", schedule.route, "route_name") or schedule.route
 					)
 
 		pax_rows = frappe.get_all(
@@ -280,7 +279,7 @@ def register_website_user(
 		send_welcome_email=0,
 		default_first_name="Traveler",
 	)
-	update_password(user=user_name, pwd=password, logout_all_sessions=0)
+	set_user_password(user=user_name, pwd=password, logout_all_sessions=0)
 
 	passenger = _create_or_link_passenger(
 		user_name,

@@ -1,4 +1,11 @@
-exclude: 'node_modules|.git'
+exclude: |
+    (?x)^(
+        .*node_modules.*|
+        .*\.git/.*|
+        bilan_sky/public/frontend/.*|
+        bilan_sky/public/dist/.*|
+        frontend/\.next/.*
+    )$
 default_stages: [pre-commit]
 fail_fast: false
 

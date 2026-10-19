@@ -178,6 +178,7 @@ def apply_schedule_fare_override(doc: Any, override_value: Any) -> None:
 
 def normalize_base_fares(value: Any = None, *, legacy_adult: float | None = None) -> dict[str, float]:
 	"""API/helper: build fare dict from JSON payload or legacy adult only."""
+
 	class _Route:
 		pass
 
@@ -270,9 +271,7 @@ def economy_price_for_passenger(
 	seat_class: str | None = None,
 ) -> float:
 	if seat_class:
-		amount, _source = resolve_ticket_fare(
-			schedule, route, passenger_type, seat_class=seat_class
-		)
+		amount, _source = resolve_ticket_fare(schedule, route, passenger_type, seat_class=seat_class)
 		return amount
 	base = base_fare_for_passenger(schedule, route, passenger_type)
 	multiplier = fare_rule_multiplier(_row_val(route, "name"), _row_val(schedule, "departure_date"))
@@ -309,7 +308,11 @@ def schedule_fare_override_for_api(doc: Any) -> dict[str, float | None]:
 	"""Flat override fields for portal forms."""
 	raw = read_schedule_overrides(doc)
 	if not raw:
-		return {"base_fare_adult_override": None, "base_fare_child_override": None, "base_fare_infant_override": None}
+		return {
+			"base_fare_adult_override": None,
+			"base_fare_child_override": None,
+			"base_fare_infant_override": None,
+		}
 	return {
 		"base_fare_adult_override": raw.get("adult"),
 		"base_fare_child_override": raw.get("child"),

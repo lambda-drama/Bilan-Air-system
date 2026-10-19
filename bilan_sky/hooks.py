@@ -167,7 +167,7 @@ home_page = "bilan_frontend"
 # before_app_install = "bilan_sky.utils.before_app_install"
 # after_app_install = "bilan_sky.utils.after_app_install"
 
-##Just a trial
+
 # Integration Cleanup
 # -------------------
 # To clean up dependencies/integrations with other apps

@@ -13,7 +13,7 @@ function fixFaviconPaths(html) {
 	const favicon = "/assets/bilan_sky/frontend/favicon.svg";
 	return html.replace(
 		/href="\/(?:favicon\.svg|icon\.svg|icon-light-32x32\.png|icon-dark-32x32\.png|apple-icon\.png)"/g,
-		`href="${favicon}"`,
+		`href="${favicon}"`
 	);
 }
 
@@ -98,7 +98,7 @@ const srcNextDir = path.join(outDir, "_next");
 const destNextDir = path.join(publicFrontendDir, "_next");
 
 if (!fs.existsSync(srcNextDir)) {
-	console.error('Build output not found at', srcNextDir, '- run "yarn build" first');
+	console.error("Build output not found at", srcNextDir, '- run "yarn build" first');
 	process.exit(1);
 }
 

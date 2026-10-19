@@ -178,7 +178,9 @@ class RemoteERPClient:
 		if isinstance(message, str):
 			message = json.loads(message)
 		if not isinstance(message, dict):
-			frappe.throw(_("Unexpected response when creating {0} on accounting site.").format(doc.get("doctype")))
+			frappe.throw(
+				_("Unexpected response when creating {0} on accounting site.").format(doc.get("doctype"))
+			)
 		return message
 
 	def insert(self, doc: dict) -> str:
@@ -219,9 +221,7 @@ class RemoteERPClient:
 		if self.get_list(doctype, filters={"name": name}, fields=["name"], limit=1):
 			return True
 		if doctype == "Item":
-			return bool(
-				self.get_list(doctype, filters={"item_code": name}, fields=["name"], limit=1)
-			)
+			return bool(self.get_list(doctype, filters={"item_code": name}, fields=["name"], limit=1))
 		return False
 
 
