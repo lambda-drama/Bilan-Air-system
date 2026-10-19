@@ -105,7 +105,10 @@ def get_baggage_allowance(seat_class=None, seat_inventory_name=None):
 						checked_pieces = cint(cabin_row.checked_baggage_pieces)
 					if not cint(row.carry_on_pieces) and cint(cabin_row.carry_on_pieces) > 0:
 						carry_on_pieces = cint(cabin_row.carry_on_pieces)
-					if not flt(row.excess_baggage_fee_per_kg) and flt(cabin_row.excess_baggage_fee_per_kg) > 0:
+					if (
+						not flt(row.excess_baggage_fee_per_kg)
+						and flt(cabin_row.excess_baggage_fee_per_kg) > 0
+					):
 						excess_fee_per_kg = flt(cabin_row.excess_baggage_fee_per_kg)
 
 	return {

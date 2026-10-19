@@ -69,9 +69,7 @@ def _seat_has_active_booking(seat_inventory_name: str) -> bool:
 
 def plan_has_class_quotas(plan) -> bool:
 	"""True when the plan defines per-class seat totals."""
-	return any(
-		cint(getattr(row, "number_of_seats", 0)) > 0 for row in (plan.seat_classes or [])
-	)
+	return any(cint(getattr(row, "number_of_seats", 0)) > 0 for row in (plan.seat_classes or []))
 
 
 def plan_class_capacity(plan) -> dict[str, dict[str, int]]:
@@ -147,15 +145,11 @@ def sync_schedule_seat_inventory(
 	"""Rebuild seat inventory to match plan quotas or airplane layout (per BA Settings)."""
 	if schedule_uses_plan_quotas(schedule):
 		plan = frappe.get_doc("Flight Schedule Plan", schedule.schedule_plan)
-		return ensure_plan_quota_seat_inventory(
-			schedule, plan, apply_release_rules=apply_release_rules
-		)
+		return ensure_plan_quota_seat_inventory(schedule, plan, apply_release_rules=apply_release_rules)
 	return schedule.generate_seat_inventory(raise_on_error=raise_on_error)
 
 
-def ensure_plan_quota_seat_inventory(
-	schedule, plan, *, apply_release_rules: bool = True
-) -> int:
+def ensure_plan_quota_seat_inventory(schedule, plan, *, apply_release_rules: bool = True) -> int:
 	"""Create/update seat inventory to match recurring plan quotas exactly (no airplane layout)."""
 	class_capacity = plan_class_capacity(plan)
 	target_slots: list[tuple[str, str, str]] = []
@@ -249,7 +243,9 @@ def apply_plan_seat_class_release(schedule, plan) -> int:
 			for seat_number, _seat_class in slots:
 				inv = inventories.get(seat_number)
 				if inv and inv.status == "Available" and not _seat_has_active_booking(inv.name):
-					frappe.db.set_value("Seat Inventory", inv.name, "status", "Unreleased", update_modified=False)
+					frappe.db.set_value(
+						"Seat Inventory", inv.name, "status", "Unreleased", update_modified=False
+					)
 			frappe.db.set_value(
 				"Flight Schedule",
 				schedule.name,
@@ -330,7 +326,7 @@ def apply_release_status_to_schedule(schedule, *, only_unreleased: bool = False)
 	}
 
 	newly_released = 0
-	for index, (seat_number, seat_class) in enumerate(slots):
+	for index, (seat_number, _seat_class) in enumerate(slots):
 		should_release = index < release_count
 		row = existing.get(seat_number)
 		if not row:

@@ -8,6 +8,7 @@ from bilan_sky.bilan_air_booking_system.utils.airports import (
 	enrich_route_airport_labels,
 	format_route_label,
 )
+from bilan_sky.bilan_air_booking_system.utils.flight_setup import flight_setup_available
 from bilan_sky.bilan_air_booking_system.utils.portal_access import require_portal_staff
 from bilan_sky.bilan_air_booking_system.utils.portal_permissions import (
 	delete_portal_doc,
@@ -19,9 +20,8 @@ from bilan_sky.bilan_air_booking_system.utils.portal_report_access import (
 	require_agent_report_access,
 	require_agent_report_access_any,
 )
-from bilan_sky.bilan_air_booking_system.utils.flight_setup import flight_setup_available
-from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, FLIGHT_TAKEN, VOID
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 
 
 def _format_reservation_datetime(value) -> str:
@@ -34,9 +34,7 @@ def _format_reservation_datetime(value) -> str:
 	return format_datetime(dt, "yyyy-MM-dd hh:mm a").lower()
 
 
-def _agent_display_names(
-	agent_name=None, username=None, first_name=None
-) -> tuple[str, str]:
+def _agent_display_names(agent_name=None, username=None, first_name=None) -> tuple[str, str]:
 	"""Return full agent label and compact first name for portal tables."""
 	full = (agent_name or username or "").strip()
 	first = (first_name or "").strip()
@@ -246,12 +244,8 @@ def _attach_flight_setup_schedule_stats(rows):
 		)
 		s = stats[0] if stats else {}
 		row["schedule_count"] = cint(s.get("schedule_count"))
-		row["first_departure"] = (
-			str(s["first_departure"]) if s.get("first_departure") else None
-		)
-		row["last_departure"] = (
-			str(s["last_departure"]) if s.get("last_departure") else None
-		)
+		row["first_departure"] = str(s["first_departure"]) if s.get("first_departure") else None
+		row["last_departure"] = str(s["last_departure"]) if s.get("last_departure") else None
 		row["plan_count"] = frappe.db.count("Flight Schedule Plan", {"flight_number": fn})
 		upcoming = frappe.get_all(
 			"Flight Schedule",
@@ -288,9 +282,7 @@ def _enrich_flight_setup_rows(rows):
 			route_endpoints[route_row.name] = {
 				"origin_label": frappe.db.get_value("Airport", route_row.origin_airport, "city")
 				or route_row.origin_airport,
-				"destination_label": frappe.db.get_value(
-					"Airport", route_row.destination_airport, "city"
-				)
+				"destination_label": frappe.db.get_value("Airport", route_row.destination_airport, "city")
 				or route_row.destination_airport,
 			}
 
@@ -302,9 +294,9 @@ def _enrich_flight_setup_rows(rows):
 			filters={"name": ["in", list(airplanes)]},
 			fields=["name", "registration_number", "aircraft_model"],
 		):
-			airplane_labels[ap.name] = " · ".join(
-				p for p in [ap.registration_number, ap.aircraft_model] if p
-			) or ap.name
+			airplane_labels[ap.name] = (
+				" · ".join(p for p in [ap.registration_number, ap.aircraft_model] if p) or ap.name
+			)
 
 	for row in rows:
 		route_name = row.get("route")
@@ -405,12 +397,9 @@ def _flight_setup_payload(doc):
 			as_dict=True,
 		)
 		if route_row:
-			route_label = format_route_label(
-				route_row.origin_airport, route_row.destination_airport
-			)
+			route_label = format_route_label(route_row.origin_airport, route_row.destination_airport)
 			origin_label = (
-				frappe.db.get_value("Airport", route_row.origin_airport, "city")
-				or route_row.origin_airport
+				frappe.db.get_value("Airport", route_row.origin_airport, "city") or route_row.origin_airport
 			)
 			destination_label = (
 				frappe.db.get_value("Airport", route_row.destination_airport, "city")
@@ -805,9 +794,7 @@ def cancel_flight_schedule(
 	if paid_rows:
 		refund_type = (refund_type or "").strip().lower()
 		if refund_type not in ("full", "partial"):
-			frappe.throw(
-				_("Choose full or partial refund for {0} paid booking(s).").format(len(paid_rows))
-			)
+			frappe.throw(_("Choose full or partial refund for {0} paid booking(s).").format(len(paid_rows)))
 		if refund_type == "partial" and flt(refund_amount) <= 0:
 			frappe.throw(_("Enter a refund amount per booking for a partial refund."))
 
@@ -1246,12 +1233,11 @@ def save_flight_route(data):
 
 		data = json.loads(data)
 
+	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_route_fare_payload
 	from bilan_sky.bilan_air_booking_system.utils.flight_route_portal import (
 		apply_route_segments_to_doc,
 		serialize_flight_route,
 	)
-
-	from bilan_sky.bilan_air_booking_system.utils.fare_pricing import normalize_route_fare_payload
 
 	payload, segments = _parse_route_payload(data)
 	normalize_route_fare_payload(payload)
@@ -1832,9 +1818,7 @@ def portal_release_seat(seat_name):
 		frappe.throw(_("Seat {0} is already available").format(seat.seat_number))
 
 	if seat.status == "Unreleased":
-		frappe.throw(
-			_("Seat {0} is unreleased. Use release for sale instead.").format(seat.seat_number)
-		)
+		frappe.throw(_("Seat {0} is unreleased. Use release for sale instead.").format(seat.seat_number))
 
 	seat.status = "Available"
 	seat.booking_reference = None
@@ -2001,7 +1985,7 @@ def _reports_summary_for_year(year):
 		as_dict=True,
 	)[0]
 	total_passengers = frappe.db.sql(
-		f"""
+		"""
 		SELECT COUNT(p.name) AS total
 		FROM `tabAir Booking Passenger` p
 		INNER JOIN `tabAir Booking` ab ON ab.name = p.parent
@@ -2112,11 +2096,7 @@ def _report_flight_schedules(flight_number, departure_date, departure_time=None,
 
 	if departure_time:
 		normalized = _normalize_portal_time(departure_time)
-		schedules = [
-			s
-			for s in schedules
-			if _normalize_portal_time(s.get("departure_time")) == normalized
-		]
+		schedules = [s for s in schedules if _normalize_portal_time(s.get("departure_time")) == normalized]
 
 	destination_airport = None
 	if (destination or "").strip():
@@ -2236,15 +2216,9 @@ def get_manifest_report(flight_number, departure_date, departure_time=None, dest
 		if destination_airport and dest_airport != destination_airport:
 			continue
 
-		agent, agent_first_name = _agent_display_names(
-			row.agent_name, row.username, row.first_name
-		)
+		agent, agent_first_name = _agent_display_names(row.agent_name, row.username, row.first_name)
 		agency_company = company_agency_name(row.booking_company) or ""
-		passenger_class = (
-			seat_class_by_seat.get(row.seat_number)
-			or row.cabin_class
-			or ""
-		)
+		passenger_class = seat_class_by_seat.get(row.seat_number) or row.cabin_class or ""
 		data.append(
 			{
 				"pnr_number": row.pnr or row.reservation_ref,
@@ -2375,9 +2349,7 @@ def get_no_show_report(flight_number, departure_date, departure_time=None, desti
 
 
 @frappe.whitelist()
-def export_portal_report_pdf(
-	title, subtitle=None, columns=None, rows=None, filename=None, report_key=None
-):
+def export_portal_report_pdf(title, subtitle=None, columns=None, rows=None, filename=None, report_key=None):
 	"""Export portal tabular report rows to a downloadable PDF."""
 	from bilan_sky.bilan_air_booking_system.utils.report_pdf import export_tabular_report_pdf
 
@@ -2425,7 +2397,7 @@ def get_portal_reports(year=None):
 		if row.y
 	]
 	if year not in available_years:
-		available_years = sorted(set(available_years + [year]), reverse=True)
+		available_years = sorted(set([*available_years, year]), reverse=True)
 
 	summary = _reports_summary_for_year(year)
 	prior = _reports_summary_for_year(year - 1)
@@ -2582,7 +2554,9 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 		params["search"] = like
 
 	where = " AND ".join(conditions)
-	join_si = "" if is_remote_accounting_enabled() else "LEFT JOIN `tabSales Invoice` si ON si.name = link.invoice"
+	join_si = (
+		"" if is_remote_accounting_enabled() else "LEFT JOIN `tabSales Invoice` si ON si.name = link.invoice"
+	)
 	si_select = (
 		"NULL AS customer, NULL AS posting_date, NULL AS due_date, "
 		"NULL AS grand_total, NULL AS outstanding_amount, NULL AS invoice_status, "
@@ -2597,7 +2571,9 @@ def list_booking_invoices(limit=50, offset=0, search=None):
 			si.currency,
 			si.docstatus"""
 	)
-	order_by = "link.modified DESC" if is_remote_accounting_enabled() else "si.modified DESC, link.modified DESC"
+	order_by = (
+		"link.modified DESC" if is_remote_accounting_enabled() else "si.modified DESC, link.modified DESC"
+	)
 
 	rows = frappe.db.sql(
 		f"""
@@ -2899,9 +2875,7 @@ def get_agent_sales_report(from_date=None, to_date=None, booking_agent=None):
 			fields=["name", "agent_name"],
 			order_by="agent_name asc",
 		):
-			agent_options.append(
-				{"value": profile.name, "label": profile.agent_name or profile.name}
-			)
+			agent_options.append({"value": profile.name, "label": profile.agent_name or profile.name})
 
 	return {
 		"from_date": str(start),

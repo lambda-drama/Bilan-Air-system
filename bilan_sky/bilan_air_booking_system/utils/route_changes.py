@@ -38,9 +38,9 @@ def apply_route_to_schedule(schedule_name: str, route: str, *, force: bool = Fal
 	active = _active_booking_count(schedule_name)
 	if active and not force:
 		frappe.throw(
-			_(
-				"Cannot change route on {0}: {1} active booking(s). Cancel or rebook those first."
-			).format(schedule_name, active)
+			_("Cannot change route on {0}: {1} active booking(s). Cancel or rebook those first.").format(
+				schedule_name, active
+			)
 		)
 
 	doc = frappe.get_doc("Flight Schedule", schedule_name)

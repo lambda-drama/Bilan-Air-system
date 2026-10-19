@@ -52,11 +52,7 @@ def _booking_agent_activation_args(user_doc) -> dict:
 		as_dict=True,
 	)
 	username = (booking_agent or {}).get("username") or user_doc.name
-	site_name = (
-		frappe.db.get_default("site_name")
-		or frappe.get_conf().get("site_name")
-		or "Bilan Air"
-	)
+	site_name = frappe.db.get_default("site_name") or frappe.get_conf().get("site_name") or "Bilan Air"
 	created_by = get_user_fullname(frappe.session.get("user") or "Administrator")
 	if created_by == "Guest":
 		created_by = "Administrator"

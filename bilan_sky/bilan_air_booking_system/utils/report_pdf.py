@@ -49,20 +49,15 @@ def _cell_value(row, column):
 def _render_tabular_report_html(title, subtitle, columns, rows):
 	generated_at = datetime.now().strftime("%d %b %Y %H:%M")
 	col_headers = "".join(
-		f"<th>{html.escape(str(col.get('label') or col.get('key') or ''))}</th>"
-		for col in columns
+		f"<th>{html.escape(str(col.get('label') or col.get('key') or ''))}</th>" for col in columns
 	)
 	body_rows = []
 	for index, row in enumerate(rows, start=1):
-		cells = "".join(
-			f"<td>{html.escape(_cell_value(row, col))}</td>" for col in columns
-		)
+		cells = "".join(f"<td>{html.escape(_cell_value(row, col))}</td>" for col in columns)
 		body_class = "even" if index % 2 == 0 else "odd"
 		body_rows.append(f'<tr class="{body_class}">{cells}</tr>')
 
-	subtitle_html = (
-		f'<p class="subtitle">{html.escape(subtitle)}</p>' if subtitle else ""
-	)
+	subtitle_html = f'<p class="subtitle">{html.escape(subtitle)}</p>' if subtitle else ""
 
 	return f"""<!DOCTYPE html>
 <html>

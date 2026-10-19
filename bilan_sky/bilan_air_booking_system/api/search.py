@@ -200,9 +200,7 @@ def _airplane_details(airplane_link):
 	operator = None
 	if row.airline:
 		if frappe.db.exists("Airline", row.airline):
-			operator = (
-				frappe.db.get_value("Airline", row.airline, "airline_name") or row.airline
-			)
+			operator = frappe.db.get_value("Airline", row.airline, "airline_name") or row.airline
 		else:
 			operator = row.airline
 	return {"aircraft_model": row.aircraft_model, "operator": operator}
@@ -210,6 +208,7 @@ def _airplane_details(airplane_link):
 
 def _public_seat_class_rows():
 	from frappe.utils import cint, flt
+
 	from bilan_sky.bilan_air_booking_system.utils.baggage_allowance import (
 		get_default_baggage_policy,
 	)
@@ -247,7 +246,9 @@ def _public_cabin_class_rows():
 	return list_public_cabin_classes()
 
 
-def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_airport=None, destination_airport=None):
+def _schedule_to_flight_result(
+	schedule, route, route_name, passengers, origin_airport=None, destination_airport=None
+):
 	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
 		get_schedule_segments,
 		schedule_is_multi_segment,
@@ -267,10 +268,6 @@ def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_a
 	if available < int(passengers):
 		return None
 
-	released = frappe.db.count(
-		"Seat Inventory",
-		{"flight_schedule": schedule_name, "status": ["!=", "Unreleased"]},
-	)
 	total_capacity = frappe.db.get_value("Flight Schedule", schedule_name, "total_aircraft_capacity") or 0
 	seats_released = frappe.db.get_value("Flight Schedule", schedule_name, "seats_released_count") or 0
 
@@ -284,9 +281,7 @@ def _schedule_to_flight_result(schedule, route, route_name, passengers, origin_a
 		"flight_number": _row_val(schedule, "flight_number"),
 		"schedule_id": schedule_name,
 		"departure_date": str(_row_val(schedule, "departure_date")),
-		"arrival_date": str(
-			_row_val(schedule, "arrival_date") or _row_val(schedule, "departure_date")
-		),
+		"arrival_date": str(_row_val(schedule, "arrival_date") or _row_val(schedule, "departure_date")),
 		"departure_time": _row_val(schedule, "departure_time"),
 		"arrival_time": _row_val(schedule, "arrival_time"),
 		"available_seats": available,
@@ -334,9 +329,7 @@ def _find_schedules_for_routes(routes, date, passengers, origin_airport=None, de
 			],
 		)
 		for schedule in schedules:
-			item = _schedule_to_flight_result(
-				schedule, route, route_name, passengers, board, deboard
-			)
+			item = _schedule_to_flight_result(schedule, route, route_name, passengers, board, deboard)
 			if item:
 				results.append(item)
 	return results
@@ -428,14 +421,10 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 				"flights": [],
 			}
 
-	results = _find_schedules_for_routes(
-		routes, date, passengers, origin_airport, destination_airport
-	)
+	results = _find_schedules_for_routes(routes, date, passengers, origin_airport, destination_airport)
 
 	if not results:
-		scheduled_count = sum(
-			_count_schedules_on_date(_row_val(r, "name"), date) for r in routes
-		)
+		scheduled_count = sum(_count_schedules_on_date(_row_val(r, "name"), date) for r in routes)
 		if scheduled_count > 0:
 			departure_date = _normalize_departure_date(date)
 			for route in routes:
@@ -454,15 +443,11 @@ def find_flights(origin=None, destination=None, date=None, passengers=1, route=N
 			)
 
 	if not results:
-		scheduled_count = sum(
-			_count_schedules_on_date(_row_val(r, "name"), date) for r in routes
-		)
+		scheduled_count = sum(_count_schedules_on_date(_row_val(r, "name"), date) for r in routes)
 		if scheduled_count > 0:
 			error = _search_error_for_route(routes, date, passengers)
 		else:
-			draft_count = sum(
-				_draft_schedules_on_date(_row_val(r, "name"), date) for r in routes
-			)
+			draft_count = sum(_draft_schedules_on_date(_row_val(r, "name"), date) for r in routes)
 			if draft_count > 0:
 				error = (
 					f"{draft_count} flight(s) exist on this date but are still draft. "
@@ -509,9 +494,7 @@ def get_schedule_for_office_booking(schedule_id, passengers=1):
 		}
 
 	route = frappe.get_doc("Flight Route", schedule.route, ignore_permissions=True)
-	flight = _schedule_to_flight_result(
-		schedule, route, route.name, int(passengers or 1)
-	)
+	flight = _schedule_to_flight_result(schedule, route, route.name, int(passengers or 1))
 	if not flight:
 		return {"error": "Not enough seats available on this flight"}
 
@@ -906,7 +889,10 @@ def suggest_nearest_flight_dates(
 
 	unique_dates = sorted(
 		{_normalize_departure_date(d) for d in candidate_dates if _normalize_departure_date(d) != anchor},
-		key=lambda d: (abs(frappe.utils.date_diff(d, anchor)), 0 if frappe.utils.date_diff(d, anchor) >= 0 else 1),
+		key=lambda d: (
+			abs(frappe.utils.date_diff(d, anchor)),
+			0 if frappe.utils.date_diff(d, anchor) >= 0 else 1,
+		),
 	)
 
 	suggestions = []

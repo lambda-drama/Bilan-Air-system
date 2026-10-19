@@ -28,6 +28,7 @@ def next_plan_title() -> str:
 
 	return make_autoname(PLAN_TITLE_SERIES)
 
+
 WEEKDAY_FIELDS = (
 	("sunday", 6),
 	("monday", 0),
@@ -367,7 +368,9 @@ def generate_flight_schedules_from_plan(
 		doc = frappe.get_doc(_schedule_payload_from_plan(plan, departure_date))
 		doc._ensure_flight_number()
 		if not doc.flight_number:
-			skipped.append({"departure_date": str(departure_date), "reason": "Could not assign flight number"})
+			skipped.append(
+				{"departure_date": str(departure_date), "reason": "Could not assign flight number"}
+			)
 			report_progress(index)
 			continue
 

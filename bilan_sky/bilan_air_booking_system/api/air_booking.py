@@ -3,13 +3,13 @@
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, flt, get_datetime, now, strip_html
-from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 
 from bilan_sky.bilan_air_booking_system.doctype.seat_inventory.seat_inventory import (
-    prepare_seat_for_new_booking,
+	prepare_seat_for_new_booking,
 )
 from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label, get_airport_iata
 from bilan_sky.bilan_air_booking_system.utils.reservation_status import CONFIRM, resolve_air_booking
+from bilan_sky.bilan_air_booking_system.utils.rich_text import rich_text_to_plain
 
 
 def _load_booking(identifier, **kwargs):
@@ -28,7 +28,9 @@ def _validate_seat_matches_cabin(seat_inventory_name: str, expected_cabin: str) 
 		frappe.throw(_("Seat not found."))
 	cabin_name = cabin_name_for_layout_seat(seat_class_link) or seat_class_link
 	if cabin_name != expected_cabin:
-		seat_label = frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_number") or seat_inventory_name
+		seat_label = (
+			frappe.db.get_value("Seat Inventory", seat_inventory_name, "seat_number") or seat_inventory_name
+		)
 		frappe.throw(
 			_("Seat {0} is in {1}. Only {2} seats can be booked for this cabin.").format(
 				seat_label, cabin_name, expected_cabin
@@ -46,210 +48,215 @@ def get_schedule_journey_defaults(schedule_name):
 
 	return default_journey_airports(schedule_name)
 
+
 @frappe.whitelist(allow_guest=True)
 def create_booking(booking_data):
-    """
-    Create a new booking.
+	"""
+	Create a new booking.
 
-    booking_source:
-      - office: desk booking, travelers stay on the booking only; payer becomes ERPNext Customer on invoice.
-      - online: public site, optional Passenger profiles + website login when register_profile is true.
-    """
-    if isinstance(booking_data, str):
-        import json
+	booking_source:
+	  - office: desk booking, travelers stay on the booking only; payer becomes ERPNext Customer on invoice.
+	  - online: public site, optional Passenger profiles + website login when register_profile is true.
+	"""
+	if isinstance(booking_data, str):
+		import json
 
-        booking_data = json.loads(booking_data)
+		booking_data = json.loads(booking_data)
 
-    booking_source = (booking_data.get("booking_source") or "online").strip().lower()
-    is_office = booking_source == "office"
+	booking_source = (booking_data.get("booking_source") or "online").strip().lower()
+	is_office = booking_source == "office"
 
-    passenger_links = []
+	passenger_links = []
 
-    for pax in booking_data.get("passengers", []):
-        passenger_name = (pax.get("passenger_name") or pax.get("full_name") or "").strip()
-        if not passenger_name:
-            frappe.throw("Each traveler must have a passenger name.")
+	for pax in booking_data.get("passengers", []):
+		passenger_name = (pax.get("passenger_name") or pax.get("full_name") or "").strip()
+		if not passenger_name:
+			frappe.throw("Each traveler must have a passenger name.")
 
-        passenger_link = pax.get("passenger")
-        id_number = (pax.get("id_number") or "").strip() or None
-        date_of_birth = (pax.get("date_of_birth") or "").strip() or None
+		passenger_link = pax.get("passenger")
+		id_number = (pax.get("id_number") or "").strip() or None
+		date_of_birth = (pax.get("date_of_birth") or "").strip() or None
 
-        if not passenger_link and id_number:
-            passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
+		if not passenger_link and id_number:
+			passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
 
-        register_profile = pax.get("register_profile")
-        if register_profile is None:
-            register_profile = not is_office
+		register_profile = pax.get("register_profile")
+		if register_profile is None:
+			register_profile = not is_office
 
-        if is_office:
-            register_profile = False
-        elif frappe.session.user and frappe.session.user != "Guest":
-            register_profile = True
+		if is_office:
+			register_profile = False
+		elif frappe.session.user and frappe.session.user != "Guest":
+			register_profile = True
 
-        if not passenger_link and register_profile:
-            session_user = frappe.session.user if frappe.session.user != "Guest" else None
-            if session_user:
-                passenger_link = frappe.db.get_value("Passenger", {"user": session_user})
+		if not passenger_link and register_profile:
+			session_user = frappe.session.user if frappe.session.user != "Guest" else None
+			if session_user:
+				passenger_link = frappe.db.get_value("Passenger", {"user": session_user})
 
-            email = (pax.get("email") or booking_data.get("payer_email") or "").strip().lower()
-            if not passenger_link and email:
-                passenger_link = frappe.db.get_value("Passenger", {"email": email})
+			email = (pax.get("email") or booking_data.get("payer_email") or "").strip().lower()
+			if not passenger_link and email:
+				passenger_link = frappe.db.get_value("Passenger", {"email": email})
 
-            if not passenger_link and id_number:
-                passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
+			if not passenger_link and id_number:
+				passenger_link = frappe.db.exists("Passenger", {"id_number": id_number})
 
-            if not passenger_link:
-                profile_id = id_number
-                if not profile_id:
-                    if session_user:
-                        safe = session_user.replace("@", "-at-").replace(".", "-")
-                        profile_id = f"WEB-{safe}"
-                        if frappe.db.exists("Passenger", {"id_number": profile_id}):
-                            profile_id = f"WEB-{frappe.generate_hash(length=10)}"
-                    else:
-                        profile_id = f"WEB-{frappe.generate_hash(length=10)}"
+			if not passenger_link:
+				profile_id = id_number
+				if not profile_id:
+					if session_user:
+						safe = session_user.replace("@", "-at-").replace(".", "-")
+						profile_id = f"WEB-{safe}"
+						if frappe.db.exists("Passenger", {"id_number": profile_id}):
+							profile_id = f"WEB-{frappe.generate_hash(length=10)}"
+					else:
+						profile_id = f"WEB-{frappe.generate_hash(length=10)}"
 
-                profile_data = {
-                    "doctype": "Passenger",
-                    "full_name": passenger_name,
-                    "passenger_type": pax.get("passenger_type", "Adult"),
-                    "phone_number": pax.get("phone_number") or booking_data.get("payer_phone"),
-                    "email": email or booking_data.get("payer_email"),
-                    "id_number": profile_id,
-                }
-                if date_of_birth:
-                    profile_data["date_of_birth"] = date_of_birth
-                if session_user:
-                    profile_data["user"] = session_user
-                profile = frappe.get_doc(profile_data)
-                if not session_user:
-                    profile.flags.create_login_user = True
-                profile.insert(ignore_permissions=True)
-                passenger_link = profile.name
+				profile_data = {
+					"doctype": "Passenger",
+					"full_name": passenger_name,
+					"passenger_type": pax.get("passenger_type", "Adult"),
+					"phone_number": pax.get("phone_number") or booking_data.get("payer_phone"),
+					"email": email or booking_data.get("payer_email"),
+					"id_number": profile_id,
+				}
+				if date_of_birth:
+					profile_data["date_of_birth"] = date_of_birth
+				if session_user:
+					profile_data["user"] = session_user
+				profile = frappe.get_doc(profile_data)
+				if not session_user:
+					profile.flags.create_login_user = True
+				profile.insert(ignore_permissions=True)
+				passenger_link = profile.name
 
-        passenger_links.append({
-            "passenger_name": passenger_name,
-            "passenger": passenger_link,
-            "id_number": id_number,
-            "passenger_type": pax.get("passenger_type", "Adult"),
-            "seat_number": pax.get("seat_number"),
-            "fare_paid": 0,
-        })
+		passenger_links.append(
+			{
+				"passenger_name": passenger_name,
+				"passenger": passenger_link,
+				"id_number": id_number,
+				"passenger_type": pax.get("passenger_type", "Adult"),
+				"seat_number": pax.get("seat_number"),
+				"fare_paid": 0,
+			}
+		)
 
-    from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+	from bilan_sky.bilan_air_booking_system.utils.ba_settings_utils import is_seat_selection_enabled
+	from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import (
+		resolve_booking_fare_and_cabin,
+	)
 
-    from bilan_sky.bilan_air_booking_system.utils.seat_class_utils import (
-        resolve_booking_fare_and_cabin,
-    )
+	fare_class_doc, cabin_from_fare = resolve_booking_fare_and_cabin(
+		booking_data.get("seat_class") or booking_data.get("fare_class")
+	)
+	expected_cabin = (booking_data.get("cabin_class") or cabin_from_fare or "").strip()
+	seat_selection_required = is_seat_selection_enabled()
 
-    fare_class_doc, cabin_from_fare = resolve_booking_fare_and_cabin(
-        booking_data.get("seat_class") or booking_data.get("fare_class")
-    )
-    expected_cabin = (booking_data.get("cabin_class") or cabin_from_fare or "").strip()
-    seat_selection_required = is_seat_selection_enabled()
+	for row in passenger_links:
+		if row.get("seat_number"):
+			prepare_seat_for_new_booking(row["seat_number"])
+			if expected_cabin:
+				_validate_seat_matches_cabin(row["seat_number"], expected_cabin)
+		elif seat_selection_required:
+			frappe.throw(_("Select a seat for each passenger."))
 
-    for row in passenger_links:
-        if row.get("seat_number"):
-            prepare_seat_for_new_booking(row["seat_number"])
-            if expected_cabin:
-                _validate_seat_matches_cabin(row["seat_number"], expected_cabin)
-        elif seat_selection_required:
-            frappe.throw(_("Select a seat for each passenger."))
+	schedule_name = booking_data.get("flight_schedule")
+	boarding = booking_data.get("boarding_airport")
+	deboarding = booking_data.get("deboarding_airport")
 
-    schedule_name = booking_data.get("flight_schedule")
-    boarding = booking_data.get("boarding_airport")
-    deboarding = booking_data.get("deboarding_airport")
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
+		get_schedule_segments,
+		schedule_is_multi_segment,
+	)
 
-    from bilan_sky.bilan_air_booking_system.utils.flight_segments import (
-        get_schedule_segments,
-        schedule_is_multi_segment,
-    )
+	if schedule_is_multi_segment(schedule_name):
+		if not boarding or not deboarding:
+			frappe.throw("Select boarding and deboarding airports for this multi-stop flight.")
+	else:
+		segments = get_schedule_segments(schedule_name)
+		if len(segments) == 1:
+			boarding = boarding or segments[0]["origin_airport"]
+			deboarding = deboarding or segments[0]["destination_airport"]
 
-    if schedule_is_multi_segment(schedule_name):
-        if not boarding or not deboarding:
-            frappe.throw("Select boarding and deboarding airports for this multi-stop flight.")
-    else:
-        route = frappe.db.get_value("Flight Schedule", schedule_name, "route")
-        segments = get_schedule_segments(schedule_name)
-        if len(segments) == 1:
-            boarding = boarding or segments[0]["origin_airport"]
-            deboarding = deboarding or segments[0]["destination_airport"]
+	booking = frappe.get_doc(
+		{
+			"doctype": "Air Booking",
+			"flight_schedule": schedule_name,
+			"boarding_airport": boarding,
+			"deboarding_airport": deboarding,
+			"cabin_class": expected_cabin or None,
+			"fare_class": fare_class_doc,
+			"payer_name": booking_data.get("payer_name"),
+			"payer_email": booking_data.get("payer_email"),
+			"payer_phone": booking_data.get("payer_phone"),
+			"passengers": passenger_links,
+			"reservation_status": "Booked",
+			"payment_status": "Pending",
+			"booking_date": now(),
+		}
+	)
 
-    booking = frappe.get_doc({
-        "doctype": "Air Booking",
-        "flight_schedule": schedule_name,
-        "boarding_airport": boarding,
-        "deboarding_airport": deboarding,
-        "cabin_class": expected_cabin or None,
-        "fare_class": fare_class_doc,
-        "payer_name": booking_data.get("payer_name"),
-        "payer_email": booking_data.get("payer_email"),
-        "payer_phone": booking_data.get("payer_phone"),
-        "passengers": passenger_links,
-        "reservation_status": "Booked",
-        "payment_status": "Pending",
-        "booking_date": now()
-    })
-    
-    from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
-        validate_agent_can_create_booking,
-    )
+	from bilan_sky.bilan_air_booking_system.utils.booking_agent import (
+		validate_agent_can_create_booking,
+	)
 
-    agent = validate_agent_can_create_booking()
-    if agent:
-        booking.booking_agent = agent.name
+	agent = validate_agent_can_create_booking()
+	if agent:
+		booking.booking_agent = agent.name
 
-    booking.insert()
+	booking.insert()
 
-    from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
+	from bilan_sky.bilan_air_booking_system.utils.seat_booking import reserve_seat_for_booking
 
-    for passenger in booking.passengers:
-        if not passenger.seat_number:
-            continue
-        result = reserve_seat_for_booking(
-            passenger.seat_number,
-            booking.name,
-            flight_schedule=schedule_name,
-            boarding_airport=boarding,
-            deboarding_airport=deboarding,
-        )
-        if not result.get("success"):
-            frappe.throw(result.get("message") or "Could not reserve seat")
+	for passenger in booking.passengers:
+		if not passenger.seat_number:
+			continue
+		result = reserve_seat_for_booking(
+			passenger.seat_number,
+			booking.name,
+			flight_schedule=schedule_name,
+			boarding_airport=boarding,
+			deboarding_airport=deboarding,
+		)
+		if not result.get("success"):
+			frappe.throw(result.get("message") or "Could not reserve seat")
 
-    booking.calculate_total_fare()
-    booking.flags.ignore_validate = True
-    booking.save(ignore_permissions=True)
-    booking.flags.ignore_validate = False
-    frappe.db.commit()
+	booking.calculate_total_fare()
+	booking.flags.ignore_validate = True
+	booking.save(ignore_permissions=True)
+	booking.flags.ignore_validate = False
+	frappe.db.commit()
 
-    settings = frappe.get_single("BA Settings")
-    hold_minutes = int(settings.hold_duration or 15)
+	settings = frappe.get_single("BA Settings")
+	hold_minutes = int(settings.hold_duration or 15)
 
-    return {
-        "reservation_ref": booking.name,
-        "pnr": booking.pnr,
-        "status": booking.reservation_status,
-        "reservation_status": booking.reservation_status,
-        "payment_status": booking.payment_status,
-        "total_fare": booking.total_fare,
-        "hold_duration_minutes": hold_minutes,
-    }
+	return {
+		"reservation_ref": booking.name,
+		"pnr": booking.pnr,
+		"status": booking.reservation_status,
+		"reservation_status": booking.reservation_status,
+		"payment_status": booking.payment_status,
+		"total_fare": booking.total_fare,
+		"hold_duration_minutes": hold_minutes,
+	}
+
 
 @frappe.whitelist(allow_guest=True)
 def process_payment(pnr, payment_method, transaction_id=None):
-    """Confirm payment: invoice, payment entry, and booking confirmation."""
-    
-    booking = _load_booking(pnr)
-    
-    if booking.payment_status == "Paid" and booking.payment_entry:
-        return {"error": "Booking already paid"}
+	"""Confirm payment: invoice, payment entry, and booking confirmation."""
 
-    booking.payment_method = payment_method
-    result = booking.confirm_payment_and_invoice()
-    result["pnr"] = booking.pnr
-    result["reservation_ref"] = booking.name
-    result["total"] = booking.total_fare
-    return result
+	booking = _load_booking(pnr)
+
+	if booking.payment_status == "Paid" and booking.payment_entry:
+		return {"error": "Booking already paid"}
+
+	booking.payment_method = payment_method
+	result = booking.confirm_payment_and_invoice()
+	result["pnr"] = booking.pnr
+	result["reservation_ref"] = booking.name
+	result["total"] = booking.total_fare
+	return result
+
 
 @frappe.whitelist()
 def generate_tickets_for_booking(pnr):
@@ -370,29 +377,33 @@ def _serialize_booking_details(booking):
 		if pax.seat_number and frappe.db.exists("Seat Inventory", pax.seat_number):
 			seat_label = frappe.db.get_value("Seat Inventory", pax.seat_number, "seat_number") or seat_label
 
-		passengers.append({
-			"row_name": pax.name,
-			"name": pax.passenger_name,
-			"passenger": pax.passenger,
-			"id_number": pax.id_number,
-			"type": passenger_type,
-			"seat": pax.seat_number,
-			"seat_label": seat_label,
-			"seat_class": _seat_class_label(pax.seat_number),
-			"baggage_policy": _baggage_policy(seat_inventory_name=pax.seat_number),
-			"ticket_number": pax.ticket_number,
-			"check_in_status": pax.check_in_status,
-			"can_print_ticket": _passenger_can_print_ticket(booking, pax),
-		})
+		passengers.append(
+			{
+				"row_name": pax.name,
+				"name": pax.passenger_name,
+				"passenger": pax.passenger,
+				"id_number": pax.id_number,
+				"type": passenger_type,
+				"seat": pax.seat_number,
+				"seat_label": seat_label,
+				"seat_class": _seat_class_label(pax.seat_number),
+				"baggage_policy": _baggage_policy(seat_inventory_name=pax.seat_number),
+				"ticket_number": pax.ticket_number,
+				"check_in_status": pax.check_in_status,
+				"can_print_ticket": _passenger_can_print_ticket(booking, pax),
+			}
+		)
 
 	flight = frappe.get_doc("Flight Schedule", booking.flight_schedule, ignore_permissions=True)
 	route = frappe.get_doc("Flight Route", flight.route, ignore_permissions=True)
 	origin_iata = get_airport_iata(route.origin_airport) or route.origin_airport
 	dest_iata = get_airport_iata(route.destination_airport) or route.destination_airport
 	check_in_window = _check_in_window_status(booking.flight_schedule)
-	all_checked_in = all(
-		p.check_in_status in ("Checked In", "Boarded") for p in booking.passengers
-	) if booking.passengers else False
+	all_checked_in = (
+		all(p.check_in_status in ("Checked In", "Boarded") for p in booking.passengers)
+		if booking.passengers
+		else False
+	)
 
 	return {
 		"reservation_ref": booking.name,
@@ -422,8 +433,12 @@ def _serialize_booking_details(booking):
 		"flight_schedule": booking.flight_schedule,
 		"boarding_airport": booking.boarding_airport,
 		"deboarding_airport": booking.deboarding_airport,
-		"boarding_label": airport_display_label(booking.boarding_airport) if booking.boarding_airport else None,
-		"deboarding_label": airport_display_label(booking.deboarding_airport) if booking.deboarding_airport else None,
+		"boarding_label": airport_display_label(booking.boarding_airport)
+		if booking.boarding_airport
+		else None,
+		"deboarding_label": airport_display_label(booking.deboarding_airport)
+		if booking.deboarding_airport
+		else None,
 		"flight": {
 			"flight_number": flight.flight_number,
 			"schedule_id": flight.name,
@@ -707,9 +722,10 @@ def get_boarding_pass_print_data(pnr, passenger_row=None, passenger_index=None):
 
 @frappe.whitelist(allow_guest=True)
 def fetch_booking_details(pnr):
-    """Get booking by reservation ref (RES-…) or customer PNR."""
-    booking = _load_booking(pnr, ignore_permissions=True)
-    return _serialize_booking_details(booking)
+	"""Get booking by reservation ref (RES-…) or customer PNR."""
+	booking = _load_booking(pnr, ignore_permissions=True)
+	return _serialize_booking_details(booking)
+
 
 @frappe.whitelist(allow_guest=True)
 def cancel_booking(pnr, reason_for_cancel=None, refund_type=None, refund_amount=None):
@@ -798,47 +814,49 @@ def self_check_in_all(pnr, last_name=None):
 		"boarding_passes": _boarding_passes_for_booking(booking),
 	}
 
+
 @frappe.whitelist()
 def process_check_in(pnr, passenger_index, baggage_weight=0):
-    """Check in a passenger; optional baggage_weight (kg) creates a baggage tag."""
-    
-    booking = _load_booking(pnr)
-    result = booking.check_in_passenger(int(passenger_index), float(baggage_weight or 0))
-    
-    return result
+	"""Check in a passenger; optional baggage_weight (kg) creates a baggage tag."""
+
+	booking = _load_booking(pnr)
+	result = booking.check_in_passenger(int(passenger_index), float(baggage_weight or 0))
+
+	return result
+
 
 @frappe.whitelist()
 def mark_boarded(pnr, passenger_index):
-    """Mark passenger as boarded"""
-    
-    booking = _load_booking(pnr)
-    result = booking.board_passenger(int(passenger_index))
-    
-    return result
+	"""Mark passenger as boarded"""
+
+	booking = _load_booking(pnr)
+	result = booking.board_passenger(int(passenger_index))
+
+	return result
 
 
 @frappe.whitelist()
 def check_in_all_passengers(pnr):
-    booking = _load_booking(pnr)
-    return booking.check_in_all_passengers()
+	booking = _load_booking(pnr)
+	return booking.check_in_all_passengers()
 
 
 @frappe.whitelist()
 def board_all_passengers(pnr):
-    booking = _load_booking(pnr)
-    return booking.board_all_passengers()
+	booking = _load_booking(pnr)
+	return booking.board_all_passengers()
 
 
 @frappe.whitelist()
 def mark_booking_arrived(pnr):
-    booking = _load_booking(pnr)
-    return booking.mark_arrived()
+	booking = _load_booking(pnr)
+	return booking.mark_arrived()
 
 
 @frappe.whitelist()
 def create_sales_invoice_from_booking(pnr, submit=0):
-    booking = _load_booking(pnr)
-    return booking.create_sales_invoice(submit=frappe.utils.cint(submit))
+	booking = _load_booking(pnr)
+	return booking.create_sales_invoice(submit=frappe.utils.cint(submit))
 
 
 @frappe.whitelist()
@@ -872,12 +890,12 @@ def get_payment_confirmation_options():
 
 @frappe.whitelist()
 def confirm_payment_and_invoice_from_booking(pnr, payment_method=None, paid_account=None):
-    booking = _load_booking(pnr)
-    booking.check_permission("write")
-    return booking.confirm_payment_and_invoice(
-        payment_method=payment_method,
-        paid_account=paid_account,
-    )
+	booking = _load_booking(pnr)
+	booking.check_permission("write")
+	return booking.confirm_payment_and_invoice(
+		payment_method=payment_method,
+		paid_account=paid_account,
+	)
 
 
 @frappe.whitelist()
@@ -895,8 +913,8 @@ def get_booking_journey_options(pnr):
 	"""Airports available for boarding/deboarding on this booking's schedule."""
 	booking = _load_booking(pnr)
 	booking.check_permission("read")
-	from bilan_sky.bilan_air_booking_system.utils.flight_segments import default_journey_airports
 	from bilan_sky.bilan_air_booking_system.utils.airports import airport_display_label
+	from bilan_sky.bilan_air_booking_system.utils.flight_segments import default_journey_airports
 
 	defaults = default_journey_airports(booking.flight_schedule)
 	airports = []
@@ -939,4 +957,3 @@ def change_booking_flight(pnr, flight_schedule, boarding_airport=None, deboardin
 	result = _change(booking, flight_schedule, boarding_airport, deboarding_airport)
 	result["booking"] = _serialize_booking_details(_load_booking(pnr))
 	return result
-

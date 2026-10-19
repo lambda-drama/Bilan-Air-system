@@ -30,7 +30,7 @@ def _as_date(day: date | datetime | str | None) -> date | None:
 
 
 def _julian_day_of_year(day: date | datetime | str | None) -> str:
-	"""IATA flight date field: day-of-year as 3 digits (001–366)."""
+	"""IATA flight date field: day-of-year as 3 digits (001-366)."""
 	d = _as_date(day)
 	if not d:
 		return "001"

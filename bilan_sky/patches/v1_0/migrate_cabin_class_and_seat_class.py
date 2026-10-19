@@ -1,7 +1,6 @@
 import frappe
 from frappe.utils import cint, flt
 
-
 DEFAULT_CABINS = [
 	{"cabin_name": "Economy", "display_order": 1},
 	{"cabin_name": "Business", "display_order": 2},

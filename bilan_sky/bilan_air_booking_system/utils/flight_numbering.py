@@ -41,9 +41,7 @@ def format_multi_segment_route_name(segments) -> str:
 
 	ordered = sorted(
 		segments,
-		key=lambda r: cint(
-			r.segment_index if hasattr(r, "segment_index") else r.get("segment_index", 0)
-		),
+		key=lambda r: cint(r.segment_index if hasattr(r, "segment_index") else r.get("segment_index", 0)),
 	)
 	if len(ordered) < 2:
 		frappe.throw(
@@ -92,9 +90,7 @@ def ensure_route_series_base(route_doc) -> int:
 	base = get_next_flight_series_base()
 	route_doc.flight_series_base = base
 	if route_doc.name and not route_doc.is_new():
-		frappe.db.set_value(
-			"Flight Route", route_doc.name, "flight_series_base", base, update_modified=False
-		)
+		frappe.db.set_value("Flight Route", route_doc.name, "flight_series_base", base, update_modified=False)
 	return base
 
 

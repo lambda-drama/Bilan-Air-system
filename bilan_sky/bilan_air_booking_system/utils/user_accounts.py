@@ -49,9 +49,7 @@ def create_or_get_user(
 			_ensure_customer_role()
 		if not frappe.db.exists("Role", resolved_role):
 			frappe.throw(
-				_("Role {0} is not set up. Run bench migrate or add the role in Desk.").format(
-					resolved_role
-				)
+				_("Role {0} is not set up. Run bench migrate or add the role in Desk.").format(resolved_role)
 			)
 
 	if frappe.db.exists("User", email):

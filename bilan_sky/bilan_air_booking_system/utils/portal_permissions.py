@@ -73,8 +73,7 @@ def get_doc_action_flags(doc) -> dict[str, int]:
 	doctype = doc.doctype
 	return {
 		"can_read": int(
-			has_portal_read_permission(doctype)
-			and frappe.has_permission(doctype, "read", doc=doc)
+			has_portal_read_permission(doctype) and frappe.has_permission(doctype, "read", doc=doc)
 		),
 		"can_write": int(frappe.has_permission(doctype, "write", doc=doc)),
 		"can_delete": int(frappe.has_permission(doctype, "delete", doc=doc)),
@@ -188,9 +187,7 @@ def require_doc_permission(doc, ptype: str = "read") -> None:
 	if user_has_full_portal_permissions():
 		return
 	if ptype == "read":
-		if has_portal_read_permission(doc.doctype) and frappe.has_permission(
-			doc.doctype, "read", doc=doc
-		):
+		if has_portal_read_permission(doc.doctype) and frappe.has_permission(doc.doctype, "read", doc=doc):
 			return
 	elif frappe.has_permission(doc.doctype, ptype, doc=doc):
 		return

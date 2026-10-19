@@ -31,9 +31,7 @@ def execute():
 				new_status,
 				update_modified=False,
 			)
-		frappe.db.sql(
-			"ALTER TABLE `tabAir Booking` DROP COLUMN `_legacy_booking_status`"
-		)
+		frappe.db.sql("ALTER TABLE `tabAir Booking` DROP COLUMN `_legacy_booking_status`")
 	elif frappe.db.has_column("Air Booking", "booking_status"):
 		rows = frappe.db.sql(
 			"""

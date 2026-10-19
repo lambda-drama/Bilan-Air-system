@@ -18,11 +18,22 @@ def execute():
 	if frappe.db.has_column("Flight Route", "base_fare_adult"):
 		for route in frappe.get_all(
 			"Flight Route",
-			fields=["name", "base_fare", "base_fares", "base_fare_adult", "base_fare_child", "base_fare_infant"],
+			fields=[
+				"name",
+				"base_fare",
+				"base_fares",
+				"base_fare_adult",
+				"base_fare_child",
+				"base_fare_infant",
+			],
 		):
 			if route.base_fare_adult not in (None, ""):
 				continue
-			raw = _parse_json_field(route.base_fares) if frappe.db.has_column("Flight Route", "base_fares") else None
+			raw = (
+				_parse_json_field(route.base_fares)
+				if frappe.db.has_column("Flight Route", "base_fares")
+				else None
+			)
 			adult = None
 			child = None
 			infant = None

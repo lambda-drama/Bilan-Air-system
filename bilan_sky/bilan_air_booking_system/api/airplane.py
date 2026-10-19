@@ -2,13 +2,16 @@
 
 import frappe
 
+
 @frappe.whitelist(allow_guest=True)
 def fetch_all_airplanes():
-    """Get all active airplanes"""
-    return frappe.get_all("Airplane",
-        filters={"status": "Active"},
-        fields=["name", "registration_number", "aircraft_model", "airline", "total_seats"]
-    )
+	"""Get all active airplanes"""
+	return frappe.get_all(
+		"Airplane",
+		filters={"status": "Active"},
+		fields=["name", "registration_number", "aircraft_model", "airline", "total_seats"],
+	)
+
 
 @frappe.whitelist(allow_guest=True)
 def fetch_airplane_seat_config(airplane_name):

@@ -65,7 +65,10 @@ def reserve_seat_for_booking(
 		).insert(ignore_permissions=True)
 
 		frappe.db.commit()
-		return {"success": True, "message": _("Seat {0} reserved for selected journey.").format(seat.seat_number)}
+		return {
+			"success": True,
+			"message": _("Seat {0} reserved for selected journey.").format(seat.seat_number),
+		}
 
 	return seat.reserve(booking_name, hold_minutes=hold_minutes)
 
@@ -102,10 +105,6 @@ def release_seat_for_booking(seat_name: str, booking_name: str | None = None) ->
 		for row in frappe.get_all("Seat Segment Allocation", filters=filters, pluck="name"):
 			frappe.db.set_value("Seat Segment Allocation", row, "status", "Cancelled")
 
-		remaining = frappe.db.count(
-			"Seat Segment Allocation",
-			{"seat_inventory": seat_name, "status": ["in", ["Hold", "Booked"]]},
-		)
 		frappe.db.commit()
 		return {"success": True, "message": _("Seat {0} released.").format(seat.seat_number)}
 

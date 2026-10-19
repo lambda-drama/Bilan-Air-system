@@ -42,8 +42,7 @@ async function preview_route_name(frm) {
 			destination_airport: row.destination_airport,
 		}));
 		const r = await frappe.call({
-			method:
-				"bilan_sky.bilan_air_booking_system.doctype.flight_route.flight_route.preview_route_name",
+			method: "bilan_sky.bilan_air_booking_system.doctype.flight_route.flight_route.preview_route_name",
 			args: {
 				is_multi_segment: 1,
 				segments,
@@ -64,8 +63,7 @@ async function preview_route_name(frm) {
 	}
 
 	const r = await frappe.call({
-		method:
-			"bilan_sky.bilan_air_booking_system.doctype.flight_route.flight_route.preview_route_name",
+		method: "bilan_sky.bilan_air_booking_system.doctype.flight_route.flight_route.preview_route_name",
 		args: {
 			origin_airport: frm.doc.origin_airport,
 			destination_airport: frm.doc.destination_airport,

@@ -20,20 +20,24 @@ class FlightSchedulePlan(Document):
 
 	def validate(self):
 		from bilan_sky.bilan_air_booking_system.utils.crew_filters import validate_flight_crew_pilots
+
 		validate_flight_crew_pilots(self)
 
 		if getdate(self.end_date) < getdate(self.start_date):
 			frappe.throw(_("End Date cannot be before Start Date."))
 		if self.frequency == "Weekly":
-			if not any(cint(self.get(day)) for day, _ in (
-				("sunday", 6),
-				("monday", 0),
-				("tuesday", 1),
-				("wednesday", 2),
-				("thursday", 3),
-				("friday", 4),
-				("saturday", 5),
-			)):
+			if not any(
+				cint(self.get(day))
+				for day, _ in (
+					("sunday", 6),
+					("monday", 0),
+					("tuesday", 1),
+					("wednesday", 2),
+					("thursday", 3),
+					("friday", 4),
+					("saturday", 5),
+				)
+			):
 				frappe.throw(_("Select at least one weekday for a weekly plan."))
 		if self.frequency == "Monthly" and not cint(self.monthly_day):
 			self.monthly_day = getdate(self.start_date).day
@@ -85,15 +89,13 @@ class FlightSchedulePlan(Document):
 
 	def on_update(self):
 		from bilan_sky.bilan_air_booking_system.utils.flight_schedule_plan import (
+			_plan_seat_class_quotas_changed,
 			plan_changes_require_schedule_sync,
 			sync_generated_schedules_from_plan,
 			sync_plan_seat_reserves_from_plan,
-			_plan_seat_class_quotas_changed,
 		)
 
 		if plan_changes_require_schedule_sync(self):
 			self.flags.schedule_sync_result = sync_generated_schedules_from_plan(self.name, plan=self)
 		elif _plan_seat_class_quotas_changed(self):
-			self.flags.schedule_seat_sync_result = sync_plan_seat_reserves_from_plan(
-				self.name, plan=self
-			)
+			self.flags.schedule_seat_sync_result = sync_plan_seat_reserves_from_plan(self.name, plan=self)

@@ -4,8 +4,8 @@ import frappe
 from frappe.utils import cint
 
 from bilan_sky.bilan_air_booking_system.utils.seat_release import (
-	apply_release_status_to_schedule,
 	aircraft_capacity,
+	apply_release_status_to_schedule,
 )
 
 
